@@ -1,0 +1,5 @@
+# Dependencias de ejecución (versiones verificadas en las pruebas)
+fastapi==0.136.3
+uvicorn==0.35.0
+pydantic==2.12.5
+tzdata>=2024.1        # base de zonas horarias (necesaria en Windows)

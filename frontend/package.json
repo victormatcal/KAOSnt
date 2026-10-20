@@ -1,0 +1,21 @@
+{
+  "name": "centro-trabajo-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Frontend de Centro de trabajo (React + TypeScript). Se compila a frontend/dist y lo sirve el backend.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node tools/bundle.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsc -p tsconfig.test.json && node --test build-test/tests/*.test.js"
+  },
+  "dependencies": {
+    "react": "19.2.1",
+    "react-dom": "19.2.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/node": "^22.0.0",
+    "typescript": ">=5.9 <7"
+  }
+}

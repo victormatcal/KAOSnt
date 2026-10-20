@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": { "outDir": "../../build-test", "rootDir": "../..", "types": [] },
+  "include": ["../../src/**/*.ts", "../../src/**/*.tsx", "../../tests/**/*.ts", "../../tests/**/*.tsx", "shims.d.ts", "node-shims.d.ts"]
+}
