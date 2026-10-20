@@ -1,6 +1,5 @@
 // Micro-empaquetador CommonJS → un único archivo para el navegador.
-// Toma la salida de `tsc` (build/src) y las dependencias de React desde node_modules.
-// Sin dependencias adicionales (no requiere Vite/webpack/esbuild) y sin acceso a Internet.
+// Toma la salida de `tsc` (build/src) y React desde node_modules. Sin dependencias extra ni Internet.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,8 +8,6 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const entry = path.join(root, "build", "src", "main.js");
 const dist = path.join(root, "dist");
 const searchDirs = [path.join(root, "node_modules"), ...(process.env.NODE_PATH || "").split(path.delimiter).filter(Boolean)];
-
-// Se usan directamente las compilaciones de producción de React
 const ALIASES = {
   "react": "react/cjs/react.production.js",
   "react/jsx-runtime": "react/cjs/react-jsx-runtime.production.js",
@@ -30,37 +27,28 @@ function resolvePkg(spec) {
 }
 
 function resolve(from, spec) {
-  if (spec.startsWith(".")) {
-    const base = path.resolve(path.dirname(from), spec);
-    for (const c of [base, base + ".js", path.join(base, "index.js")]) if (fs.existsSync(c) && fs.statSync(c).isFile()) return c;
-    throw new Error(`No se resuelve ${spec} desde ${from}`);
-  }
-  return resolvePkg(spec);
+  if (!spec.startsWith(".")) return resolvePkg(spec);
+  const base = path.resolve(path.dirname(from), spec);
+  for (const c of [base, base + ".js", path.join(base, "index.js")]) if (fs.existsSync(c) && fs.statSync(c).isFile()) return c;
+  throw new Error(`No se resuelve ${spec} desde ${from}`);
 }
 
 const modules = new Map();
 function add(file) {
   if (modules.has(file)) return modules.get(file).id;
-  const id = modules.size;
-  const rec = { id, code: "", deps: {} };
+  const rec = { id: modules.size, code: "", deps: {} };
   modules.set(file, rec);
-  let code = fs.readFileSync(file, "utf8").replace(/process\.env\.NODE_ENV/g, '"production"');
-  code = code.replace(/^\/\/# sourceMappingURL=.*$/m, "");
+  let code = fs.readFileSync(file, "utf8").replace(/process\.env\.NODE_ENV/g, '"production"').replace(/^\/\/# sourceMappingURL=.*$/m, "");
   const re = /\brequire\(\s*["']([^"']+)["']\s*\)/g;
   let m;
-  while ((m = re.exec(code))) {
-    const spec = m[1];
-    if (!(spec in rec.deps)) rec.deps[spec] = add(resolve(file, spec));
-  }
+  while ((m = re.exec(code))) if (!(m[1] in rec.deps)) rec.deps[m[1]] = add(resolve(file, m[1]));
   rec.code = code;
-  return id;
+  return rec.id;
 }
 
 const entryId = add(entry);
-let out = `/* Centro de trabajo — bundle local generado por tools/bundle.mjs. Incluye React (licencia MIT). */\n(function(){"use strict";\nvar process={env:{NODE_ENV:"production"}};\nvar defs={};var cache={};\nfunction req(id){if(cache[id])return cache[id].exports;var m={exports:{}};cache[id]=m;defs[id][0].call(m.exports,m,m.exports,function(s){var d=defs[id][1][s];if(d===undefined)throw new Error("Módulo no encontrado: "+s);return req(d);});return m.exports;}\n`;
-for (const [file, rec] of modules) {
-  out += `defs[${rec.id}]=[function(module,exports,require){\n${rec.code}\n},${JSON.stringify(rec.deps)}]; // ${path.relative(root, file).replace(/\\/g, "/")}\n`;
-}
+let out = `/* KAOSnt — bundle local generado por tools/bundle.mjs. Incluye React (licencia MIT). */\n(function(){"use strict";\nvar process={env:{NODE_ENV:"production"}};var defs={};var cache={};\nfunction req(id){if(cache[id])return cache[id].exports;var m={exports:{}};cache[id]=m;defs[id][0].call(m.exports,m,m.exports,function(s){var d=defs[id][1][s];if(d===undefined)throw new Error("Módulo no encontrado: "+s);return req(d);});return m.exports;}\n`;
+for (const [file, rec] of modules) out += `defs[${rec.id}]=[function(module,exports,require){\n${rec.code}\n},${JSON.stringify(rec.deps)}]; // ${path.relative(root, file).replace(/\\/g, "/")}\n`;
 out += `req(${entryId});\n})();\n`;
 
 fs.rmSync(dist, { recursive: true, force: true });

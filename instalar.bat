@@ -10,11 +10,11 @@ if not exist ".venv\Scripts\python.exe" (
 )
 ".venv\Scripts\python.exe" -m pip install --disable-pip-version-check -r requirements.txt || goto :error
 echo.
-echo Instalacion completada. Usa iniciar.bat para abrir Centro de trabajo.
+echo Instalacion completada. Usa iniciar.bat para abrir KAOSnt.
 pause
 exit /b 0
 :error
 echo.
-echo ERROR durante la instalacion. Revisa el mensaje anterior (proxy, permisos o version de Python 3.10+).
+echo ERROR durante la instalacion. Revisa el mensaje anterior (proxy, permisos o Python 3.10+).
 pause
 exit /b 1

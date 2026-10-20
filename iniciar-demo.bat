@@ -1,3 +1,3 @@
 @echo off
-rem Abre una instancia con DATOS FICTICIOS, separada de tus datos reales (otra carpeta y otro puerto).
-call "%~dp0iniciar.bat" --demo --port 8766
+rem Instancia con DATOS FICTICIOS, separada de tus datos reales (carpeta KAOSnt-demo, puerto 8766).
+call "%~dp0iniciar.bat" --demo

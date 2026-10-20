@@ -1,7 +1,6 @@
 // Solo para entornos sin @types/react (sandbox de desarrollo). Con `npm install` se usan los tipos reales.
 declare module "react" {
   export type ReactNode = any;
-  export type FC<P = {}> = (props: P) => any;
   export type Dispatch<A> = (value: A) => void;
   export type SetStateAction<S> = S | ((prev: S) => S);
   export interface MutableRefObject<T> { current: T }
@@ -20,17 +19,12 @@ declare module "react" {
   export function createContext<T>(v: T): Context<T>;
   export const Fragment: any;
   export const StrictMode: any;
-  export type KeyboardEvent<T = any> = any;
-  export type ChangeEvent<T = any> = any;
-  export type FormEvent<T = any> = any;
-  export type MouseEvent<T = any> = any;
-  export type DragEvent<T = any> = any;
   const React: any;
   export default React;
 }
 declare module "react/jsx-runtime" { export const jsx: any; export const jsxs: any; export const Fragment: any; }
 declare module "react-dom/client" { export function createRoot(el: any): { render(n: any): void }; }
-declare module "react-dom/server" { export function renderToStaticMarkup(n: any): string; export function renderToString(n: any): string; }
+declare module "react-dom/server" { export function renderToStaticMarkup(n: any): string; }
 declare namespace JSX {
   type Element = any;
   interface IntrinsicElements { [k: string]: any }

@@ -1,122 +1,84 @@
-# Centro de trabajo · v0.1.0
+# KAOSnt · v0.2.0
 
-Aplicación web **local** para organizar trabajo propio y de equipo: captura rápida de tareas y notas, resumen
-«Hoy», proyectos con «Dónde lo dejamos», Kanban/lista/calendario, equipo y planificación semanal sencilla.
+Aplicación web **local** para organizar trabajo propio y de equipo: captura rápida de tareas y notas, resumen «Hoy»,
+proyectos con «Dónde lo dejamos», Kanban/lista/calendario, equipo con festivos por oficina y planificación semanal.
 
 - Un único usuario, sin cuentas. Funciona **sin Internet** una vez instalada.
-- Escucha solo en `127.0.0.1`. Sin telemetría, sin CDN, sin IA integrada, sin APIs externas.
+- Escucha solo en `127.0.0.1`. Sin telemetría, CDN, IA integrada ni APIs externas.
 - No es una herramienta oficial de ninguna organización y no usa logotipos corporativos.
 
-> **Sin inicio de sesión no significa seguro.** Cualquier persona o proceso con acceso a tu sesión de Windows
-> puede abrir la aplicación y leer la base de datos. Ver [Seguridad y límites](docs/SEGURIDAD.md).
-
----
+> **Sin inicio de sesión no significa seguro.** Ver [docs/SEGURIDAD.md](docs/SEGURIDAD.md).
+> Novedades de esta versión: [docs/CAMBIOS.md](docs/CAMBIOS.md).
 
 ## 1. Decisiones principales
 
-| Tema | Decisión | Motivo |
-|---|---|---|
-| Backend | Python 3.10+ · FastAPI · SQLite (WAL) | Ligero, un solo proceso, validación con Pydantic. |
-| Frontend | React 19 + TypeScript, **compilado y entregado** en `frontend/dist` | El uso diario no necesita Node: el backend sirve el bundle. |
-| Empaquetado | `tsc` + micro-empaquetador propio (`frontend/tools/bundle.mjs`) | Sin Vite/webpack: menos dependencias, todo local. |
-| Docker | No se usa | No aporta en un único equipo Windows y añade mantenimiento. |
-| Datos | `%LOCALAPPDATA%\CentroTrabajo\` (fuera del código) | Actualizar la app nunca toca los datos. |
-| Migraciones | SQL numerado + `PRAGMA user_version`, copia previa automática | Evolución segura del esquema. |
-| Búsqueda | Por contenido en Python, insensible a acentos y mayúsculas | Simple y suficiente para un usuario. |
-| Markdown | Renderizador propio que genera elementos React (nunca `innerHTML`) | Bloquea HTML/scripts y no descarga recursos. |
-
-Detalles menores adoptados (documentados para revisión):
-- Una tarea nueva entra en **Pendiente** (o Backlog si se elige). Al pasar a *En curso* se registra la fecha de inicio real si no existía; al pasar a *Hecha*, la de finalización. Ambas son editables.
-- **Actualización significativa** = cambio de estado, de condición (espera/bloqueo), de descripción, «Registrar actualización» o «Seguimiento realizado». Abrir, reordenar, cambiar prioridad o fechas **no** reinicia el seguimiento.
-- **Hoy**: cada tarea aparece una sola vez, en la primera sección que le corresponde (Vence → Revisar → Bloqueos externos → Depende de mí); el resto de señales se muestran como etiquetas en la tarjeta.
-- **Hitos** tienen tipo: hito, decisión pendiente o compromiso (una sola entidad).
-- **Recurrencias**: se generan ocurrencias hasta 7 días vista (configurable). Tras un periodo cerrada, solo se crea la última ocurrencia perdida.
-- **Planificación**: cuenta el reparto semanal explícito o, si no hay, la estimación completa en la semana de la fecha planificada. Nunca reparte automáticamente.
+| Tema | Decisión |
+|---|---|
+| Backend | Python 3.10+ · FastAPI · SQLite (WAL), un solo proceso |
+| Frontend | React 19 + TypeScript, **compilado y entregado** en `frontend/dist` (el uso diario no necesita Node) |
+| Empaquetado | `tsc` + micro-empaquetador propio (`frontend/tools/bundle.mjs`), sin dependencias extra |
+| Datos | `%LOCALAPPDATA%\KAOSnt\` (fuera del código). Demo en `%LOCALAPPDATA%\KAOSnt-demo\` |
+| Migraciones | SQL numerado + `PRAGMA user_version`, con copia previa automática |
+| Markdown | Renderizador propio que genera elementos React (nunca `innerHTML`) |
 
 ## 2. Estructura
 
 ```
-centro-trabajo/
+kaosnt/
 ├─ instalar.bat · iniciar.bat · iniciar-demo.bat · detener.bat · ejecutar-pruebas.bat
 ├─ requirements.txt · requirements-dev.txt
 ├─ backend/
-│  ├─ centro/
-│  │  ├─ __main__.py        arranque (puerto, navegador, instancia única, cierre)
-│  │  ├─ app.py             API REST, seguridad (Host/Origin/cabecera), servido del frontend
-│  │  ├─ config.py · db.py · settings.py · timeutil.py · schemas.py · errors.py
-│  │  ├─ tasks.py           tareas, condición espera/bloqueo, dependencias sin ciclos, historial
-│  │  ├─ notes.py           notas, título sugerido, versión, papelera, nota→tarea
-│  │  ├─ recurrence.py      plantillas y ocurrencias
-│  │  ├─ reminders.py       centro de recordatorios con deduplicación persistente
-│  │  ├─ views.py           Hoy, proyecto, persona, planificación semanal
-│  │  ├─ search.py · backup.py (copias, exportación, restauración) · demo.py
-│  │  └─ migrations/001_inicial.sql
-│  ├─ tests/                pytest (criterios de aceptación, seguridad, lógica)
+│  ├─ kaosnt/            app.py (API y seguridad) · tasks.py · notes.py · recurrence.py · reminders.py
+│  │                     views.py (Hoy, proyecto, persona, planificación) · agenda.py (oficinas, festivos, calendario)
+│  │                     search.py · backup.py · demo.py · config.py · db.py · settings.py · timeutil.py · schemas.py
+│  │   └─ migrations/    001_inicial.sql · 002_v02.sql
+│  ├─ tests/             pytest (criterios de aceptación, seguridad, novedades 0.2)
 │  └─ tools/gen_frontend_fixture.py
-├─ frontend/
-│  ├─ src/ (App.tsx, views/, components/, lib/)   código fuente React + TS
-│  ├─ dist/                 bundle compilado que sirve el backend (incluido)
-│  ├─ tests/                pruebas node:test (lógica y renderizado sin navegador)
-│  └─ tools/bundle.mjs · tools/sandbox/ (tipos mínimos para compilar sin npm)
-└─ docs/ GUIA_USO.md · MODELO_DATOS.md · PRUEBAS.md · SEGURIDAD.md
+├─ frontend/  src/ (App.tsx, views/, components/, lib/) · dist/ (compilado) · tests/ · tools/
+└─ docs/      GUIA_USO.md · MODELO_DATOS.md · PRUEBAS.md · SEGURIDAD.md · CAMBIOS.md
 ```
 
 ## 3. Instalación en Windows (una vez, con conexión)
 
-Requisitos: **Python 3.10 o superior** (`py -3 --version`). Node **no** es necesario para usar la aplicación.
+Requisito: **Python 3.10 o superior** (`py -3 --version`). Node no es necesario para usar la aplicación.
 
-1. Copia la carpeta `centro-trabajo` a una ruta tuya, p. ej. `C:\Users\<tú>\Apps\centro-trabajo`.
-2. Doble clic en **`instalar.bat`**. Crea `.venv` y descarga FastAPI, Uvicorn, Pydantic y tzdata.
-   - Si tu red usa proxy: `set HTTPS_PROXY=http://proxy:puerto` antes de ejecutarlo, o pide el paquete de dependencias autorizado.
+1. Copia la carpeta `kaosnt` a una ruta tuya (p. ej. `C:\Users\<tú>\Apps\kaosnt`).
+2. Doble clic en **`instalar.bat`** (crea `.venv` e instala FastAPI, Uvicorn, Pydantic y tzdata).
 
 ## 4. Uso diario
 
-- **Iniciar**: doble clic en `iniciar.bat`. Se abre una consola minimizada y el navegador en `http://127.0.0.1:8765`.
-  Si ya estaba en marcha, solo abre el navegador. Funciona sin Internet.
-- **Cerrar** (controlado; vacía el registro de SQLite): *Configuración → Cerrar aplicación*, o `detener.bat`, o `Ctrl+C` en la consola.
-- **Demo con datos ficticios**: `iniciar-demo.bat` (carpeta `%LOCALAPPDATA%\CentroTrabajo-demo`, puerto 8766). Nunca toca tus datos reales.
-- Opciones: `iniciar.bat --port 8800`, `--data-dir D:\MisDatos\Centro`, `--no-browser`. También variables `CENTRO_DATA_DIR` y `CENTRO_PORT`.
+- **Iniciar**: `iniciar.bat` → consola minimizada y navegador en `http://127.0.0.1:8765`. Sin Internet.
+- **Demo** (datos ficticios, separados): `iniciar-demo.bat` → `http://127.0.0.1:8766`.
+- **Cerrar** (controlado): *Configuración → Cerrar aplicación*, `detener.bat` (demo: `detener.bat 8766`) o `Ctrl+C` en la consola.
+- Opciones: `--port N`, `--data-dir RUTA`, `--no-browser`; variables `KAOSNT_DATA_DIR`, `KAOSNT_PORT`.
 
-## 5. Actualización
+## 5. Actualizar desde la 0.1 («Centro de trabajo») o entre versiones
 
-1. Haz una **exportación completa** (Configuración → Exportar) por precaución.
-2. Cierra la aplicación.
-3. Sustituye las carpetas `backend/`, `frontend/` y los `.bat` por los de la nueva versión. **No borres** `%LOCALAPPDATA%\CentroTrabajo`.
-4. Ejecuta `instalar.bat` (actualiza dependencias si cambiaron) e `iniciar.bat`.
-5. Si hay migraciones de esquema, se aplican solas y antes se crea `copias\centro-…-previa-migracion.db`.
+1. Haz una **exportación completa** (Configuración → Exportar) y cierra la aplicación anterior (`detener.bat`).
+2. Sustituye la carpeta del programa por la nueva (no toques `%LOCALAPPDATA%`). Ejecuta `instalar.bat` e `iniciar.bat`.
+3. Al arrancar, la 0.2 **renombra** `%LOCALAPPDATA%\CentroTrabajo` → `KAOSnt` (y `-demo`), y `centro.db` → `kaosnt.db`,
+   crea `copias\kaosnt-…-previa-migracion.db` y aplica la migración 002. Si la carpeta antigua está en uso, sigue usándola y lo indica en la consola.
+4. Los festivos de la 0.1 pasan a ser **festivos comunes** (todas las oficinas).
+
+Una exportación JSON de la 0.1 no se puede restaurar directamente en la 0.2 (cambia el esquema); para eso usa una copia `.db`, que sí se actualiza al restaurarla.
 
 ## 6. Copias y restauración
 
-Resumen (detalle en [docs/GUIA_USO.md](docs/GUIA_USO.md#copias-exportación-y-restauración)):
+Resumen (detalle en [docs/GUIA_USO.md](docs/GUIA_USO.md#copias-exportación-y-restauración)): copia automática diaria con retención
+configurable, copia manual, copia previa a restaurar y a migrar, todas con la API de copia en línea de SQLite y verificación de integridad.
+Exportaciones: completa (JSON restaurable), por proyecto, notas (ZIP Markdown) y tareas (CSV de consulta).
 
-- **Automática diaria** mientras la app está abierta (al arrancar y cada 5 min se comprueba), con retención configurable (14 por defecto).
-- **Manual**: Configuración → *Crear copia ahora*.
-- **Antes de restaurar o migrar**: copia automática previa.
-- Las copias usan la API de copia en línea de SQLite (consistente con la base abierta) y se verifican con `integrity_check`.
-- **Exportación completa** (JSON versionado, restaurable), **por proyecto** (JSON con relaciones), **notas** (ZIP de Markdown) y **tareas** (CSV para consulta).
-- **Restauración** completa desde una copia `.db` o una exportación completa: valida formato y versión, muestra el resumen, crea copia previa, restaura en una transacción y comprueba relaciones e integridad.
+> Las copias locales están en el mismo equipo: **no sustituyen** una protección autorizada ante pérdida, robo o avería.
 
-> Las copias locales están en el mismo portátil: **no sustituyen** una estrategia autorizada de protección ante pérdida, robo o avería. Guarda periódicamente la exportación completa en una ubicación autorizada por tu organización.
-
-## 7. Desarrollo (opcional, solo para modificar el frontend)
+## 7. Desarrollo (solo para modificar el frontend)
 
 ```bat
 cd frontend
 npm install
-npm run build      :: compila TypeScript y genera frontend\dist
-npm run typecheck
+npm run build      :: compila y genera frontend\dist
 npm test
 ```
 Pruebas del servidor: `.venv\Scripts\python.exe -m pip install -r requirements-dev.txt` y `ejecutar-pruebas.bat`.
-Si cambian las respuestas de la API, regenera el fixture del frontend: `python backend\tools\gen_frontend_fixture.py`.
+Si cambian las respuestas de la API, regenera el fixture: `python backend\tools\gen_frontend_fixture.py`.
 
-## 8. Estado de esta versión
-
-**Implementado (bloques A–E):** persistencia SQLite con migraciones; clientes, proyectos, personas, agrupaciones, hitos;
-tareas con estados, condición espera/bloqueo, dependencias sin ciclos, subtareas, historial, aprobación comercial,
-reparto semanal; notas con autoguardado verificable, pestañas restaurables, papelera, búsqueda y conversión en tarea;
-Hoy, Kanban, lista, calendario semanal/mensual, filtros y vistas guardadas; revisiones y recordatorios con
-deduplicación; recurrencias; planificación semanal y ausencias; copias, exportaciones y restauración; notificaciones
-del sistema opcionales; datos ficticios separados.
-
-Pruebas ejecutadas y no ejecutadas: [docs/PRUEBAS.md](docs/PRUEBAS.md). Limitaciones conocidas: [docs/PRUEBAS.md#limitaciones-conocidas](docs/PRUEBAS.md#limitaciones-conocidas).
+Estado de las pruebas y limitaciones: [docs/PRUEBAS.md](docs/PRUEBAS.md).

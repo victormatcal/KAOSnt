@@ -2,8 +2,8 @@ import { useMemo, useState } from "react";
 import { api, ApiError } from "../lib/api";
 import { addDays, fmtDate, isoDow, monthGrid, todayIn, utcToZonedInput, weekStart } from "../lib/dates";
 import { BOARD_COLUMNS, CONDITION, GROUPING_KIND, PRIORITY, PRIORITY_MARK, STATUS } from "../lib/labels";
-import { useApp } from "../lib/store";
-import type { Filters, Task, TaskStatus } from "../lib/types";
+import { useApi, useApp } from "../lib/store";
+import type { DayContext, Filters, Task, TaskStatus } from "../lib/types";
 import { TaskCard } from "./TaskCard";
 import { Empty, PersonSelect, ProjectSelect } from "./ui";
 
@@ -30,41 +30,35 @@ export function Board({ tasks, showBacklog, showDone, groupBy = "ninguna", showP
   const app = useApp();
   const [dragId, setDragId] = useState<number | null>(null);
   const columns: TaskStatus[] = [...(showBacklog ? ["backlog" as TaskStatus] : []), ...BOARD_COLUMNS.filter((c) => c !== "hecha" || showDone)];
-
   const lanes = useMemo(() => {
     if (groupBy === "ninguna") return [{ key: "all", label: "", tasks }];
-    const keyOf = (t: Task): number | null =>
-      groupBy === "linea" ? t.workstream_id : groupBy === "fase" ? t.phase_id : groupBy === "entregable" ? t.deliverable_id
-        : groupBy === "proyecto" ? t.project_id : t.assignee_id;
+    const keyOf = (t: Task): number | null => groupBy === "linea" ? t.workstream_id : groupBy === "fase" ? t.phase_id
+      : groupBy === "entregable" ? t.deliverable_id : groupBy === "proyecto" ? t.project_id : t.assignee_id;
     const labelOf = (k: number | null): string => {
       if (k === null) return groupBy === "persona" ? "Sin asignar" : groupBy === "proyecto" ? "Sin proyecto" : `Sin ${GROUPING_KIND[groupBy].toLowerCase()}`;
-      if (groupBy === "proyecto") return app.project(k)?.name || `#${k}`;
-      if (groupBy === "persona") return app.person(k)?.name || `#${k}`;
-      return app.boot.groupings.find((g) => g.id === k)?.name || `#${k}`;
+      if (groupBy === "proyecto") return app.project(k)?.name || "—";
+      if (groupBy === "persona") return app.person(k)?.name || "—";
+      return app.boot.groupings.find((g) => g.id === k)?.name || "—";
     };
     const map = new Map<number | null, Task[]>();
     for (const t of tasks) { const k = keyOf(t); map.set(k, [...(map.get(k) || []), t]); }
     return [...map.entries()].sort((a, b) => (a[0] === null ? 1 : b[0] === null ? -1 : labelOf(a[0]).localeCompare(labelOf(b[0]))))
       .map(([k, ts]) => ({ key: String(k), label: labelOf(k), tasks: ts }));
   }, [tasks, groupBy, app.boot]);
-
   const act = async (id: number, body: { status?: TaskStatus; before_id?: number; after_id?: number }) => {
     try { if (await moveTask(id, body)) app.changed(); } catch (e: any) { app.toast(e.message, "error"); }
   };
-
-  if (!tasks.length) return <Empty>No hay tareas con estos filtros. Crea una con «Nueva tarea» (Alt+T) o revisa los filtros.</Empty>;
-
+  if (!tasks.length) return <Empty>No hay tareas con estos filtros. Crea una con «+ Tarea» (Alt+T) o revisa los filtros.</Empty>;
   return (
     <div className="board-wrap">
       {lanes.map((lane) => (
         <div key={lane.key} className="lane">
           {lane.label && <h3 className="lane-title">{lane.label} <span className="count">({lane.tasks.length})</span></h3>}
-          <div className="board" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(220px, 1fr))` }}>
+          <div className="board" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }}>
             {columns.map((col, ci) => {
               const items = lane.tasks.filter((t) => t.status === col).sort((a, b) => a.position - b.position);
               return (
-                <div key={col} className="column" aria-label={`Columna ${STATUS[col]}`}
-                  onDragOver={(e: any) => e.preventDefault()}
+                <div key={col} className="column" aria-label={`Columna ${STATUS[col]}`} onDragOver={(e: any) => e.preventDefault()}
                   onDrop={(e: any) => {
                     e.preventDefault();
                     if (dragId === null) return;
@@ -74,68 +68,82 @@ export function Board({ tasks, showBacklog, showDone, groupBy = "ninguna", showP
                   }}>
                   <h4 className="column-title">{STATUS[col]} <span className="count">{items.length}</span></h4>
                   {items.map((t, i) => (
-                    <div key={t.id} onDragOver={(e: any) => e.preventDefault()}
-                      onDrop={(e: any) => {
-                        e.preventDefault(); e.stopPropagation();
-                        if (dragId === null || dragId === t.id) return;
-                        const prev = items.slice(0, i).filter((x) => x.id !== dragId).slice(-1)[0];
-                        void act(dragId, { status: col, before_id: t.id, ...(prev ? { after_id: prev.id } : {}) });
-                        setDragId(null);
-                      }}>
+                    <div key={t.id} onDragOver={(e: any) => e.preventDefault()} onDrop={(e: any) => {
+                      e.preventDefault(); e.stopPropagation();
+                      if (dragId === null || dragId === t.id) return;
+                      const prev = items.slice(0, i).filter((x) => x.id !== dragId).slice(-1)[0];
+                      void act(dragId, { status: col, before_id: t.id, ...(prev ? { after_id: prev.id } : {}) });
+                      setDragId(null);
+                    }}>
                       <TaskCard task={t} showProject={showProject} draggable onDragStart={(e: any) => { setDragId(t.id); e.dataTransfer.setData("text/plain", String(t.id)); }}
                         actions={<>
-                          <button className="ghost small" disabled={ci === 0} onClick={() => act(t.id, { status: columns[ci - 1] })} aria-label={`Mover «${t.title}» a ${ci > 0 ? STATUS[columns[ci - 1]] : ""}`} title="Mover a la columna anterior">◀</button>
+                          <button className="ghost small" disabled={ci === 0} onClick={() => act(t.id, { status: columns[ci - 1] })} aria-label={`Mover «${t.title}» a la columna anterior`} title="Columna anterior">◀</button>
                           <button className="ghost small" disabled={i === 0} onClick={() => act(t.id, { before_id: items[i - 1].id, ...(i > 1 ? { after_id: items[i - 2].id } : {}) })} aria-label={`Subir «${t.title}»`} title="Subir">▲</button>
                           <button className="ghost small" disabled={i === items.length - 1} onClick={() => act(t.id, { after_id: items[i + 1].id, ...(i + 2 < items.length ? { before_id: items[i + 2].id } : {}) })} aria-label={`Bajar «${t.title}»`} title="Bajar">▼</button>
-                          <button className="ghost small" disabled={ci === columns.length - 1} onClick={() => act(t.id, { status: columns[ci + 1] })} aria-label={`Mover «${t.title}» a ${ci < columns.length - 1 ? STATUS[columns[ci + 1]] : ""}`} title="Mover a la columna siguiente">▶</button>
+                          <button className="ghost small" disabled={ci === columns.length - 1} onClick={() => act(t.id, { status: columns[ci + 1] })} aria-label={`Mover «${t.title}» a la columna siguiente`} title="Columna siguiente">▶</button>
                         </>} />
-                    </div>
-                  ))}
-                </div>
-              );
+                    </div>))}
+                </div>);
             })}
           </div>
-        </div>
-      ))}
+        </div>))}
     </div>
   );
 }
 
-export function TaskTable({ tasks }: { tasks: Task[] }) {
+export function TaskTable({ tasks, archived }: { tasks: Task[]; archived?: boolean }) {
   const app = useApp();
   const today = todayIn(app.tz);
-  if (!tasks.length) return <Empty>No hay tareas con estos filtros.</Empty>;
+  if (!tasks.length) return <Empty>{archived ? "No hay tareas archivadas." : "No hay tareas con estos filtros."}</Empty>;
+  const act = async (fn: () => Promise<unknown>, msg: string) => { try { await fn(); app.changed(); app.toast(msg, "ok"); } catch (e: any) { app.toast(e.message, "error"); } };
   return (
     <div className="table-wrap">
       <table className="list">
-        <thead><tr>
-          <th>Tarea</th><th>Proyecto</th><th>Responsable</th><th>Estado</th><th>Condición</th><th>Prioridad</th>
-          <th>Límite</th><th>Planificada</th><th>Estimación</th>
-        </tr></thead>
+        <thead><tr><th>Tarea</th><th>Proyecto</th><th>Responsable</th><th>Estado</th>
+          {!archived && <><th>Condición</th><th>Prioridad</th><th>Límite</th><th>Planificada</th><th>Estimación</th></>}
+          {archived && <th>Acciones</th>}</tr></thead>
         <tbody>
           {tasks.map((t) => (
             <tr key={t.id}>
-              <td><button className="linklike" onClick={() => app.openTask(t.id)}>{t.title}</button>
+              <td className="wrap">
+                {t.parent_id && <span className="muted small">↳ {t.parent_title} · </span>}
+                <button className="linklike" onClick={() => app.openTask(t.id)}>{t.title}</button>
                 {t.open_blockers > 0 && <span className="muted" title="Depende de otras tareas"> ⛓{t.open_blockers}</span>}
-                {t.open_dependents > 0 && <span className="muted" title="Bloquea otras tareas"> ➜{t.open_dependents}</span>}</td>
+                {t.open_dependents > 0 && <span className="muted" title="Bloquea otras tareas"> ➜{t.open_dependents}</span>}
+                {t.steps_total > 0 && <span className="muted" title="Pasos"> ☑{t.steps_done}/{t.steps_total}</span>}</td>
               <td>{app.project(t.project_id)?.name || "—"}</td>
               <td>{app.person(t.assignee_id)?.name || "Sin asignar"}</td>
               <td>{STATUS[t.status]}</td>
-              <td>{t.condition ? CONDITION[t.condition] : "—"}</td>
-              <td>{PRIORITY_MARK[t.priority]} {PRIORITY[t.priority]}</td>
-              <td className={t.due_date && t.due_date < today ? "overdue" : ""}>{t.due_date ? fmtDate(t.due_date) + (t.due_date < today ? " (vencida)" : "") : "—"}</td>
-              <td>{t.planned_date ? fmtDate(t.planned_date) : "—"}</td>
-              <td>{t.estimate_hours !== null ? `${t.estimate_hours} h` : "no informado"}</td>
-            </tr>
-          ))}
+              {!archived && <>
+                <td>{t.condition ? CONDITION[t.condition] : "—"}</td>
+                <td>{PRIORITY_MARK[t.priority]} {PRIORITY[t.priority]}</td>
+                <td className={t.due_date && t.due_date < today ? "overdue" : ""}>{t.due_date ? fmtDate(t.due_date) + (t.due_date < today ? " (vencida)" : "") : "—"}</td>
+                <td>{t.planned_date ? fmtDate(t.planned_date) : "—"}</td>
+                <td>{t.estimate_hours !== null ? `${t.estimate_hours} h` : "no informado"}</td></>}
+              {archived && <td className="nowrap">
+                <button className="small" onClick={() => act(() => api.patch(`/api/tasks/${t.id}`, { archived: false }), "Tarea restaurada")}>Restaurar</button>
+                <button className="small danger" onClick={() => { if (window.confirm(`¿Eliminar definitivamente «${t.title}»? No se puede deshacer.`)) void act(() => api.del(`/api/tasks/${t.id}`), "Tarea eliminada"); }}>Eliminar</button>
+              </td>}
+            </tr>))}
         </tbody>
       </table>
     </div>
   );
 }
 
+/** Texto compacto para festivos y ausencias registrados de un día. */
+export function dayContextText(c: DayContext | undefined): { holiday: string; absent: string; title: string } {
+  if (!c) return { holiday: "", absent: "", title: "" };
+  const holiday = c.holidays.map((h) => h.location ? `Festivo ${h.location}` : "Festivo").join(" · ");
+  const absent = c.absences.length ? `Ausente: ${c.absences.map((a) => a.name.split(" ")[0]).join(", ")}` : "";
+  const title = [...c.holidays.map((h) => `${h.name || "Festivo"}${h.location ? ` (${h.location})` : " (todas las oficinas)"}: ${h.people.join(", ") || "nadie asignado"}`),
+    ...(c.absences.length ? [`Ausencias registradas: ${c.absences.map((a) => a.name).join(", ")}`] : [])].join("\n");
+  return { holiday, absent, title };
+}
+
 interface CalItem { task: Task; kind: "vence" | "plan" | "revision" }
-const CAL_LABEL = { vence: "📅 Vence", plan: "🗓 Plan", revision: "🔎 Revisión" };
+const CAL_LABEL = { vence: "📅", plan: "🗓", revision: "🔎" };
+const CAL_TEXT = { vence: "Vence", plan: "Planificada", revision: "Revisión" };
 
 export function Calendar({ tasks, mode, anchor, setAnchor, setMode }: {
   tasks: Task[]; mode: "semana" | "mes"; anchor: string; setAnchor: (d: string) => void; setMode: (m: "semana" | "mes") => void;
@@ -143,6 +151,7 @@ export function Calendar({ tasks, mode, anchor, setAnchor, setMode }: {
   const app = useApp();
   const today = todayIn(app.tz);
   const days = mode === "semana" ? Array.from({ length: 7 }, (_, i) => addDays(weekStart(anchor), i)) : monthGrid(anchor);
+  const { data: ctx } = useApi<{ days: Record<string, DayContext> }>(`/api/calendar-context?start=${days[0]}&end=${days[days.length - 1]}`);
   const byDay = useMemo(() => {
     const m = new Map<string, CalItem[]>();
     const put = (d: string | null, it: CalItem) => { if (d) m.set(d, [...(m.get(d) || []), it]); };
@@ -154,9 +163,8 @@ export function Calendar({ tasks, mode, anchor, setAnchor, setMode }: {
     return m;
   }, [tasks]);
   const undated = tasks.filter((t) => !t.due_date && !t.planned_date && !t.next_review_at).length;
-  const step = mode === "semana" ? 7 : 0;
   const shift = (dir: number) => {
-    if (mode === "semana") setAnchor(addDays(anchor, dir * step));
+    if (mode === "semana") setAnchor(addDays(anchor, dir * 7));
     else { const d = new Date(anchor.slice(0, 8) + "15T12:00:00Z"); d.setUTCMonth(d.getUTCMonth() + dir); setAnchor(d.toISOString().slice(0, 10)); }
   };
   const month = anchor.slice(0, 7);
@@ -168,31 +176,54 @@ export function Calendar({ tasks, mode, anchor, setAnchor, setMode }: {
         <button onClick={() => shift(1)} aria-label="Siguiente">▶</button>
         <strong>{mode === "semana" ? `Semana del ${fmtDate(days[0])} al ${fmtDate(days[6])}` : new Date(anchor.slice(0, 8) + "15T12:00:00Z").toLocaleDateString("es-ES", { month: "long", year: "numeric", timeZone: "UTC" })}</strong>
         <span className="spacer" />
-        <div role="group" aria-label="Escala del calendario">
+        <div role="group" aria-label="Escala del calendario" className="tabs-inline">
           <button aria-pressed={mode === "semana"} className={mode === "semana" ? "active" : ""} onClick={() => setMode("semana")}>Semana</button>
           <button aria-pressed={mode === "mes"} className={mode === "mes" ? "active" : ""} onClick={() => setMode("mes")}>Mes</button>
         </div>
       </div>
-      <p className="hint">Leyenda: 📅 Vence = fecha límite · 🗓 Plan = fecha planificada · 🔎 Revisión = fecha de revisión. {undated > 0 && `${undated} tarea(s) sin fecha no se muestran (no se inventan fechas).`}</p>
+      <p className="hint">📅 Vence · 🗓 Planificada · 🔎 Revisión · en gris, festivos y ausencias registrados (pasa el ratón para ver a quién afectan). {undated > 0 && `${undated} tarea(s) sin fecha no se muestran.`}</p>
       <div className={`calendar cal-${mode}`}>
         {["lun", "mar", "mié", "jue", "vie", "sáb", "dom"].map((d) => <div key={d} className="cal-dow">{d}</div>)}
         {days.map((d) => {
           const items = byDay.get(d) || [];
-          const out = mode === "mes" && d.slice(0, 7) !== month;
+          const c = dayContextText(ctx?.days[d]);
+          const globalHoliday = ctx?.days[d]?.holidays.some((h) => !h.location);
           return (
-            <div key={d} className={`cal-day${d === today ? " today" : ""}${out ? " out" : ""}${isoDow(d) >= 6 ? " weekend" : ""}`}>
+            <div key={d} className={`cal-day${d === today ? " today" : ""}${mode === "mes" && d.slice(0, 7) !== month ? " out" : ""}${isoDow(d) >= 6 || globalHoliday ? " weekend" : ""}`}>
               <div className="cal-date">{Number(d.slice(8))}{d === today && <span className="sr"> (hoy)</span>}</div>
+              {(c.holiday || c.absent) && <div className="cal-ctx" title={c.title}>{c.holiday && <span>{c.holiday}</span>}{c.absent && <span>{c.absent}</span>}</div>}
               {items.map((it) => (
-                <button key={it.kind + it.task.id} className={`cal-item cal-${it.kind}`} onClick={() => app.openTask(it.task.id)} title={`${CAL_LABEL[it.kind]}: ${it.task.title}`}>
-                  <span className="cal-kind">{CAL_LABEL[it.kind]}</span> {it.task.title}
-                </button>
-              ))}
-            </div>
-          );
+                <button key={it.kind + it.task.id} className={`cal-item cal-${it.kind}`} onClick={() => app.openTask(it.task.id)} title={`${CAL_TEXT[it.kind]}: ${it.task.title}`}>
+                  <span aria-label={CAL_TEXT[it.kind]}>{CAL_LABEL[it.kind]}</span> {it.task.title}
+                </button>))}
+            </div>);
         })}
       </div>
     </div>
   );
+}
+
+/** Línea discreta con festivos y ausencias registrados en la semana actual. */
+export function WeekAvailabilityStrip() {
+  const app = useApp();
+  const ws = weekStart(todayIn(app.tz));
+  const { data } = useApi<{ days: Record<string, DayContext> }>(`/api/calendar-context?start=${ws}&end=${addDays(ws, 6)}`);
+  if (!data) return null;
+  const parts: { text: string; title: string }[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(ws, i);
+    const c = data.days[d];
+    if (!c) continue;
+    const names = [...new Set([...c.holidays.flatMap((h) => h.people), ...c.absences.map((a) => a.name)])];
+    if (!names.length) continue;
+    const t = dayContextText(c);
+    parts.push({ text: `${fmtDate(d)}: ${names.map((n) => n.split(" ")[0]).join(", ")}`, title: t.title });
+  }
+  if (!parts.length) return null;
+  return <p className="availability-strip" aria-label="Festivos y ausencias registrados esta semana">
+    <span className="muted">No disponibles esta semana (festivos/ausencias registrados):</span>{" "}
+    {parts.map((p, i) => <span key={i} className="avail-item" title={p.title}>{p.text}</span>)}
+  </p>;
 }
 
 export function FilterBar({ filters, setFilters, hideProject }: { filters: Filters; setFilters: (f: Filters) => void; hideProject?: boolean }) {
@@ -202,33 +233,16 @@ export function FilterBar({ filters, setFilters, hideProject }: { filters: Filte
     <div className="filters" role="group" aria-label="Filtros">
       {!hideProject && <label>Proyecto <ProjectSelect value={filters.project_id ? Number(filters.project_id) : null} emptyLabel="Todos" onChange={(v) => set("project_id", v ? String(v) : "")} /></label>}
       <label>Persona <PersonSelect value={filters.person_id ? Number(filters.person_id) : null} emptyLabel="Todas" onChange={(v) => set("person_id", v ? String(v) : "")} /></label>
-      <label>Estado
-        <select value={filters.status || ""} onChange={(e: any) => set("status", e.target.value)}>
-          <option value="">Operativas</option>
-          {(Object.keys(STATUS) as TaskStatus[]).map((s) => <option key={s} value={s}>{STATUS[s]}</option>)}
-        </select>
-      </label>
-      <label>Condición
-        <select value={filters.condition || ""} onChange={(e: any) => set("condition", e.target.value)}>
-          <option value="">Cualquiera</option><option value="cualquiera">En espera o bloqueadas</option>
-          <option value="espera">En espera</option><option value="bloqueada">Bloqueadas</option>
-        </select>
-      </label>
-      <label>Prioridad
-        <select value={filters.priority || ""} onChange={(e: any) => set("priority", e.target.value)}>
-          <option value="">Todas</option>{Object.entries(PRIORITY).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-      </label>
-      <label>Etiqueta
-        <select value={filters.tag || ""} onChange={(e: any) => set("tag", e.target.value)}>
-          <option value="">Todas</option>{app.boot.tags.map((t) => <option key={t} value={t}>{t}</option>)}
-        </select>
-      </label>
-      <label>Orden
-        <select value={filters.sort || ""} onChange={(e: any) => set("sort", e.target.value)}>
-          <option value="">Manual</option><option value="fecha">Fecha límite</option><option value="prioridad">Prioridad</option>
-        </select>
-      </label>
+      <label>Estado <select value={filters.status || ""} onChange={(e: any) => set("status", e.target.value)}>
+        <option value="">Operativas</option>{(Object.keys(STATUS) as TaskStatus[]).map((s) => <option key={s} value={s}>{STATUS[s]}</option>)}</select></label>
+      <label>Condición <select value={filters.condition || ""} onChange={(e: any) => set("condition", e.target.value)}>
+        <option value="">Cualquiera</option><option value="cualquiera">En espera o bloqueadas</option><option value="espera">En espera</option><option value="bloqueada">Bloqueadas</option></select></label>
+      <label>Prioridad <select value={filters.priority || ""} onChange={(e: any) => set("priority", e.target.value)}>
+        <option value="">Todas</option>{Object.entries(PRIORITY).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+      <label>Etiqueta <select value={filters.tag || ""} onChange={(e: any) => set("tag", e.target.value)}>
+        <option value="">Todas</option>{app.boot.tags.map((t) => <option key={t} value={t}>{t}</option>)}</select></label>
+      <label>Orden <select value={filters.sort || ""} onChange={(e: any) => set("sort", e.target.value)}>
+        <option value="">Manual</option><option value="fecha">Fecha límite</option><option value="prioridad">Prioridad</option></select></label>
       <label className="check"><input type="checkbox" checked={!!filters.include_backlog} onChange={(e: any) => set("include_backlog", e.target.checked)} /> Backlog</label>
       <label className="check"><input type="checkbox" checked={!!filters.include_closed} onChange={(e: any) => set("include_closed", e.target.checked)} /> Terminadas</label>
     </div>
@@ -239,7 +253,6 @@ export function filtersToQuery(f: Filters): string {
   const p: string[] = [];
   const add = (k: string, v: any) => { if (v !== undefined && v !== "" && v !== false && v !== null) p.push(`${k}=${encodeURIComponent(v === true ? "1" : v)}`); };
   add("project_id", f.project_id); add("person_id", f.person_id); add("status", f.status); add("priority", f.priority);
-  add("tag", f.tag); add("condition", f.condition); add("include_backlog", f.include_backlog); add("include_closed", f.include_closed);
-  add("sort", f.sort);
+  add("tag", f.tag); add("condition", f.condition); add("include_backlog", f.include_backlog); add("include_closed", f.include_closed); add("sort", f.sort);
   return p.length ? "?" + p.join("&") : "";
 }
