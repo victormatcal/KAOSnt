@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
+import { todayIn } from "../lib/dates";
 import { useApp } from "../lib/store";
 import type { TaskDetail } from "../lib/types";
+import { emptyRule, RuleEditor, ruleIsValid, RuleValue } from "./Recurrences";
 import { ErrorBox, Field, Modal, PersonSelect, ProjectSelect } from "./ui";
 
-/** Captura rápida de tarea: solo el título es obligatorio. Más campos bajo demanda. */
+/** Captura rápida de tarea: solo el título es obligatorio. Más campos (incluida la repetición) bajo demanda. */
 export function QuickTask({ preset, onClose }: { preset: Record<string, any>; onClose: () => void }) {
   const app = useApp();
   const [title, setTitle] = useState(preset.title || "");
@@ -13,17 +15,21 @@ export function QuickTask({ preset, onClose }: { preset: Record<string, any>; on
   const [assignee, setAssignee] = useState<number | null>(preset.assignee_id ?? null);
   const [due, setDue] = useState("");
   const [backlog, setBacklog] = useState(!!preset.backlog);
+  const [repeat, setRepeat] = useState(false);
+  const [rule, setRule] = useState<RuleValue>(emptyRule(todayIn(app.tz)));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   const submit = async (openAfter: boolean) => {
-    if (!title.trim() || busy) return;
+    if (!title.trim() || busy || (repeat && !ruleIsValid(rule))) return;
     setBusy(true);
     try {
-      const t = await api.post<TaskDetail>("/api/tasks", {
-        title: title.trim(), project_id: projectId, assignee_id: assignee, due_date: due || null,
-        status: backlog ? "backlog" : "pendiente", ...(preset.status ? { status: preset.status } : {}),
-      });
+      let t = await api.post<TaskDetail>("/api/tasks", { title: title.trim(), project_id: projectId, assignee_id: assignee,
+        due_date: due || null, status: backlog ? "backlog" : "pendiente" });
+      if (repeat) {
+        t = await api.post<TaskDetail>(`/api/tasks/${t.id}/recurrence`, { rule: rule.rule, weekdays: rule.rule === "semanal" ? rule.weekdays : [],
+          interval_days: rule.rule === "cada_n_dias" ? rule.interval_days : null, start_date: due || rule.start_date, end_date: rule.end_date, non_working: rule.non_working });
+      }
       app.changed();
       app.toast(`Tarea creada: ${t.title}`, "ok", { label: "Abrir", run: () => app.openTask(t.id) });
       onClose();
@@ -32,23 +38,23 @@ export function QuickTask({ preset, onClose }: { preset: Record<string, any>; on
   };
 
   return (
-    <Modal title="Nueva tarea" onClose={onClose}>
+    <Modal title="Nueva tarea" onClose={onClose} wide={repeat}>
       <form onSubmit={(e: any) => { e.preventDefault(); void submit(false); }}>
-        <Field label="Título (obligatorio)">
-          <input value={title} onChange={(e: any) => setTitle(e.target.value)} placeholder="¿Qué hay que hacer?" required maxLength={300} />
-        </Field>
+        <Field label="Título (obligatorio)"><input value={title} onChange={(e: any) => setTitle(e.target.value)} placeholder="¿Qué hay que hacer?" required maxLength={300} /></Field>
         <button type="button" className="ghost small" onClick={() => setMore(!more)} aria-expanded={more}>{more ? "Menos campos" : "Más campos (opcionales)"}</button>
-        {more && (
+        {more && <>
           <div className="grid2">
             <Field label="Proyecto"><ProjectSelect value={projectId} onChange={setProjectId} /></Field>
             <Field label="Responsable"><PersonSelect value={assignee} onChange={setAssignee} /></Field>
             <Field label="Fecha límite"><input type="date" value={due} onChange={(e: any) => setDue(e.target.value)} /></Field>
-            <label className="check"><input type="checkbox" checked={backlog} onChange={(e: any) => setBacklog(e.target.checked)} /> Guardar en Backlog (aún no comprometida)</label>
           </div>
-        )}
+          <label className="check"><input type="checkbox" checked={backlog} onChange={(e: any) => setBacklog(e.target.checked)} /> Guardar en Backlog (aún no comprometida)</label>
+          <label className="check"><input type="checkbox" checked={repeat} onChange={(e: any) => setRepeat(e.target.checked)} /> Se repite</label>
+          {repeat && <RuleEditor value={{ ...rule, start_date: due || rule.start_date }} onChange={setRule} />}
+        </>}
         <ErrorBox error={error} />
         <div className="modal-foot">
-          <button type="submit" className="primary" disabled={!title.trim() || busy}>Crear (Enter)</button>
+          <button type="submit" className="primary" disabled={!title.trim() || busy || (repeat && !ruleIsValid(rule))}>Crear (Enter)</button>
           <button type="button" disabled={!title.trim() || busy} onClick={() => submit(true)}>Crear y abrir detalle</button>
           <button type="button" onClick={onClose}>Cancelar</button>
         </div>
@@ -69,7 +75,6 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState("");
   const [sel, setSel] = useState(0);
   const seq = useRef(0);
-
   useEffect(() => {
     if (!q.trim()) { setResults([]); setTotal(0); return; }
     const my = ++seq.current;
@@ -79,18 +84,13 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
     }, 200);
     return () => clearTimeout(t);
   }, [q, archived, trash]);
-
   const open = (r: Result) => {
     onClose();
-    if (r.type === "tarea") app.openTask(r.id);
-    else if (r.type === "nota") app.navigate(`#/notas/${r.id}`);
-    else app.navigate(`#/proyectos/${r.id}`);
+    if (r.type === "tarea") app.openTask(r.id); else app.navigate(r.type === "nota" ? `#/notas/${r.id}` : `#/proyectos/${r.id}`);
   };
-
   return (
     <Modal title="Buscar" onClose={onClose} wide>
-      <input aria-label="Texto a buscar" placeholder='Palabras o "frase exacta" en tareas, proyectos y notas' value={q}
-        onChange={(e: any) => setQ(e.target.value)}
+      <input aria-label="Texto a buscar" placeholder='Palabras o "frase exacta" en tareas, proyectos y notas' value={q} onChange={(e: any) => setQ(e.target.value)}
         onKeyDown={(e: any) => {
           if (e.key === "ArrowDown") { e.preventDefault(); setSel(Math.min(sel + 1, results.length - 1)); }
           if (e.key === "ArrowUp") { e.preventDefault(); setSel(Math.max(sel - 1, 0)); }
@@ -110,8 +110,7 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
               <strong>{r.title}</strong> <span className="muted">· {r.context}</span>
               {r.snippet && <span className="snippet">{r.snippet}</span>}
             </button>
-          </li>
-        ))}
+          </li>))}
       </ul>
       {total > results.length && <p className="hint">Mostrando {results.length} de {total}. Afina la búsqueda.</p>}
     </Modal>

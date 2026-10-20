@@ -7,8 +7,8 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from centro.app import create_app  # noqa: E402
-from centro.config import Config  # noqa: E402
+from kaosnt.app import create_app  # noqa: E402
+from kaosnt.config import Config  # noqa: E402
 
 
 class Clock:
@@ -30,9 +30,8 @@ def cfg(tmp_path):
 
 
 def make_client(cfg, clock):
-    app = create_app(cfg, clock=clock, background=False, extra_hosts=("testserver",))
-    c = TestClient(app)
-    c.headers.update({"X-Centro": "1"})
+    c = TestClient(create_app(cfg, clock=clock, background=False, extra_hosts=("testserver",)))
+    c.headers.update({"X-KAOSnt": "1"})
     return c
 
 

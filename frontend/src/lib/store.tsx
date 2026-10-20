@@ -5,14 +5,11 @@ import type { Bootstrap, Person, ProjectListItem } from "./types";
 export interface Toast { id: number; text: string; kind: "info" | "error" | "ok"; action?: { label: string; run: () => void } }
 
 export interface AppCtx {
-  boot: Bootstrap;
-  tz: string;
-  meId: number | null;
+  boot: Bootstrap; tz: string; meId: number | null;
   person: (id: number | null | undefined) => Person | undefined;
   project: (id: number | null | undefined) => ProjectListItem | undefined;
   reloadBoot: () => Promise<void>;
-  /** Versión de datos: al cambiar, las vistas vuelven a consultar el servidor. */
-  dataVersion: number;
+  dataVersion: number;          // al cambiar, las vistas vuelven a consultar el servidor
   changed: () => void;
   openTask: (id: number) => void;
   quickTask: (preset?: Record<string, unknown>) => void;
@@ -29,8 +26,7 @@ export function useApp(): AppCtx {
   return c;
 }
 
-// Caché simple por URL: permite mostrar datos previos mientras se recargan
-// y facilita las pruebas de renderizado.
+// Caché por URL: muestra datos previos mientras se recargan y facilita las pruebas de renderizado.
 export const apiCache = new Map<string, unknown>();
 
 export function useApi<T>(url: string | null): { data: T | undefined; error: string; loading: boolean; reload: () => void } {
@@ -48,8 +44,7 @@ export function useApi<T>(url: string | null): { data: T | undefined; error: str
     setLoading(true);
     api.get<T>(url).then(
       (d) => { if (alive && current.current === url) { apiCache.set(url, d); setData(d); setError(""); setLoading(false); } },
-      (e) => { if (alive) { setError(e.message || "Error"); setLoading(false); } },
-    );
+      (e) => { if (alive) { setError(e.message || "Error"); setLoading(false); } });
     return () => { alive = false; };
   }, [url, dataVersion, tick]);
   const reload = useCallback(() => setTick((x: number) => x + 1), []);
