@@ -8,18 +8,18 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
 from typing import Any, Callable, Optional
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import APP_ID, __version__, agenda, backup, notes, recurrence, reminders, search, tasks, views
+from . import APP_ID, __version__, agenda, backup, notes, recurrence, reminders, search, tasks, themes, undo, views
 from . import db as dbm
 from . import schemas as S
 from .config import FRONTEND_DIST, Config
 from .db import Tx, connect, init_db, jdump, now_utc, row, rows
 from .errors import AppError, invalid, not_found
-from .settings import EDITABLE, get_all, set_value
+from .settings import EDITABLE, get_all, set_value, validate_patch
 from .timeutil import today_local
 
 log = logging.getLogger("kaosnt")
@@ -185,6 +185,58 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
         app.state.server.should_exit = True
         return {"ok": True, "message": "La aplicación se está cerrando. Puedes cerrar esta pestaña."}
 
+    @app.post("/api/system/reset")
+    def system_reset(body: S.ResetIn, conn=Depends(db)):
+        """Zona de peligro: borra todos los datos (copia previa obligatoria). Queda como recién instalada."""
+        s = st(conn)
+        accepted = {(s.get("app_name") or "KAOSnt").strip().lower(), "borrar todo"}
+        if body.confirm_text.strip().lower() not in accepted:
+            raise invalid("Para confirmar, escribe exactamente el nombre de la aplicación o «BORRAR TODO»", "confirmacion")
+        name = backup.wipe_all(cfg, conn, s)
+        reseeded = False
+        if body.reseed_demo and cfg.demo:
+            from .demo import seed
+            with Tx(conn):
+                seed(conn)
+            reseeded = True
+        return {"ok": True, "previous_backup": name, "reseeded": reseeded}
+
+    # ---------------- Temas (0.3) ----------------
+    @app.post("/api/themes", status_code=201)
+    def import_theme(body: dict[str, Any], conn=Depends(db)):
+        th = themes.validate(body)
+        if th["id"] in themes.BUILTIN_IDS:
+            raise invalid("Ese identificador corresponde a un tema integrado; usa otro «id»")
+        current = [t for t in (st(conn).get("custom_themes") or []) if t.get("id") != th["id"]]
+        if len(current) >= themes.MAX_CUSTOM:
+            raise invalid(f"Máximo {themes.MAX_CUSTOM} temas importados")
+        with Tx(conn):
+            set_value(conn, "custom_themes", current + [th])
+        return th
+
+    @app.delete("/api/themes/{theme_id}")
+    def delete_theme(theme_id: str, conn=Depends(db)):
+        s = st(conn)
+        with Tx(conn):
+            set_value(conn, "custom_themes", [t for t in (s.get("custom_themes") or []) if t.get("id") != theme_id])
+            if s.get("theme_id") == theme_id:
+                set_value(conn, "theme_id", "predeterminado")
+        return {"ok": True}
+
+    # ---------------- Deshacer (0.3) ----------------
+    def with_undo(conn, enabled: bool, table: str, ids: list[int], label: str, fn):
+        """Ejecuta fn() en una transacción; si enabled, guarda antes una instantánea para «Deshacer»."""
+        with Tx(conn):
+            snaps = undo.snapshot(conn, table, ids) if enabled else []
+            result = fn()
+            uid = undo.record(conn, label, snaps) if enabled else None
+        return result, uid
+
+    @app.post("/api/undo/{uid}")
+    def do_undo(uid: int, conn=Depends(db)):
+        with Tx(conn):
+            return undo.apply(conn, uid)
+
     # ---------------- Ajustes ----------------
     @app.get("/api/settings")
     def get_settings(conn=Depends(db)):
@@ -203,6 +255,9 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
                 raise invalid("Zona horaria no válida")
         if "app_name" in body and not str(body["app_name"]).strip():
             raise invalid("El nombre de la aplicación no puede estar vacío")
+        err = validate_patch(body, {t["id"] for t in st(conn).get("custom_themes") or []})
+        if err:
+            raise invalid(err)
         with Tx(conn):
             for k, v in body.items():
                 set_value(conn, k, v)
@@ -288,6 +343,16 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
             hid = conn.execute("INSERT INTO holidays(date, name, location_id, created_at) VALUES (?,?,?,?)",
                                (body.date, body.name.strip(), body.location_id, now_utc())).lastrowid
         return row(conn.execute("SELECT * FROM holidays WHERE id = ?", (hid,)).fetchone())
+
+    @app.post("/api/holidays/import")
+    def import_holidays(body: S.HolidayImportIn, conn=Depends(db)):
+        items = agenda.parse_holidays(conn, body.text, body.create_locations)
+        summary = {k: sum(1 for i in items if i["status"] == k) for k in ("importar", "duplicado", "error")}
+        created = 0
+        if not body.dry_run:
+            with Tx(conn):
+                created = agenda.import_holidays(conn, items, now_utc())
+        return {"lines": items, "summary": summary, "created": created, "dry_run": body.dry_run}
 
     @app.delete("/api/holidays/{hid}")
     def delete_holiday(hid: int, conn=Depends(db)):
@@ -396,6 +461,31 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
         patch_simple(conn, "projects", pid, d, "Proyecto")
         return views.project_overview(conn, pid, st(conn), now())
 
+    @app.post("/api/projects/{pid}/delete")
+    def delete_project(pid: int, body: S.ProjectDeleteIn, conn=Depends(db)):
+        """Elimina un proyecto (con copia previa). desvincular: tareas, notas y recurrencias se conservan sin
+        proyecto. eliminar: se eliminan sus tareas y recurrencias; sus notas van a la papelera."""
+        p = row(conn.execute("SELECT name FROM projects WHERE id = ?", (pid,)).fetchone())
+        if not p:
+            raise not_found("Proyecto")
+        if not body.confirm:
+            raise invalid("Confirma la eliminación del proyecto")
+        name = backup.create_backup(cfg, "previa-borrado", st(conn)).name
+        counts = {"tasks": 0, "notes": 0, "recurrences": 0}
+        with Tx(conn):
+            if body.mode == "eliminar":
+                counts["tasks"] = conn.execute("DELETE FROM tasks WHERE project_id = ?", (pid,)).rowcount
+                counts["recurrences"] = conn.execute("DELETE FROM recurrences WHERE project_id = ?", (pid,)).rowcount
+                counts["notes"] = conn.execute(
+                    "UPDATE notes SET state = 'papelera', trashed_at = ?, updated_at = ? WHERE project_id = ? AND state <> 'papelera'",
+                    (now_utc(), now_utc(), pid)).rowcount
+            else:
+                counts["tasks"] = conn.execute("SELECT COUNT(*) FROM tasks WHERE project_id = ?", (pid,)).fetchone()[0]
+                counts["notes"] = conn.execute("SELECT COUNT(*) FROM notes WHERE project_id = ?", (pid,)).fetchone()[0]
+                counts["recurrences"] = conn.execute("SELECT COUNT(*) FROM recurrences WHERE project_id = ?", (pid,)).fetchone()[0]
+            conn.execute("DELETE FROM projects WHERE id = ?", (pid,))  # el resto queda sin proyecto (ON DELETE SET NULL)
+        return {"ok": True, "previous_backup": name, "mode": body.mode, **counts}
+
     @app.post("/api/projects/{pid}/people")
     def add_project_person(pid: int, body: S.ProjectPersonIn, conn=Depends(db)):
         exists(conn, "projects", pid, "Proyecto")
@@ -444,8 +534,16 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
         return row(conn.execute("SELECT * FROM milestones WHERE id = ?", (mid,)).fetchone())
 
     @app.patch("/api/milestones/{mid}")
-    def patch_milestone(mid: int, body: S.MilestonePatch, conn=Depends(db)):
-        return patch_simple(conn, "milestones", mid, dump(body), "Hito")
+    def patch_milestone(mid: int, body: S.MilestonePatch, undo_: bool = Query(False, alias="undo"), conn=Depends(db)):
+        if not undo_:
+            return patch_simple(conn, "milestones", mid, dump(body), "Hito")
+        if not conn.execute("SELECT 1 FROM milestones WHERE id = ?", (mid,)).fetchone():
+            raise not_found("Hito")
+        d = dump(body)
+        d["updated_at"] = now_utc()
+        _, uid = with_undo(conn, True, "milestones", [mid], "Hito actualizado", lambda: conn.execute(
+            f"UPDATE milestones SET {', '.join(f'{k} = ?' for k in d)} WHERE id = ?", [*d.values(), mid]))
+        return {**row(conn.execute("SELECT * FROM milestones WHERE id = ?", (mid,)).fetchone()), "undo_id": uid}
 
     @app.delete("/api/milestones/{mid}")
     def delete_milestone(mid: int, conn=Depends(db)):
@@ -476,10 +574,23 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
         return detail(conn, tid)  # solo lectura: abrir nunca modifica el seguimiento
 
     @app.patch("/api/tasks/{tid}")
-    def patch_task(tid: int, body: S.TaskPatch, conn=Depends(db)):
-        with Tx(conn):
-            tasks.update_task(conn, tid, dump(body))
-        return detail(conn, tid)
+    def patch_task(tid: int, body: S.TaskPatch, undo_: bool = Query(False, alias="undo"), conn=Depends(db)):
+        _, uid = with_undo(conn, undo_, "tasks", [tid], "Tarea actualizada", lambda: tasks.update_task(conn, tid, dump(body)))
+        return {**detail(conn, tid), "undo_id": uid} if undo_ else detail(conn, tid)
+
+    @app.post("/api/tasks/archive-bulk")
+    def archive_bulk(body: S.BulkArchiveIn, conn=Depends(db)):
+        """Archiva varias tareas en una sola transacción (p. ej. «Archivar todas» en la columna Hecha)."""
+        ids = sorted(set(body.ids))
+        found = [r[0] for r in conn.execute(f"SELECT id FROM tasks WHERE archived = 0 AND id IN ({','.join('?' for _ in ids)})", ids)]
+        if not found:
+            raise invalid("No hay tareas sin archivar en la selección")
+
+        def run():
+            for i in found:
+                tasks.update_task(conn, i, {"archived": True})
+        _, uid = with_undo(conn, True, "tasks", found, f"{len(found)} tareas archivadas", run)
+        return {"archived": len(found), "undo_id": uid}
 
     @app.delete("/api/tasks/{tid}")
     def delete_task(tid: int, conn=Depends(db)):
@@ -520,10 +631,10 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
         return detail(conn, tid)
 
     @app.post("/api/tasks/{tid}/reorder")
-    def reorder(tid: int, body: S.ReorderIn, conn=Depends(db)):
-        with Tx(conn):
-            tasks.reorder(conn, tid, body.status, body.before_id, body.after_id, body.force)
-        return detail(conn, tid)
+    def reorder(tid: int, body: S.ReorderIn, undo_: bool = Query(False, alias="undo"), conn=Depends(db)):
+        _, uid = with_undo(conn, undo_, "tasks", [tid], "Tarea movida",
+                           lambda: tasks.reorder(conn, tid, body.status, body.before_id, body.after_id, body.force))
+        return {**detail(conn, tid), "undo_id": uid} if undo_ else detail(conn, tid)
 
     @app.put("/api/tasks/{tid}/allocations")
     def put_alloc(tid: int, body: S.AllocationIn, conn=Depends(db)):
@@ -532,10 +643,16 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
         return detail(conn, tid)
 
     @app.post("/api/tasks/{tid}/skip")
-    def skip(tid: int, conn=Depends(db)):
+    def skip(tid: int, undo_: bool = Query(False, alias="undo"), conn=Depends(db)):
+        _, uid = with_undo(conn, undo_, "tasks", [tid], "Ocurrencia saltada", lambda: recurrence.skip_occurrence(conn, tid))
+        return {**detail(conn, tid), "undo_id": uid} if undo_ else detail(conn, tid)
+
+    @app.post("/api/tasks/{tid}/apply-to-series")
+    def apply_to_series(tid: int, conn=Depends(db)):
+        s = st(conn)
         with Tx(conn):
-            recurrence.skip_occurrence(conn, tid)
-        return detail(conn, tid)
+            n = recurrence.apply_task_to_series(conn, tid, s, today_local(s, now()))
+        return {**detail(conn, tid), "updated_occurrences": n}
 
     @app.post("/api/tasks/{tid}/recurrence")
     def make_recurring(tid: int, body: S.RuleIn, conn=Depends(db)):
@@ -598,6 +715,11 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
             recurrence.generate(conn, s, today_local(s, now()))
         return next(r for r in recurrence.list_all(conn) if r["id"] == rid)
 
+    @app.delete("/api/recurrences/{rid}")
+    def delete_rec(rid: int, mode: str, conn=Depends(db)):
+        with Tx(conn):
+            return {"ok": True, **recurrence.delete_series(conn, rid, mode)}
+
     @app.patch("/api/recurrences/{rid}")
     def patch_rec(rid: int, body: S.RecurrencePatch, conn=Depends(db)):
         s = st(conn)
@@ -622,9 +744,12 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
         return notes.note_detail(conn, nid)
 
     @app.patch("/api/notes/{nid}")
-    def patch_note(nid: int, body: S.NotePatch, conn=Depends(db)):
-        with Tx(conn):
-            return notes.update_note(conn, nid, dump(body))
+    def patch_note(nid: int, body: S.NotePatch, undo_: bool = Query(False, alias="undo"), conn=Depends(db)):
+        d = dump(body)
+        if undo_ and "content" in d:
+            raise invalid("Deshacer no está disponible para cambios de contenido")
+        result, uid = with_undo(conn, undo_, "notes", [nid], "Nota actualizada", lambda: notes.update_note(conn, nid, d))
+        return {**result, "undo_id": uid} if undo_ else result
 
     @app.delete("/api/notes/{nid}")
     def purge_note(nid: int, conn=Depends(db)):
@@ -657,7 +782,7 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
     @app.put("/api/session/note-tabs")
     def put_tabs(body: S.NoteTabsIn, conn=Depends(db)):
         with Tx(conn):
-            set_value(conn, "note_tabs", {"open": body.open[:50], "active": body.active})
+            set_value(conn, "note_tabs", {"open": body.open[:50], "active": body.active, "split": body.split})
         return notes.get_tabs(conn)
 
     # ---------------- Vistas de lectura ----------------
@@ -684,7 +809,27 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
         s = st(conn)
         with Tx(conn):
             reminders.refresh(conn, s, now())
-        return {"active": reminders.list_active(conn, now()), "scheduled": reminders.upcoming_manual(conn)}
+        return {"active": reminders.list_active(conn, now()), "scheduled": reminders.list_scheduled(conn, now()),
+                "resolved": reminders.list_resolved(conn)}
+
+    @app.get("/api/tasks/{tid}/reminders")
+    def task_reminders(tid: int, conn=Depends(db)):
+        tasks.get_task_row(conn, tid)
+        active = [r for r in reminders.list_active(conn, now()) if r["task_id"] == tid]
+        return {"active": active, "scheduled": reminders.list_scheduled(conn, now(), tid), "resolved": reminders.list_resolved(conn, tid, 20)}
+
+    @app.patch("/api/reminders/{rid}")
+    def patch_rem(rid: int, body: S.ReminderPatch, conn=Depends(db)):
+        d = dump(body)
+        with Tx(conn):
+            reminders.update_manual(conn, rid, d.get("title"), d.get("due_at"))
+        return row(conn.execute("SELECT * FROM reminders WHERE id = ?", (rid,)).fetchone())
+
+    @app.delete("/api/reminders/{rid}")
+    def delete_rem(rid: int, conn=Depends(db)):
+        with Tx(conn):
+            reminders.cancel_manual(conn, rid)
+        return {"ok": True}
 
     @app.post("/api/reminders", status_code=201)
     def create_rem(body: S.ManualReminderIn, conn=Depends(db)):
@@ -693,10 +838,16 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
         return row(conn.execute("SELECT * FROM reminders WHERE id = ?", (rid,)).fetchone())
 
     @app.post("/api/reminders/{rid}/action")
-    def act_rem(rid: int, body: S.ReminderAction, conn=Depends(db)):
-        with Tx(conn):
+    def act_rem(rid: int, body: S.ReminderAction, undo_: bool = Query(False, alias="undo"), conn=Depends(db)):
+        ids = [rid, *[i for i in body.also_ids if i != rid]]
+
+        def run():
             reminders.act(conn, rid, body.action, body.until)
-        return {"ok": True}
+            for i in ids[1:]:
+                if conn.execute("SELECT 1 FROM reminders WHERE id = ?", (i,)).fetchone():
+                    reminders.act(conn, i, body.action, body.until)
+        _, uid = with_undo(conn, undo_, "reminders", ids, "Recordatorio", run)
+        return {"ok": True, "undo_id": uid}
 
     @app.post("/api/reminders/notified")
     def notified(body: dict[str, list[int]], conn=Depends(db)):

@@ -1,3 +1,5 @@
+import { t, tr } from "./i18n";
+
 // Autoguardado de notas con estado verificable: «Guardado» solo tras confirmación del servidor; ante un fallo
 // el texto pendiente se conserva (en memoria y en una copia de emergencia local) y se puede reintentar.
 export type SaveState = "guardado" | "pendiente" | "guardando" | "error" | "conflicto";
@@ -8,7 +10,7 @@ export interface SaverOptions {
   delay?: number;
   emergency?: { put: (content: string) => void; clear: () => void };
   setTimer?: (fn: () => void, ms: number) => any;
-  clearTimer?: (t: any) => void;
+  clearTimer?: (h: any) => void;
 }
 
 export class NoteSaver {
@@ -35,7 +37,7 @@ export class NoteSaver {
 
   private schedule() {
     const st = this.o.setTimer ?? ((f: () => void, ms: number) => setTimeout(f, ms));
-    const ct = this.o.clearTimer ?? ((t: any) => clearTimeout(t));
+    const ct = this.o.clearTimer ?? ((h: any) => clearTimeout(h));
     if (this.timer) ct(this.timer);
     this.timer = st(() => { this.timer = null; void this.flush(); }, this.o.delay ?? 700);
   }
@@ -61,7 +63,7 @@ export class NoteSaver {
         this.o.emergency?.put(content);
         const conflict = e?.code === "conflicto_version";
         if (conflict && typeof e?.extra?.server_version === "number") this.serverVersion = e.extra.server_version;
-        this.set(conflict ? "conflicto" : "error", e?.message || "Error al guardar");
+        this.set(conflict ? "conflicto" : "error", e?.message || t("Error al guardar"));
       }
     })();
     try { await this.inflight; } finally { this.inflight = null; }
@@ -76,10 +78,10 @@ export class NoteSaver {
     return this.flush(true);
   }
 
-  dispose() { const ct = this.o.clearTimer ?? ((t: any) => clearTimeout(t)); if (this.timer) ct(this.timer); }
+  dispose() { const ct = this.o.clearTimer ?? ((h: any) => clearTimeout(h)); if (this.timer) ct(this.timer); }
 }
 
-export const SAVE_LABEL: Record<SaveState, string> = {
+export const SAVE_LABEL: Record<SaveState, string> = tr({
   guardado: "Guardado", pendiente: "Cambios sin guardar…", guardando: "Guardando…",
   error: "Error al guardar — el texto se conserva", conflicto: "Conflicto: modificada en otra ventana",
-};
+});

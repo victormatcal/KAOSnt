@@ -26,6 +26,7 @@ const ctx: AppCtx = {
   person: (id) => boot.people.find((p) => p.id === id), project: (id) => boot.projects.find((p) => p.id === id),
   reloadBoot: async () => undefined, dataVersion: 0, changed: () => undefined, openTask: () => undefined,
   quickTask: () => undefined, newNote: async () => undefined, navigate: () => undefined, toast: () => undefined,
+  undoable: () => undefined, openReminders: () => undefined,
 };
 const render = (el: any) => renderToStaticMarkup(<Ctx.Provider value={ctx}>{el}</Ctx.Provider>);
 const FORBIDDEN = /ocioso|improductiv|horas trabajadas|productividad/i;

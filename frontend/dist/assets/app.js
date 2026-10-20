@@ -9,11 +9,16 @@ const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const client_1 = require("react-dom/client");
 const App_1 = require("./App");
+const prefs_1 = require("./lib/prefs");
+const theme_1 = require("./lib/theme");
+// Último idioma, formato de fecha y aspecto conocidos, antes del primer render (evita el destello blanco).
+(0, theme_1.applyCachedAppearance)();
+(0, prefs_1.applyCachedPrefs)();
 const el = document.getElementById("root");
 if (el)
     (0, client_1.createRoot)(el).render((0, jsx_runtime_1.jsx)(react_1.StrictMode, { children: (0, jsx_runtime_1.jsx)(App_1.App, {}) }));
 
-},{"react/jsx-runtime":1,"react":2,"react-dom/client":3,"./App":6}]; // build/src/main.js
+},{"react/jsx-runtime":1,"react":2,"react-dom/client":3,"./App":6,"./lib/prefs":11,"./lib/theme":12}]; // build/src/main.js
 defs[1]=[function(module,exports,require){
 /**
  * @license React
@@ -50,7 +55,7 @@ exports.Fragment = REACT_FRAGMENT_TYPE;
 exports.jsx = jsxProd;
 exports.jsxs = jsxProd;
 
-},{}]; // ../../../../opt/oai-docgen/node_modules/react/cjs/react-jsx-runtime.production.js
+},{}]; // node_modules/react/cjs/react-jsx-runtime.production.js
 defs[2]=[function(module,exports,require){
 /**
  * @license React
@@ -595,7 +600,7 @@ exports.useTransition = function () {
 };
 exports.version = "19.2.1";
 
-},{}]; // ../../../../opt/oai-docgen/node_modules/react/cjs/react.production.js
+},{}]; // node_modules/react/cjs/react.production.js
 defs[3]=[function(module,exports,require){
 /**
  * @license React
@@ -16647,7 +16652,7 @@ exports.hydrateRoot = function (container, initialChildren, options) {
 };
 exports.version = "19.2.1";
 
-},{"scheduler":4,"react":2,"react-dom":5}]; // ../../../../opt/oai-docgen/node_modules/react-dom/cjs/react-dom-client.production.js
+},{"scheduler":4,"react":2,"react-dom":5}]; // node_modules/react-dom/cjs/react-dom-client.production.js
 defs[4]=[function(module,exports,require){
 /**
  * @license React
@@ -16990,7 +16995,7 @@ exports.unstable_wrapCallback = function (callback) {
   };
 };
 
-},{}]; // ../../../../opt/oai-docgen/node_modules/scheduler/cjs/scheduler.production.js
+},{}]; // node_modules/scheduler/cjs/scheduler.production.js
 defs[5]=[function(module,exports,require){
 /**
  * @license React
@@ -17203,7 +17208,7 @@ exports.useFormStatus = function () {
 };
 exports.version = "19.2.1";
 
-},{"react":2}]; // ../../../../opt/oai-docgen/node_modules/react-dom/cjs/react-dom.production.js
+},{"react":2}]; // node_modules/react-dom/cjs/react-dom.production.js
 defs[6]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -17214,8 +17219,11 @@ const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const api_1 = require("./lib/api");
 const dates_1 = require("./lib/dates");
+const i18n_1 = require("./lib/i18n");
+const prefs_1 = require("./lib/prefs");
 const store_1 = require("./lib/store");
 const QuickCapture_1 = require("./components/QuickCapture");
+const ReminderCenter_1 = require("./components/ReminderCenter");
 const TaskPanel_1 = require("./components/TaskPanel");
 const ui_1 = require("./components/ui");
 const Notes_1 = require("./views/Notes");
@@ -17225,7 +17233,8 @@ const Team_1 = require("./views/Team");
 const Today_1 = require("./views/Today");
 const Work_1 = require("./views/Work");
 const NAV = [
-    ["hoy", "Hoy", "Alt+1"], ["proyectos", "Proyectos", "Alt+2"], ["trabajo", "Trabajo", "Alt+3"], ["equipo", "Equipo", "Alt+4"], ["notas", "Notas", "Alt+5"],
+    ["hoy", () => (0, i18n_1.t)("Hoy"), "Alt+1"], ["proyectos", () => (0, i18n_1.t)("Proyectos"), "Alt+2"], ["trabajo", () => (0, i18n_1.t)("Trabajo"), "Alt+3"],
+    ["equipo", () => (0, i18n_1.t)("Equipo"), "Alt+4"], ["notas", () => (0, i18n_1.t)("Notas"), "Alt+5"],
 ];
 function parseRoute(hash) {
     const [, view = "", id] = (hash || "").replace(/^#/, "").split("/");
@@ -17237,8 +17246,8 @@ function homeHash(s) {
     return "#/" + (s.start_view === "ultima" ? s.last_view || "hoy" : s.start_view || "hoy");
 }
 function isTyping(e) {
-    const t = e.target;
-    return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
+    const el = e.target;
+    return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
 }
 function App({ initialBoot }) {
     const [boot, setBoot] = (0, react_1.useState)(initialBoot ?? null);
@@ -17250,7 +17259,21 @@ function App({ initialBoot }) {
     const [search, setSearch] = (0, react_1.useState)(false);
     const [toasts, setToasts] = (0, react_1.useState)([]);
     const [reminderCount, setReminderCount] = (0, react_1.useState)(0);
+    const [remCenter, setRemCenter] = (0, react_1.useState)(null);
+    const [systemDark, setSystemDark] = (0, react_1.useState)(false);
     const toastSeq = (0, react_1.useRef)(0);
+    // Idioma, formato de fecha y tema: se aplican antes de pintar con la configuración recibida
+    if (boot)
+        (0, prefs_1.applyPrefs)(boot.settings, systemDark);
+    (0, react_1.useEffect)(() => {
+        if (typeof window === "undefined" || !window.matchMedia)
+            return;
+        const mq = window.matchMedia("(prefers-color-scheme: dark)");
+        setSystemDark(mq.matches);
+        const on = (e) => setSystemDark(e.matches);
+        mq.addEventListener?.("change", on);
+        return () => mq.removeEventListener?.("change", on);
+    }, []);
     const reloadBoot = (0, react_1.useCallback)(async () => {
         try {
             setBoot(await api_1.api.get("/api/bootstrap"));
@@ -17275,14 +17298,16 @@ function App({ initialBoot }) {
     (0, react_1.useEffect)(() => {
         if (!boot || boot.settings.start_view !== "ultima" || !route.view || route.view === boot.settings.last_view)
             return;
-        const t = setTimeout(() => { api_1.api.patch("/api/settings", { last_view: route.view }).catch(() => undefined); }, 1500);
-        return () => clearTimeout(t);
+        const timer = setTimeout(() => { api_1.api.patch("/api/settings", { last_view: route.view }).catch(() => undefined); }, 1500);
+        return () => clearTimeout(timer);
     }, [route.view]);
-    const toast = (0, react_1.useCallback)((text, kind = "info", action) => {
+    const pushToast = (0, react_1.useCallback)((x) => {
         const id = ++toastSeq.current;
-        setToasts((t) => [...t.slice(-3), { id, text, kind, action }]);
-        setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), kind === "error" ? 9000 : 5000);
+        const ms = x.ms ?? (x.kind === "error" ? 9000 : 5000);
+        setToasts((list) => [...list.slice(-3), { ...x, id, ms }]);
+        setTimeout(() => setToasts((list) => list.filter((y) => y.id !== id)), ms);
     }, []);
+    const toast = (0, react_1.useCallback)((text, kind = "info", action) => pushToast({ text, kind, action }), []);
     const navigate = (0, react_1.useCallback)((h) => { window.location.hash = h; }, []);
     const newNote = (0, react_1.useCallback)(async (preset = {}) => {
         try {
@@ -17300,6 +17325,17 @@ function App({ initialBoot }) {
         project: (id) => (id == null ? undefined : boot.projects.find((p) => p.id === id)),
         reloadBoot, dataVersion, changed: () => setDataVersion((v) => v + 1),
         openTask: (id) => setTaskId(id), quickTask: (preset) => setQuick(preset || {}), newNote, navigate, toast,
+        undoable: (text, undoId) => {
+            if (!undoId) {
+                toast(text, "ok");
+                return;
+            }
+            pushToast({ text, kind: "ok", undo: true, ms: Math.max(3, Math.min(60, boot.settings.undo_seconds || 8)) * 1000, action: {
+                    label: (0, i18n_1.t)("Deshacer"),
+                    run: () => { api_1.api.post(`/api/undo/${undoId}`).then(() => { setDataVersion((v) => v + 1); toast((0, i18n_1.t)("Acción deshecha"), "ok"); }, (e) => toast(e.message, "error")); },
+                } });
+        },
+        openReminders: (tab) => setRemCenter(tab || "pendientes"),
     }), [boot, dataVersion]);
     (0, react_1.useEffect)(() => {
         const onKey = (e) => {
@@ -17358,18 +17394,18 @@ function App({ initialBoot }) {
                     return;
                 if ((0, dates_1.inQuietHours)(st.quiet_start, st.quiet_end, st.timezone))
                     return;
-                const body = st.notifications_discreet || fresh.length > 1 ? `${fresh.length} recordatorio(s) pendiente(s)` : fresh[0].rule_label;
+                const body = st.notifications_discreet || fresh.length > 1 ? (0, i18n_1.t)("{n} recordatorio(s) pendiente(s)", { n: fresh.length }) : (0, i18n_1.t)(fresh[0].rule_label);
                 new Notification(st.app_name || "KAOSnt", { body, tag: "kaosnt-recordatorios" });
                 await api_1.api.post("/api/reminders/notified", { ids: fresh.map((x) => x.id) });
             }
             catch { /* el centro interno sigue disponible */ }
         };
         void check();
-        const t = setInterval(check, 60000);
-        return () => clearInterval(t);
+        const timer = setInterval(check, 60000);
+        return () => clearInterval(timer);
     }, [boot?.settings.notifications_enabled, dataVersion]);
     if (!boot || !ctx)
-        return (0, jsx_runtime_1.jsx)("main", { className: "boot", children: bootError ? (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: bootError, onRetry: reloadBoot }) : (0, jsx_runtime_1.jsx)("p", { children: "Cargando\u2026" }) });
+        return (0, jsx_runtime_1.jsx)("main", { className: "boot", children: bootError ? (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: bootError, onRetry: reloadBoot }) : (0, jsx_runtime_1.jsx)("p", { children: (0, i18n_1.t)("Cargando…") }) });
     let content;
     switch (route.view) {
         case "proyectos":
@@ -17390,15 +17426,16 @@ function App({ initialBoot }) {
         default: content = (0, jsx_runtime_1.jsx)(Today_1.TodayView, {});
     }
     const current = route.view || "hoy";
-    return ((0, jsx_runtime_1.jsxs)(store_1.Ctx.Provider, { value: ctx, children: [(0, jsx_runtime_1.jsx)("a", { className: "skip", href: "#main", children: "Saltar al contenido" }), (0, jsx_runtime_1.jsxs)("header", { className: "topbar", children: [(0, jsx_runtime_1.jsx)("a", { className: "brand", href: homeHash(boot.settings), title: "Ir a la pantalla de inicio", children: boot.settings.app_name || "KAOSnt" }), boot.demo && (0, jsx_runtime_1.jsx)("span", { className: "demo-badge", children: "DEMO \u00B7 datos ficticios" }), (0, jsx_runtime_1.jsx)("nav", { "aria-label": "Principal", className: "mainnav", children: NAV.map(([k, label, key]) => (0, jsx_runtime_1.jsx)("a", { href: `#/${k}`, className: current === k ? "active" : "", "aria-current": current === k ? "page" : undefined, title: key, children: label }, k)) }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), (0, jsx_runtime_1.jsxs)("button", { onClick: () => setQuick({}), title: "Alt+T", children: ["+ Tarea ", (0, jsx_runtime_1.jsx)("kbd", { children: "Alt+T" })] }), (0, jsx_runtime_1.jsxs)("button", { onClick: () => newNote(), title: "Alt+N", children: ["+ Nota ", (0, jsx_runtime_1.jsx)("kbd", { children: "Alt+N" })] }), (0, jsx_runtime_1.jsxs)("button", { onClick: () => setSearch(true), title: "Ctrl+K o /", children: ["Buscar ", (0, jsx_runtime_1.jsx)("kbd", { children: "Ctrl+K" })] }), (0, jsx_runtime_1.jsxs)("a", { href: "#/hoy", className: "bell", title: "Recordatorios pendientes (en Hoy)", "aria-label": `${reminderCount} recordatorios pendientes`, children: ["\uD83D\uDD14 ", reminderCount] }), (0, jsx_runtime_1.jsx)("a", { href: "#/config", className: "navlink" + (current === "config" ? " active" : ""), title: "Configuraci\u00F3n, copias y cierre", children: "\u2699 Configuraci\u00F3n" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "layout" + (taskId ? " with-panel" : ""), children: [(0, jsx_runtime_1.jsx)("main", { id: "main", tabIndex: -1, children: content }), taskId !== null && (0, jsx_runtime_1.jsx)(TaskPanel_1.TaskPanel, { id: taskId, onClose: () => setTaskId(null) }, taskId)] }), quick && (0, jsx_runtime_1.jsx)(QuickCapture_1.QuickTask, { preset: quick, onClose: () => setQuick(null) }), search && (0, jsx_runtime_1.jsx)(QuickCapture_1.SearchDialog, { onClose: () => setSearch(false) }), (0, jsx_runtime_1.jsx)("div", { className: "toasts", "aria-live": "polite", role: "status", children: toasts.map((t) => (0, jsx_runtime_1.jsxs)("div", { className: `toast toast-${t.kind}`, children: [(0, jsx_runtime_1.jsx)("span", { children: t.text }), t.action && (0, jsx_runtime_1.jsx)("button", { className: "small", onClick: () => { t.action.run(); setToasts((x) => x.filter((y) => y.id !== t.id)); }, children: t.action.label }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", "aria-label": "Cerrar aviso", onClick: () => setToasts((x) => x.filter((y) => y.id !== t.id)), children: "\u2715" })] }, t.id)) })] }));
+    return ((0, jsx_runtime_1.jsx)(store_1.Ctx.Provider, { value: ctx, children: (0, jsx_runtime_1.jsxs)("div", { className: "app-root", children: [(0, jsx_runtime_1.jsx)("a", { className: "skip", href: "#main", children: (0, i18n_1.t)("Saltar al contenido") }), (0, jsx_runtime_1.jsxs)("header", { className: "topbar", children: [(0, jsx_runtime_1.jsx)("a", { className: "brand", href: homeHash(boot.settings), title: (0, i18n_1.t)("Ir a la pantalla de inicio"), children: boot.settings.app_name || "KAOSnt" }), boot.demo && (0, jsx_runtime_1.jsx)("span", { className: "demo-badge", children: (0, i18n_1.t)("DEMO · datos ficticios") }), (0, jsx_runtime_1.jsx)("nav", { "aria-label": (0, i18n_1.t)("Principal"), className: "mainnav", children: NAV.map(([k, label, key]) => (0, jsx_runtime_1.jsx)("a", { href: `#/${k}`, className: current === k ? "active" : "", "aria-current": current === k ? "page" : undefined, title: key, children: label() }, k)) }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), (0, jsx_runtime_1.jsxs)("button", { onClick: () => setQuick({}), title: "Alt+T", children: [(0, i18n_1.t)("+ Tarea"), " ", (0, jsx_runtime_1.jsx)("kbd", { children: "Alt+T" })] }), (0, jsx_runtime_1.jsxs)("button", { onClick: () => newNote(), title: "Alt+N", children: [(0, i18n_1.t)("+ Nota"), " ", (0, jsx_runtime_1.jsx)("kbd", { children: "Alt+N" })] }), (0, jsx_runtime_1.jsxs)("button", { onClick: () => setSearch(true), title: (0, i18n_1.t)("Ctrl+K o /"), children: [(0, i18n_1.t)("Buscar"), " ", (0, jsx_runtime_1.jsx)("kbd", { children: "Ctrl+K" })] }), (0, jsx_runtime_1.jsxs)("button", { className: "bell ghost", onClick: () => setRemCenter("pendientes"), title: (0, i18n_1.t)("Centro de recordatorios: pendientes, programados y resueltos"), "aria-label": (0, i18n_1.t)("Recordatorios: {n} pendientes", { n: reminderCount }), children: ["\uD83D\uDD14 ", reminderCount] }), (0, jsx_runtime_1.jsxs)("a", { href: "#/config", className: "navlink" + (current === "config" ? " active" : ""), title: (0, i18n_1.t)("Configuración, copias y cierre"), children: ["\u2699 ", (0, i18n_1.t)("Configuración")] })] }), (0, jsx_runtime_1.jsxs)("div", { className: "layout" + (taskId ? " with-panel" : ""), children: [(0, jsx_runtime_1.jsx)("main", { id: "main", tabIndex: -1, children: content }), taskId !== null && (0, jsx_runtime_1.jsx)(TaskPanel_1.TaskPanel, { id: taskId, onClose: () => setTaskId(null) }, taskId)] }), quick && (0, jsx_runtime_1.jsx)(QuickCapture_1.QuickTask, { preset: quick, onClose: () => setQuick(null) }), search && (0, jsx_runtime_1.jsx)(QuickCapture_1.SearchDialog, { onClose: () => setSearch(false) }), remCenter && (0, jsx_runtime_1.jsx)(ReminderCenter_1.ReminderCenter, { initial: remCenter, onClose: () => { setRemCenter(null); setDataVersion((v) => v + 1); } }), (0, jsx_runtime_1.jsx)("div", { className: "toasts", "aria-live": "polite", role: "status", children: toasts.map((x) => (0, jsx_runtime_1.jsxs)("div", { className: `toast toast-${x.kind}${x.undo ? " toast-undo" : ""}`, children: [(0, jsx_runtime_1.jsx)("span", { children: x.text }), x.action && (0, jsx_runtime_1.jsx)("button", { className: "small", onClick: () => { x.action.run(); setToasts((l) => l.filter((y) => y.id !== x.id)); }, children: x.action.label }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", "aria-label": (0, i18n_1.t)("Cerrar aviso"), onClick: () => setToasts((l) => l.filter((y) => y.id !== x.id)), children: "\u2715" }), x.undo && (0, jsx_runtime_1.jsx)("span", { className: "toast-progress", "aria-hidden": "true", style: { animationDuration: `${x.ms}ms` } })] }, x.id)) })] }, boot.settings.language) }));
 }
 
-},{"react/jsx-runtime":1,"react":2,"./lib/api":7,"./lib/dates":8,"./lib/store":9,"./components/QuickCapture":10,"./components/TaskPanel":15,"./components/ui":13,"./views/Notes":18,"./views/Projects":20,"./views/Settings":23,"./views/Team":24,"./views/Today":25,"./views/Work":26}]; // build/src/App.js
+},{"react/jsx-runtime":1,"react":2,"./lib/api":7,"./lib/dates":10,"./lib/i18n":8,"./lib/prefs":11,"./lib/store":14,"./components/QuickCapture":15,"./components/ReminderCenter":21,"./components/TaskPanel":22,"./components/ui":19,"./views/Notes":25,"./views/Projects":27,"./views/Settings":31,"./views/Team":32,"./views/Today":33,"./views/Work":34}]; // build/src/App.js
 defs[7]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.api = exports.ApiError = void 0;
 // Cliente HTTP mínimo. Solo habla con el propio servidor local (mismo origen).
+const i18n_1 = require("./i18n");
 class ApiError extends Error {
     constructor(status, code, message, extra = {}) {
         super(message);
@@ -17419,7 +17456,7 @@ async function request(method, url, body) {
         });
     }
     catch {
-        throw new ApiError(0, "sin_conexion", "No se puede conectar con la aplicación local. Comprueba que KAOSnt sigue en marcha (iniciar.bat).");
+        throw new ApiError(0, "sin_conexion", (0, i18n_1.t)("No se puede conectar con la aplicación local. Comprueba que KAOSnt sigue en marcha (iniciar.bat)."));
     }
     const text = await res.text();
     let data = null;
@@ -17430,7 +17467,7 @@ async function request(method, url, body) {
         data = null;
     }
     if (!res.ok)
-        throw new ApiError(res.status, data?.code || "error", data?.message || `Error ${res.status}`, data || {});
+        throw new ApiError(res.status, data?.code || "error", data?.message || (0, i18n_1.t)("Error {codigo}", { codigo: res.status }), data || {});
     return data;
 }
 exports.api = {
@@ -17441,17 +17478,1040 @@ exports.api = {
     del: (url) => request("DELETE", url),
 };
 
-},{}]; // build/src/lib/api.js
+},{"./i18n":8}]; // build/src/lib/api.js
 defs[8]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.setLang = setLang;
+exports.getLang = getLang;
+exports.t = t;
+exports.tr = tr;
+exports.locale = locale;
+exports.translateServer = translateServer;
+// Traducción mínima: t("texto en español", {vars}). El español es la clave; el inglés está en src/i18n/en.ts.
+// Si falta una traducción se muestra el español. Los datos del usuario nunca se traducen.
+// Nota: no uses «t» como nombre de variable en el código para no tapar esta función.
+const en_1 = require("../i18n/en");
+let lang = "es";
+function setLang(l) { lang = l === "en" ? "en" : "es"; }
+function getLang() { return lang; }
+function t(es, vars) {
+    let s = lang === "en" ? (en_1.EN[es] ?? es) : es;
+    if (vars)
+        s = s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k] ?? "") : m));
+    return s;
+}
+/** Diccionario de etiquetas cuyos valores (en español) se traducen al leerlos. */
+function tr(map) {
+    return new Proxy(map, {
+        get(target, key) { const v = target[key]; return typeof v === "string" ? t(v) : v; },
+    });
+}
+/** Locale para Intl según el idioma. */
+function locale() { return lang === "en" ? "en-GB" : "es-ES"; }
+// Textos generados por el servidor (en español): se traducen en el cliente por patrón.
+const SERVER_PATTERNS = [
+    [/^Vence el (\d{4}-\d{2}-\d{2})$/, "Vence el {0}"],
+    [/^Revisar en la fecha indicada$/, "Revisar en la fecha indicada"],
+    [/^Han pasado ([\d.,]+) h (laborables|naturales) desde el inicio$/, "Han pasado {0} h {1} desde el inicio"],
+    [/^([\d.,]+) h (laborables|naturales) sin actualización significativa$/, "{0} h {1} sin actualización significativa"],
+    [/^Seguimiento periódico pendiente$/, "Seguimiento periódico pendiente"],
+    [/^Fecha de seguimiento alcanzada$/, "Fecha de seguimiento alcanzada"],
+];
+function translateServer(text) {
+    if (!text)
+        return "";
+    if (lang === "es")
+        return text;
+    for (const [re, key] of SERVER_PATTERNS) {
+        const m = re.exec(text);
+        if (m)
+            return t(key).replace(/\{(\d)\}/g, (_, i) => t(m[Number(i) + 1]));
+    }
+    return text;
+}
+
+},{"../i18n/en":9}]; // build/src/lib/i18n.js
+defs[9]=[function(module,exports,require){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.EN = void 0;
+// Traducciones al inglés. Clave = texto en español tal como aparece en t("…").
+// tools/i18n-keys.mjs comprueba que todas las claves usadas tienen traducción.
+exports.EN = {
+    "Hoy": "Today",
+    "Proyectos": "Projects",
+    "Trabajo": "Work",
+    "Equipo": "Team",
+    "Notas": "Notes",
+    "Deshacer": "Undo",
+    "Acción deshecha": "Action undone",
+    "{n} recordatorio(s) pendiente(s)": "{n} pending reminder(s)",
+    "Cargando…": "Loading…",
+    "Saltar al contenido": "Skip to content",
+    "Ir a la pantalla de inicio": "Go to the start screen",
+    "DEMO · datos ficticios": "DEMO · fictitious data",
+    "Principal": "Main",
+    "+ Tarea": "+ Task",
+    "+ Nota": "+ Note",
+    "Ctrl+K o /": "Ctrl+K or /",
+    "Buscar": "Search",
+    "Centro de recordatorios: pendientes, programados y resueltos": "Reminder centre: pending, scheduled and resolved",
+    "Recordatorios: {n} pendientes": "Reminders: {n} pending",
+    "Configuración, copias y cierre": "Settings, backups and shutdown",
+    "Configuración": "Settings",
+    "Cerrar aviso": "Close notice",
+    "Abrir calendario: {campo}": "Open calendar: {campo}",
+    "Calendario (Alt+↓)": "Calendar (Alt+↓)",
+    "Fecha no válida ({formato})": "Invalid date ({formato})",
+    "Elegir fecha": "Pick a date",
+    "Mes anterior": "Previous month",
+    "Mes siguiente": "Next month",
+    "Cerrar": "Close",
+    "Hora no válida (HH:MM, 24 h)": "Invalid time (HH:MM, 24 h)",
+    "{campo} (fecha)": "{campo} (date)",
+    "{campo} (hora)": "{campo} (time)",
+    "Tarea creada: {titulo}": "Task created: {titulo}",
+    "Abrir": "Open",
+    "Nueva tarea": "New task",
+    "Título (obligatorio)": "Title (required)",
+    "¿Qué hay que hacer?": "What needs to be done?",
+    "Menos campos": "Fewer fields",
+    "Más campos (opcionales)": "More fields (optional)",
+    "Proyecto": "Project",
+    "Responsable": "Assignee",
+    "Fecha límite": "Due date",
+    "Guardar en Backlog (aún no comprometida)": "Save to Backlog (not committed yet)",
+    "Se repite": "Repeats",
+    "Crear (Enter)": "Create (Enter)",
+    "Crear y abrir detalle": "Create and open details",
+    "Cancelar": "Cancel",
+    "Texto a buscar": "Search text",
+    "Palabras o \"frase exacta\" en tareas, proyectos y notas": "Words or \"exact phrase\" in tasks, projects and notes",
+    "Incluir archivados": "Include archived",
+    "Incluir papelera": "Include trash",
+    "Sin resultados. Prueba con menos palabras o sin comillas.": "No results. Try fewer words or no quotes.",
+    "Resultados": "Results",
+    "Nota": "Note",
+    "Tarea": "Task",
+    "Mostrando {n} de {total}. Afina la búsqueda.": "Showing {n} of {total}. Refine your search.",
+    "Cada cuántos días": "Every how many days",
+    "Empieza": "Starts",
+    "Termina (opcional)": "Ends (optional)",
+    "Días de la semana": "Days of the week",
+    "Si cae en día no laborable": "If it falls on a non-working day",
+    "No laborables: días sin horario laboral y festivos registrados (comunes y de la oficina del responsable)": "Non-working: days without working hours and registered holidays (common and the assignee's office)",
+    "¿Aplicar también a las ocurrencias futuras ya generadas que sigan pendientes?\n\nAceptar = también las futuras · Cancelar = solo las nuevas": "Also apply to future occurrences already generated that are still pending?\n\nOK = also future ones · Cancel = only new ones",
+    "Tareas recurrentes": "Recurring tasks",
+    "También puedes hacer recurrente cualquier tarea desde su detalle (sección «Repetición»). Cada ocurrencia es una tarea propia: se completa o se salta sin afectar a las demás.": "You can also make any task recurring from its details (\"Repetition\" section). Each occurrence is its own task: completing or skipping it does not affect the others.",
+    "Título": "Title",
+    "Repetición": "Repetition",
+    "Estado": "Status",
+    "desde {fecha}": "from {fecha}",
+    "hasta {fecha}": "until {fecha}",
+    "Sin asignar": "Unassigned",
+    "Activa": "Active",
+    "Pausada": "Paused",
+    "Editar": "Edit",
+    "Pausar": "Pause",
+    "Reactivar": "Resume",
+    "Eliminar serie": "Delete series",
+    "No hay tareas recurrentes.": "There are no recurring tasks.",
+    "Nueva recurrencia": "New recurrence",
+    "Prioridad": "Priority",
+    "Esfuerzo estimado por ocurrencia (h)": "Estimated effort per occurrence (h)",
+    "La regla y el inicio no se modifican para no alterar el histórico; si cambian, pausa esta serie y crea otra.": "The rule and start are not changed so history is preserved; if they change, pause this series and create another one.",
+    "Guardar": "Save",
+    "Volver": "Back",
+    "¿Eliminar la serie «{titulo}»? Sus ocurrencias se conservan como tareas normales.": "Delete the series \"{titulo}\"? Its occurrences are kept as regular tasks.",
+    "¿Eliminar la serie «{titulo}» y sus ocurrencias pendientes? No se puede deshacer. Las hechas, en curso o en revisión se conservan.": "Delete the series \"{titulo}\" and its pending occurrences? This cannot be undone. Done, in-progress and in-review ones are kept.",
+    "Serie eliminada: {borradas} ocurrencia(s) eliminada(s), {conservadas} conservada(s) como tareas normales": "Series deleted: {borradas} occurrence(s) deleted, {conservadas} kept as regular tasks",
+    "Eliminar serie recurrente": "Delete recurring series",
+    "¿Qué hacer con las ocurrencias ya creadas?": "What to do with occurrences already created?",
+    "Conservarlas como tareas normales (dejan de ser recurrentes)": "Keep them as regular tasks (no longer recurring)",
+    "Eliminar también las pendientes (no iniciadas y saltadas)": "Also delete pending ones (not started and skipped)",
+    "Las ocurrencias hechas, en curso o en revisión se conservan siempre. No se generarán más ocurrencias.": "Done, in-progress and in-review occurrences are always kept. No more occurrences will be generated.",
+    "Pendientes": "Pending",
+    "Programados": "Scheduled",
+    "Resueltos": "Resolved",
+    "Recordatorios": "Reminders",
+    "Bandejas de recordatorios": "Reminder trays",
+    "Avisos ya vencidos. Atiende, pospón o descarta.": "Notices already due. Handle, snooze or dismiss.",
+    "Recordatorios futuros y pospuestos. Los manuales se pueden editar o cancelar.": "Future and snoozed reminders. Manual ones can be edited or cancelled.",
+    "Últimos atendidos o descartados. Puedes reabrirlos.": "Recently handled or dismissed. You can reopen them.",
+    "No hay recordatorios pendientes.": "No pending reminders.",
+    "No hay recordatorios programados.": "No scheduled reminders.",
+    "No hay recordatorios resueltos.": "No resolved reminders.",
+    "Recordatorio atendido": "Reminder handled",
+    "Recordatorio descartado": "Reminder dismissed",
+    "Recordatorio pospuesto": "Reminder snoozed",
+    "Recordatorio reabierto": "Reminder reopened",
+    "Recordatorio actualizado": "Reminder updated",
+    "Texto del recordatorio": "Reminder text",
+    "Fecha y hora": "Date and time",
+    "{estado} el {fecha}": "{estado} on {fecha}",
+    "Atendido": "Handled",
+    "Descartado": "Dismissed",
+    "pospuesto hasta {fecha}": "snoozed until {fecha}",
+    "programado para {fecha}": "scheduled for {fecha}",
+    "{n} avisos agrupados de la misma serie": "{n} grouped notices from the same series",
+    "también arriba": "also above",
+    "+2 h": "+2 h",
+    "Mañana 9:00": "Tomorrow 9:00",
+    "Descartar": "Dismiss",
+    "Reabrir": "Reopen",
+    "¿Cancelar el recordatorio «{titulo}»? Se elimina y no se puede deshacer.": "Cancel the reminder \"{titulo}\"? It will be deleted and cannot be undone.",
+    "Recordatorio cancelado": "Reminder cancelled",
+    "Cancelar recordatorio": "Cancel reminder",
+    "Esta tarea no tiene recordatorios.": "This task has no reminders.",
+    "Resueltos ({n})": "Resolved ({n})",
+    "Recordatorio programado para el {fecha}. Lo verás en 🔔 → Programados (y en Hoy si es esta semana).": "Reminder scheduled for {fecha}. You will find it in 🔔 → Scheduled (and in Today if it is this week).",
+    "Ver": "View",
+    "Recordarme… (p. ej. llamar a sistemas)": "Remind me… (e.g. call IT)",
+    "Fecha y hora ({zona})": "Date and time ({zona})",
+    "Programar": "Schedule",
+    "Abrir la tarea principal": "Open the parent task",
+    "Subtarea de «{titulo}»": "Subtask of \"{titulo}\"",
+    "Abrir detalle": "Open details",
+    "Prioridad {p}": "Priority {p}",
+    "Depende de tareas no terminadas": "Depends on unfinished tasks",
+    "espera {n}": "waits {n}",
+    "Otras tareas dependen de esta": "Other tasks depend on this one",
+    "bloquea {n}": "blocks {n}",
+    "Pasos completados": "Completed steps",
+    "{hechos}/{total} pasos": "{hechos}/{total} steps",
+    "Subtareas cerradas": "Closed subtasks",
+    "{cerradas}/{total} subtareas": "{cerradas}/{total} subtasks",
+    "Desplegar la serie": "Expand the series",
+    "Serie recurrente: {n} ocurrencias más. Desplegar": "Recurring series: {n} more occurrences. Expand",
+    "Tarea recurrente": "Recurring task",
+    "Hay cambios sin guardar en la tarea. ¿Cerrar sin guardar?": "The task has unsaved changes. Close without saving?",
+    "Detalle de tarea": "Task details",
+    "El título es obligatorio": "The title is required",
+    "Tarea guardada": "Task saved",
+    "Detalle de la tarea {titulo}": "Details of task {titulo}",
+    "Subtarea de": "Subtask of",
+    "Ya no es subtarea": "No longer a subtask",
+    "Convertir en tarea independiente": "Convert into an independent task",
+    "Independizar": "Detach",
+    "Hay cambios sin guardar. ¿Cerrar sin guardar?": "There are unsaved changes. Close without saving?",
+    "Cerrar detalle (Esc)": "Close details (Esc)",
+    "Estado: {estado}": "Status: {estado}",
+    "Prioridad actualizada": "Priority updated",
+    "Promovida a Pendiente": "Promoted to Pending",
+    "Promover a Pendiente": "Promote to Pending",
+    "recurrente": "recurring",
+    "Archivada": "Archived",
+    "Básico": "Basics",
+    "Tipo": "Type",
+    "Línea de trabajo": "Workstream",
+    "Fase": "Phase",
+    "Entregable": "Deliverable",
+    "Responsable de ejecución": "Assignee",
+    "Persona revisora": "Reviewer",
+    "Sin revisor": "No reviewer",
+    "Fecha planificada": "Planned date",
+    "Esfuerzo estimado (h)": "Estimated effort (h)",
+    "Vacío = no informado (no cuenta como 0)": "Empty = not provided (does not count as 0)",
+    "Etiquetas": "Tags",
+    "Se guardan al momento. Gestiona (renombrar/eliminar) en Configuración.": "Saved immediately. Manage them (rename/delete) in Settings.",
+    "Pasos y subtareas": "Steps and subtasks",
+    "{hechos}/{total} pasos · {n} subtareas": "{hechos}/{total} steps · {n} subtasks",
+    "Espera o bloqueo": "Waiting or blocked",
+    "Condición adicional: la tarea conserva su estado ({estado}).": "Additional condition: the task keeps its status ({estado}).",
+    "Condición": "Condition",
+    "Ninguna": "None",
+    "En espera": "Waiting",
+    "Bloqueada": "Blocked",
+    "Depende de (persona del equipo)": "Depends on (team member)",
+    "Depende de (tercero)": "Depends on (third party)",
+    "p. ej. sistemas del cliente": "e.g. client's IT team",
+    "Fecha de seguimiento": "Follow-up date",
+    "Recordar seguimiento cada (días)": "Follow-up reminder every (days)",
+    "Motivo": "Reason",
+    "Qué falta y por qué": "What is missing and why",
+    "Próxima acción": "Next action",
+    "Qué harás para desbloquearlo": "What you will do to unblock it",
+    "Tiempos, revisiones y recordatorios": "Times, reviews and reminders",
+    "Tiempo desde el inicio": "Time since start",
+    "(no equivale a dedicación ni a horas trabajadas)": "(not equivalent to effort or hours worked)",
+    "Última actualización significativa": "Last significant update",
+    "Inicio real": "Actual start",
+    "no informado": "not provided",
+    "Finalización": "Completion",
+    "Revisar en fecha y hora": "Review at date and time",
+    "Revisar tras (h) desde el inicio": "Review after (h) since start",
+    "Revisar tras (h) sin actualización": "Review after (h) without update",
+    "Cómputo de esas horas": "How those hours are counted",
+    "Laborables: {horario}; sin festivos registrados": "Working: {horario}; excluding registered holidays",
+    "Tiempo natural": "Calendar time",
+    "Horas laborables": "Working hours",
+    "Inicio real (corregir)": "Actual start (correct)",
+    "Zona horaria: {zona}. Abrir o consultar la tarea no reinicia ningún contador.": "Time zone: {zona}. Opening or viewing the task does not reset any counter.",
+    "Recordatorios de esta tarea": "Reminders for this task",
+    "Recordatorio puntual": "One-off reminder",
+    "Contactar con {quien}": "Contact {quien}",
+    "Aprobación comercial": "Commercial approval",
+    "Aprobación (independiente del estado de ejecución)": "Approval (independent of execution status)",
+    "Puedes preparar el análisis antes; al iniciar la ejecución sin aprobación se pide confirmación.": "You can prepare the analysis beforehand; starting execution without approval asks for confirmation.",
+    "Dependencias": "Dependencies",
+    "{n} de las que depende · bloquea {m}": "depends on {n} · blocks {m}",
+    "Esta tarea depende de": "This task depends on",
+    "pendiente de mí": "waiting on me",
+    "Quitar": "Remove",
+    "Añadir dependencia: buscar tarea…": "Add dependency: search task…",
+    "Dependencia añadida": "Dependency added",
+    "Bloquea a": "Blocks",
+    "Ninguna tarea depende de esta": "No task depends on this one",
+    "Notas vinculadas": "Linked notes",
+    "Sin notas vinculadas": "No linked notes",
+    "+ Nueva nota vinculada": "+ New linked note",
+    "Enlaces": "Links",
+    "Solo enlaces a los archivos y recursos originales; no se almacenan adjuntos.": "Only links to the original files and resources; no attachments are stored.",
+    "Repartir esfuerzo entre semanas (opcional)": "Split effort across weeks (optional)",
+    "Historial y actualizaciones": "History and updates",
+    "Guardando…": "Saving…",
+    "Guardar cambios ({n})": "Save changes ({n})",
+    "Sin cambios": "No changes",
+    "Ocurrencia saltada": "Occurrence skipped",
+    "Saltar ocurrencia": "Skip occurrence",
+    "Tarea cancelada": "Task cancelled",
+    "Cancelar tarea": "Cancel task",
+    "Tarea archivada (Trabajo → Archivadas)": "Task archived (Work → Archived)",
+    "Archivar": "Archive",
+    "Tarea restaurada": "Task restored",
+    "Restaurar": "Restore",
+    "¿Eliminar definitivamente esta tarea? No se puede deshacer.": "Permanently delete this task? This cannot be undone.",
+    "Tarea eliminada": "Task deleted",
+    "Eliminar definitivamente": "Delete permanently",
+    "Ctrl+S guarda · Esc cierra": "Ctrl+S saves · Esc closes",
+    "Descripción": "Description",
+    "Vista previa": "Preview",
+    "Texto libre (admite Markdown)": "Free text (Markdown supported)",
+    "Subtarea creada: {titulo}": "Subtask created: {titulo}",
+    "Nuevo paso o subtarea": "New step or subtask",
+    "Describe el paso o la subtarea…": "Describe the step or subtask…",
+    "Añadir paso": "Add step",
+    "Añadir subtarea": "Add subtask",
+    "Paso: casilla dentro de esta tarea (no aparece en tablero, lista ni calendario). Subtarea: tarea completa con su responsable y fechas, visible en todas las vistas con la marca «↳ Subtarea de…». Completar pasos o subtareas no completa esta tarea.": "Step: a checkbox inside this task (not shown on the board, list or calendar). Subtask: a full task with its own assignee and dates, visible in every view with the mark \"↳ Subtask of…\". Completing steps or subtasks does not complete this task.",
+    "Pasos ({hechos}/{total})": "Steps ({hechos}/{total})",
+    "Editar paso:": "Edit step:",
+    "Convertir en subtarea completa": "Convert into a full subtask",
+    "Convertido en subtarea: {titulo}": "Converted into subtask: {titulo}",
+    "→ Subtarea": "→ Subtask",
+    "Eliminar paso {texto}": "Delete step {texto}",
+    "Subtareas ({cerradas}/{total})": "Subtasks ({cerradas}/{total})",
+    "Desde: {fecha} · Último seguimiento: {ultimo}": "Since: {fecha} · Last follow-up: {ultimo}",
+    "ninguno registrado": "none recorded",
+    "Nota del seguimiento": "Follow-up note",
+    "Nota del seguimiento (opcional)": "Follow-up note (optional)",
+    "Seguimiento registrado (la espera continúa)": "Follow-up recorded (still waiting)",
+    "Seguimiento realizado": "Follow-up done",
+    "Espera/bloqueo resuelto": "Wait/block resolved",
+    "Marcar resuelto": "Mark resolved",
+    "«Recordar contactar» no envía nada: solo te lo recuerda.": "\"Remind to contact\" sends nothing: it only reminds you.",
+    "activa": "active",
+    "pausada": "paused",
+    "Esta tarea es una ocurrencia de la serie (fecha {fecha}). Lo que cambies aquí solo afecta a esta ocurrencia, salvo que pulses «Aplicar estos datos a la serie».": "This task is an occurrence of the series (date {fecha}). Changes here only affect this occurrence unless you press \"Apply this data to the series\".",
+    "Serie pausada: no se generarán más ocurrencias": "Series paused: no more occurrences will be generated",
+    "Serie reactivada": "Series resumed",
+    "Pausar la serie": "Pause the series",
+    "Reactivar la serie": "Resume the series",
+    "¿Aplicar los datos de esta tarea (título, proyecto, responsable, revisor, tipo, prioridad, estimación, descripción, agrupaciones, aprobación, revisiones, enlaces, etiquetas, pasos y recordatorios) a la serie y a sus ocurrencias futuras pendientes?": "Apply this task's data (title, project, assignee, reviewer, type, priority, estimate, description, groupings, approval, reviews, links, tags, steps and reminders) to the series and its pending future occurrences?",
+    "Aplicado a la serie y a {n} ocurrencia(s) futura(s)": "Applied to the series and {n} future occurrence(s)",
+    "Aplicar estos datos a la serie": "Apply this data to the series",
+    "Convierte esta tarea en la primera de una serie. Las siguientes se crean solas (hasta {n} días vista) y heredan todo: proyecto, responsable, revisor, tipo, prioridad, estimación, descripción, agrupaciones, tarea principal, aprobación, revisiones, enlaces, etiquetas, pasos (sin marcar) y recordatorios. Las fechas mantienen su relación con la fecha límite.": "Turns this task into the first of a series. The following ones are created automatically (up to {n} days ahead) and inherit everything: project, assignee, reviewer, type, priority, estimate, description, groupings, parent task, approval, reviews, links, tags, steps (unchecked) and reminders. Dates keep their relation to the due date.",
+    "Hay cambios sin guardar: se guardarán antes de crear la serie.": "There are unsaved changes: they will be saved before creating the series.",
+    "La tarea ahora se repite": "The task now repeats",
+    "Hacer recurrente": "Make recurring",
+    "Solo es útil para tareas grandes que ocupan varias semanas. En la Planificación semanal de Equipo, una tarea suma su estimación completa ({h} h) en la semana de su fecha planificada. Si va a repartirse (p. ej. 30 h en 3 semanas), indica aquí cuántas horas corresponden a cada semana y la planificación usará esas cifras. Nada se reparte automáticamente.": "Only useful for large tasks spanning several weeks. In Team's weekly planning a task adds its full estimate ({h} h) to the week of its planned date. If it will be split (e.g. 30 h over 3 weeks), enter here how many hours belong to each week and planning will use those figures. Nothing is split automatically.",
+    "Semana del {fecha}: {h} h": "Week of {fecha}: {h} h",
+    "Repartidas {a} h de {e} h estimadas.": "{a} h of {e} h estimated allocated.",
+    "Semana del (lunes)": "Week of (Monday)",
+    "Horas": "Hours",
+    "horas": "hours",
+    "Actualización registrada": "Update recorded",
+    "Actualización corregida": "Update corrected",
+    "Seguimiento": "Follow-up",
+    "Auto": "Auto",
+    "Registrar actualización": "Record update",
+    "Qué se ha hecho, qué ha cambiado o una nota personal (cuenta como actualización significativa). Ctrl+Enter para registrar.": "What was done, what changed or a personal note (counts as a significant update). Ctrl+Enter to record.",
+    "Tus notas se pueden editar; los cambios automáticos no (sirven de registro).": "Your notes can be edited; automatic changes cannot (they are the record).",
+    "editada {fecha}": "edited {fecha}",
+    "Editar actualización": "Edit update",
+    "¿Archivar las {n} tareas de la columna Hecha? Podrás deshacerlo durante unos segundos y verlas en Trabajo → Archivadas.": "Archive the {n} tasks in the Done column? You can undo it for a few seconds and see them in Work → Archived.",
+    "{n} tareas archivadas": "{n} tasks archived",
+    "Sin proyecto": "No project",
+    "Sin {agrupacion}": "No {agrupacion}",
+    "Movida a «{columna}»": "Moved to \"{columna}\"",
+    "No hay tareas con estos filtros. Crea una con «+ Tarea» (Alt+T) o revisa los filtros.": "No tasks match these filters. Create one with \"+ Task\" (Alt+T) or review the filters.",
+    "Columna {nombre}": "Column {nombre}",
+    "Archivar todas las tareas hechas (con deshacer)": "Archive all done tasks (with undo)",
+    "Archivar todas": "Archive all",
+    "Agrupar de nuevo la serie": "Group the series again",
+    "Mover «{titulo}» a la columna anterior": "Move \"{titulo}\" to the previous column",
+    "Columna anterior": "Previous column",
+    "Subir «{titulo}»": "Move \"{titulo}\" up",
+    "Subir": "Up",
+    "Bajar «{titulo}»": "Move \"{titulo}\" down",
+    "Bajar": "Down",
+    "Mover «{titulo}» a la columna siguiente": "Move \"{titulo}\" to the next column",
+    "Columna siguiente": "Next column",
+    "No hay tareas archivadas.": "There are no archived tasks.",
+    "No hay tareas con estos filtros.": "No tasks match these filters.",
+    "Límite": "Due",
+    "Planificada": "Planned",
+    "Estimación": "Estimate",
+    "Acciones": "Actions",
+    "Depende de otras tareas": "Depends on other tasks",
+    "Bloquea otras tareas": "Blocks other tasks",
+    "Pasos": "Steps",
+    "(vencida)": "(overdue)",
+    "¿Eliminar definitivamente «{titulo}»? No se puede deshacer.": "Permanently delete \"{titulo}\"? This cannot be undone.",
+    "Eliminar": "Delete",
+    "Festivo {oficina}": "Holiday {oficina}",
+    "Festivo": "Holiday",
+    "Ausente: {nombres}": "Absent: {nombres}",
+    "(todas las oficinas)": "(all offices)",
+    "nadie asignado": "nobody assigned",
+    "Ausencias registradas: {nombres}": "Registered absences: {nombres}",
+    "Vence": "Due",
+    "Revisión": "Review",
+    "Anterior": "Previous",
+    "Siguiente": "Next",
+    "Semana del {desde} al {hasta}": "Week from {desde} to {hasta}",
+    "Escala del calendario": "Calendar scale",
+    "Semana": "Week",
+    "Mes": "Month",
+    "📅 Vence · 🗓 Planificada · 🔎 Revisión · ↻ en cursiva, ocurrencias de series recurrentes · en gris, festivos y ausencias registrados (pasa el ratón para ver a quién afectan).": "📅 Due · 🗓 Planned · 🔎 Review · ↻ in italics, occurrences of recurring series · in grey, registered holidays and absences (hover to see who is affected).",
+    "{n} tarea(s) sin fecha no se muestran.": "{n} task(s) without a date are not shown.",
+    "(hoy)": "(today)",
+    "serie recurrente": "recurring series",
+    "Festivos y ausencias registrados esta semana": "Holidays and absences registered this week",
+    "No disponibles esta semana (festivos/ausencias registrados):": "Unavailable this week (registered holidays/absences):",
+    "Filtros": "Filters",
+    "Todos": "All",
+    "Persona": "Person",
+    "Todas": "All",
+    "Operativas": "Operational",
+    "Cualquiera": "Any",
+    "En espera o bloqueadas": "Waiting or blocked",
+    "Bloqueadas": "Blocked",
+    "Etiqueta": "Tag",
+    "Orden": "Order",
+    "Manual": "Manual",
+    "Backlog": "Backlog",
+    "Terminadas": "Finished",
+    "Cerrar (Esc)": "Close (Esc)",
+    "Sin oficina": "No office",
+    "Oficina": "Office",
+    "Reintentar": "Retry",
+    "bloqueado": "blocked",
+    "Usa un enlace http(s), mailto o file. Otros esquemas se bloquean.": "Use an http(s), mailto or file link. Other schemes are blocked.",
+    "Sin enlaces": "No links",
+    "Quitar enlace {enlace}": "Remove link {enlace}",
+    "Etiqueta (opcional)": "Label (optional)",
+    "Etiqueta del enlace": "Link label",
+    "https://… o file:///…": "https://… or file:///…",
+    "URL del enlace": "Link URL",
+    "Añadir enlace": "Add link",
+    "Crear «{nombre}»": "Create \"{nombre}\"",
+    "Quitar etiqueta {nombre}": "Remove tag {nombre}",
+    "Añadir etiqueta": "Add tag",
+    "Añadir etiqueta…": "Add tag…",
+    "Buscar tarea por título…": "Search task by title…",
+    "Sin coincidencias": "No matches",
+    "No se puede conectar con la aplicación local. Comprueba que KAOSnt sigue en marcha (iniciar.bat).": "Cannot connect to the local application. Check that KAOSnt is still running (iniciar.bat).",
+    "Error {codigo}": "Error {codigo}",
+    "sin fecha": "no date",
+    "venció hace {n} d": "overdue by {n} d",
+    "vence hoy": "due today",
+    "vence mañana": "due tomorrow",
+    "vence {fecha}": "due {fecha}",
+    "{d} d {h} h": "{d} d {h} h",
+    "{h} h {m} min": "{h} h {m} min",
+    "{m} min": "{m} min",
+    "no informado (sin fecha de inicio)": "not provided (no start date)",
+    "{dur} de tiempo natural transcurrido (hasta la finalización)": "{dur} of calendar time elapsed (until completion)",
+    "{dur} de tiempo natural transcurrido": "{dur} of calendar time elapsed",
+    "hace {dur}": "{dur} ago",
+    "Vence el {0}": "Due on {0}",
+    "Revisar en la fecha indicada": "Review on the given date",
+    "Han pasado {0} h {1} desde el inicio": "{0} {1} hours have passed since the start",
+    "{0} h {1} sin actualización significativa": "{0} {1} hours without a significant update",
+    "Seguimiento periódico pendiente": "Periodic follow-up pending",
+    "Fecha de seguimiento alcanzada": "Follow-up date reached",
+    "Cada semana: {dias}": "Every week: {dias}",
+    "Cada {n} días": "Every {n} days",
+    "sin días laborables": "no working days",
+    "Pendiente": "Pending",
+    "En curso": "In progress",
+    "En revisión": "In review",
+    "Hecha": "Done",
+    "Cancelada": "Cancelled",
+    "Urgente": "Urgent",
+    "Alta": "High",
+    "Normal": "Normal",
+    "Baja": "Low",
+    "Petición": "Request",
+    "Incidencia": "Incident",
+    "Mejora": "Improvement",
+    "Evolutivo": "Enhancement",
+    "No requerida": "Not required",
+    "Aprobada": "Approved",
+    "Rechazada": "Rejected",
+    "Activo": "Active",
+    "Pausado": "Paused",
+    "Cerrado": "Closed",
+    "Archivado": "Archived",
+    "Requiere atención": "Needs attention",
+    "Bloqueado": "Blocked",
+    "Implementación": "Implementation",
+    "Mantenimiento": "Maintenance",
+    "I+D": "R&D",
+    "Consultoría": "Consulting",
+    "Benchmark": "Benchmark",
+    "Propuesta comercial": "Commercial proposal",
+    "Otro": "Other",
+    "Acta": "Minutes",
+    "Decisión": "Decision",
+    "Documentación": "Documentation",
+    "Hito": "Milestone",
+    "Decisión pendiente": "Pending decision",
+    "Compromiso": "Commitment",
+    "Vencida": "Overdue",
+    "Vence hoy": "Due today",
+    "Vence esta semana": "Due this week",
+    "Depende de otra tarea": "Depends on another task",
+    "En backlog": "In backlog",
+    "Aprobación pendiente": "Approval pending",
+    "Aprobación rechazada": "Approval rejected",
+    "Todos los días": "Every day",
+    "Días laborables": "Working days",
+    "Semanal (días concretos)": "Weekly (specific days)",
+    "Cada X días": "Every X days",
+    "Saltar ese día": "Skip that day",
+    "Mover al siguiente laborable": "Move to the next working day",
+    "Mantener la fecha": "Keep the date",
+    "Vencimiento próximo": "Upcoming due date",
+    "Fecha de revisión alcanzada": "Review date reached",
+    "Duración desde el inicio superada": "Time since start exceeded",
+    "Sin actualización significativa": "No significant update",
+    "Seguimiento pendiente": "Follow-up pending",
+    "Recordatorio": "Reminder",
+    "ausencia": "absence",
+    "festivo": "holiday",
+    "L": "M",
+    "M": "T",
+    "X": "W",
+    "J": "T",
+    "V": "F",
+    "S": "S",
+    "D": "S",
+    "Lunes": "Monday",
+    "Martes": "Tuesday",
+    "Miércoles": "Wednesday",
+    "Jueves": "Thursday",
+    "Viernes": "Friday",
+    "Sábado": "Saturday",
+    "Domingo": "Sunday",
+    "imagen: {desc} — no se carga": "image: {desc} — not loaded",
+    "sin descripción": "no description",
+    "imagen: {desc}": "image: {desc}",
+    "Enlace bloqueado: esquema no permitido": "Link blocked: scheme not allowed",
+    "enlace bloqueado": "link blocked",
+    "completado": "completed",
+    "pendiente": "pending",
+    "Error al guardar": "Save error",
+    "Guardado": "Saved",
+    "Cambios sin guardar…": "Unsaved changes…",
+    "Error al guardar — el texto se conserva": "Save error — the text is kept",
+    "Conflicto: modificada en otra ventana": "Conflict: modified in another window",
+    "Error": "Error",
+    "El tema debe ser un objeto JSON": "The theme must be a JSON object",
+    "Campos no admitidos en el tema: {campos}": "Fields not allowed in the theme: {campos}",
+    "El archivo no es un tema de KAOSnt (format debe ser \"kaosnt-theme\")": "The file is not a KAOSnt theme (format must be \"kaosnt-theme\")",
+    "Versión de tema no compatible: {v}": "Unsupported theme version: {v}",
+    "Identificador de tema no válido (minúsculas, números y guiones; máx. 40)": "Invalid theme id (lowercase, digits and hyphens; max. 40)",
+    "El nombre del tema es obligatorio (máx. 60 caracteres)": "The theme name is required (max. 60 characters)",
+    "Descripción no válida (máx. 300 caracteres)": "Invalid description (max. 300 characters)",
+    "Fuente no admitida: usa {fuentes}": "Font not allowed: use {fuentes}",
+    "El radio debe ser un número entero entre 0 y 16": "The radius must be an integer between 0 and 16",
+    "«{modo}» debe ser un objeto de variables": "\"{modo}\" must be an object of variables",
+    "Variables desconocidas en «{modo}»: {vars}": "Unknown variables in \"{modo}\": {vars}",
+    "Color no válido en «{campo}»: solo #hex, rgb(a) o hsl(a)": "Invalid colour in \"{campo}\": only #hex, rgb(a) or hsl(a)",
+    "Sin clasificar": "Unfiled",
+    "Fijadas": "Pinned",
+    "Archivo": "Archive",
+    "Papelera": "Trash",
+    "No se pudo guardar la sesión de pestañas: {error}": "Could not save the tab session: {error}",
+    "Lista de notas": "Note list",
+    "Nueva nota (Alt+N)": "New note (Alt+N)",
+    "Bandejas": "Trays",
+    "Filtros de notas": "Note filters",
+    "Buscar en las notas": "Search notes",
+    "Buscar texto…": "Search text…",
+    "Buscar en": "Search in",
+    "Título y contenido": "Title and content",
+    "Solo título": "Title only",
+    "Solo contenido": "Content only",
+    "Todos los proyectos": "All projects",
+    "Tipo de nota": "Note type",
+    "Todos los tipos": "All types",
+    "Todas las etiquetas": "All tags",
+    "Quitar filtros": "Clear filters",
+    "Ninguna nota coincide con los filtros.": "No note matches the filters.",
+    "La papelera está vacía.": "The trash is empty.",
+    "No hay notas sin clasificar.": "There are no unfiled notes.",
+    "Sin notas aquí. Crea una con Alt+N: no necesita título ni proyecto.": "No notes here. Create one with Alt+N: it needs no title or project.",
+    "{n} nota(s)": "{n} note(s)",
+    "{n} tarea(s)": "{n} task(s)",
+    "Notas abiertas (arrastra para reordenar)": "Open notes (drag to reorder)",
+    "{titulo} — arrastra o usa Alt+←/→ para reordenar": "{titulo} — drag or use Alt+←/→ to reorder",
+    "Cerrar pestaña {titulo} (no borra la nota)": "Close tab {titulo} (does not delete the note)",
+    "Cerrar pestaña (Alt+W). La nota no se borra.": "Close tab (Alt+W). The note is not deleted.",
+    "Derecha": "Right",
+    "Nota del panel derecho": "Right pane note",
+    "Volver a una sola nota": "Back to a single note",
+    "Cerrar división": "Close split",
+    "Ver y editar dos notas a la vez": "View and edit two notes at once",
+    "Abre al menos dos notas para dividir la pantalla": "Open at least two notes to split the screen",
+    "Pantalla dividida": "Split screen",
+    "Abre una nota de la lista o crea una nueva. Cerrar una pestaña nunca borra ni archiva la nota.": "Open a note from the list or create a new one. Closing a tab never deletes or archives the note.",
+    "Hay texto de esta nota que no llegó a guardarse en una sesión anterior.": "This note has text that was not saved in a previous session.",
+    "Recuperar ese texto": "Recover that text",
+    "Descartarlo": "Discard it",
+    "Título manual (opcional)": "Manual title (optional)",
+    "{titulo} (título sugerido)": "{titulo} (suggested title)",
+    "Sobrescribir con mi texto": "Overwrite with my text",
+    "Tu texto se ha copiado al portapapeles": "Your text has been copied to the clipboard",
+    "Copiar mi texto y recargar": "Copy my text and reload",
+    "{error}. El texto sigue en el editor y en una copia de emergencia local.": "{error}. The text remains in the editor and in a local emergency copy.",
+    "Nota vinculada al proyecto": "Note linked to the project",
+    "Nota sin proyecto": "Note without project",
+    "Fijada": "Pinned",
+    "Fijar": "Pin",
+    "Crear tarea desde selección": "Create task from selection",
+    "Nota archivada": "Note archived",
+    "Nota restaurada": "Note restored",
+    "Nota enviada a la papelera (recuperable)": "Note moved to trash (recoverable)",
+    "A la papelera": "To trash",
+    "¿Eliminar definitivamente esta nota? No se puede deshacer.": "Permanently delete this note? This cannot be undone.",
+    "Nota eliminada": "Note deleted",
+    "Esta nota está archivada.": "This note is archived.",
+    "Esta nota está en la papelera.": "This note is in the trash.",
+    "Contenido de la nota": "Note content",
+    "Escribe libremente. Se guarda solo. Admite Markdown (# títulos, - listas, ``` código, | tablas |), pero no es necesario.": "Write freely. It saves itself. Markdown is supported (# headings, - lists, ``` code, | tables |) but not required.",
+    "Creada {creada} · Actualizada {actualizada}": "Created {creada} · Updated {actualizada}",
+    "Tareas vinculadas": "Linked tasks",
+    "Ninguna. Selecciona texto y usa «Crear tarea desde selección», o vincula una existente.": "None. Select text and use \"Create task from selection\", or link an existing one.",
+    "Desvincular": "Unlink",
+    "Vincular tarea existente: buscar por título…": "Link existing task: search by title…",
+    "Tarea creada y vinculada: {titulo}": "Task created and linked: {titulo}",
+    "Crear tarea desde la nota": "Create task from note",
+    "Título de la tarea": "Task title",
+    "Fragmento de referencia (la nota no se modifica)": "Reference excerpt (the note is not changed)",
+    "Crear tarea": "Create task",
+    "Proyectos o clientes": "Projects or clients",
+    "Clientes": "Clients",
+    "Nuevo proyecto": "New project",
+    "Aún no hay proyectos. No son obligatorios: puedes capturar tareas y notas sin proyecto y vincularlas después.": "No projects yet. They are optional: you can capture tasks and notes without a project and link them later.",
+    "Sin resumen «Dónde lo dejamos»": "No \"Where we left off\" summary",
+    "{n} tareas operativas · {c} con espera/bloqueo · resumen {cuando}": "{n} operational tasks · {c} waiting/blocked · summary {cuando}",
+    "Opcionales: un proyecto puede no tener cliente. Cambia el cliente de un proyecto desde su pantalla.": "Optional: a project may have no client. Change a project's client from its screen.",
+    "Nombre del nuevo cliente": "New client name",
+    "Añadir cliente": "Add client",
+    "Sin clientes registrados.": "No clients registered.",
+    "Nuevo nombre": "New name",
+    "{n} proyecto(s)": "{n} project(s)",
+    "sin proyectos": "no projects",
+    "Renombrar": "Rename",
+    "¿Eliminar el cliente «{nombre}»?": "Delete the client \"{nombre}\"?",
+    "Sus {n} proyecto(s) se conservan, sin cliente.": "Its {n} project(s) are kept, without a client.",
+    "Nombre del cliente": "Client name",
+    "Crear": "Create",
+    "Cliente": "Client",
+    "Sin cliente": "No client",
+    "+ Nuevo cliente…": "+ New client…",
+    "Nombre": "Name",
+    "Cliente (opcional)": "Client (optional)",
+    "Proyecto actualizado": "Project updated",
+    "Nuevo nombre del proyecto:": "New project name:",
+    "Exportar proyecto": "Export project",
+    "Eliminar proyecto": "Delete project",
+    "Cliente actualizado": "Client updated",
+    "Actividad": "Activity",
+    "Estado general (manual)": "Overall status (manual)",
+    "No informado": "Not provided",
+    "Por qué (explicación breve del estado general; se muestra en la lista de proyectos)": "Why (short explanation of the overall status; shown in the project list)",
+    "Explicación del estado general": "Overall status explanation",
+    "p. ej. Pendiente de accesos del cliente para continuar las pruebas": "e.g. Waiting for client access to continue testing",
+    "Explicación guardada": "Explanation saved",
+    "Dónde lo dejamos": "Where we left off",
+    "Resumen dónde lo dejamos": "Where we left off summary",
+    "Estado actual en pocas líneas": "Current status in a few lines",
+    "Resumen actualizado": "Summary updated",
+    "Guardar resumen": "Save summary",
+    "Fecha del resumen": "Summary date",
+    "Siguiente acción": "Next action",
+    "Se guarda al salir del campo o con Ctrl+Enter": "Saved when leaving the field or with Ctrl+Enter",
+    "La próxima cosa concreta que hay que hacer": "The next concrete thing to do",
+    "Siguiente acción guardada": "Next action saved",
+    "Objetivo y fase actual (opcional)": "Objective and current phase (optional)",
+    "Objetivo": "Objective",
+    "Fase actual": "Current phase",
+    "Señales objetivas": "Objective signals",
+    "vencidas": "overdue",
+    "vencen en 14 días": "due in 14 days",
+    "bloqueadas": "blocked",
+    "en espera": "waiting",
+    "hitos/compromisos en 14 días": "milestones/commitments in 14 days",
+    "decisiones pendientes": "pending decisions",
+    "aprobaciones pendientes": "pending approvals",
+    "Calculadas a partir de los datos registrados. Que no haya señales no significa que el proyecto vaya bien.": "Calculated from registered data. No signals does not mean the project is going well.",
+    "Decisiones pendientes": "Pending decisions",
+    "Próximos compromisos (14 días)": "Upcoming commitments (14 days)",
+    "Ninguno registrado.": "None registered.",
+    "Tareas": "Tasks",
+    "Agrupar por": "Group by",
+    "Sin agrupar": "Ungrouped",
+    "Nueva nota": "New note",
+    "Sin notas vinculadas a este proyecto o a sus tareas.": "No notes linked to this project or its tasks.",
+    "nota": "note",
+    "Personas y dedicación": "People and allocation",
+    "Dedicación opcional: % de la capacidad semanal de la persona destinada a este proyecto. Se usa en la Planificación semanal para comparar con el esfuerzo estimado registrado.": "Optional allocation: % of the person's weekly capacity assigned to this project. Used in weekly planning to compare with the registered estimated effort.",
+    "Dedicación": "Allocation",
+    "Dedicación de {nombre} (%)": "Allocation of {nombre} (%)",
+    "capacidad no informada": "capacity not provided",
+    "no informada": "not provided",
+    "Elegir persona…": "Choose person…",
+    "Vincular": "Link",
+    "Hitos, decisiones y compromisos": "Milestones, decisions and commitments",
+    "Decisión marcada como tomada": "Decision marked as made",
+    "Marcado como cumplido": "Marked as met",
+    "Decidida": "Decided",
+    "Cumplido": "Met",
+    "¿Eliminar este elemento?": "Delete this item?",
+    "Fecha": "Date",
+    "Añadir": "Add",
+    "Agrupaciones": "Groupings",
+    "Nuevo nombre:": "New name:",
+    "¿Eliminar la agrupación? Las tareas se conservan sin ella.": "Delete the grouping? Tasks are kept without it.",
+    "Dimensión": "Dimension",
+    "Editar enlaces": "Edit links",
+    "Enlaces actualizados": "Links updated",
+    "¿Eliminar el proyecto «{nombre}»? Sus tareas, notas y recurrencias se conservan sin proyecto. Antes se creará una copia de seguridad.": "Delete the project \"{nombre}\"? Its tasks, notes and recurrences are kept without a project. A backup will be created first.",
+    "¿Eliminar el proyecto «{nombre}» junto con sus tareas y recurrencias? Sus notas irán a la papelera. Antes se creará una copia de seguridad. No se puede deshacer.": "Delete the project \"{nombre}\" along with its tasks and recurrences? Its notes will go to the trash. A backup will be created first. This cannot be undone.",
+    "Proyecto eliminado. Copia previa: {copia}": "Project deleted. Previous backup: {copia}",
+    "¿Qué hacer con su contenido?": "What to do with its content?",
+    "Desvincular: tareas, notas y recurrencias se conservan sin proyecto": "Unlink: tasks, notes and recurrences are kept without a project",
+    "Eliminar sus tareas y recurrencias; sus notas van a la papelera (recuperables)": "Delete its tasks and recurrences; its notes go to the trash (recoverable)",
+    "En ambos casos se eliminan sus hitos, agrupaciones y la dedicación de las personas, y se crea antes una copia de seguridad. Si solo quieres ocultarlo, cambia su actividad a «Archivado».": "In both cases its milestones, groupings and people allocations are deleted, and a backup is created first. If you only want to hide it, set its activity to \"Archived\".",
+    "cumplido": "met",
+    "cancelado": "cancelled",
+    "Configuración guardada": "Settings saved",
+    "Este navegador no admite notificaciones del sistema. Los recordatorios siguen disponibles dentro de la aplicación.": "This browser does not support system notifications. Reminders are still available inside the application.",
+    "El permiso está denegado en el navegador. No se volverá a solicitar; puedes cambiarlo en la configuración del sitio.": "Permission is denied in the browser. It will not be requested again; you can change it in the site settings.",
+    "Notificaciones activadas.": "Notifications enabled.",
+    "Permiso no concedido. Los recordatorios internos siguen funcionando.": "Permission not granted. Internal reminders keep working.",
+    "El archivo no es un JSON válido": "The file is not valid JSON",
+    "Se sustituirán TODOS los datos actuales por los del archivo. Antes se creará una copia de seguridad. ¿Continuar?": "ALL current data will be replaced by the file's data. A backup will be created first. Continue?",
+    "Restauración completada. Copia previa: {copia}": "Restore completed. Previous backup: {copia}",
+    "Se sustituirán todos los datos actuales por la copia {copia}. Antes se creará una copia del estado actual. ¿Continuar?": "All current data will be replaced by backup {copia}. A backup of the current state will be created first. Continue?",
+    "Copia restaurada. Copia previa: {copia}": "Backup restored. Previous backup: {copia}",
+    "¿Cerrar la aplicación? Los datos ya están guardados en la base de datos local.": "Close the application? Data is already saved in the local database.",
+    "{app} se ha cerrado correctamente. Puedes cerrar esta pestaña.": "{app} has closed correctly. You can close this tab.",
+    "Guardar configuración": "Save settings",
+    "General": "General",
+    "Nombre de la aplicación": "Application name",
+    "Idioma de la interfaz": "Interface language",
+    "Los datos que escribes no se traducen.": "Data you type is not translated.",
+    "Pantalla de apertura": "Start screen",
+    "También es el destino al pulsar el nombre de la aplicación.": "Also the destination when clicking the application name.",
+    "Recordar la última vista": "Remember the last view",
+    "Zona horaria": "Time zone",
+    "Identificador IANA. Por defecto Europe/Madrid (incluye cambios de horario).": "IANA identifier. Europe/Madrid by default (includes daylight saving changes).",
+    "Formato de fecha": "Date format",
+    "dd/mm/aaaa": "dd/mm/yyyy",
+    "aaaa-mm-dd": "yyyy-mm-dd",
+    "mm/dd/aaaa": "mm/dd/yyyy",
+    "La semana empieza en": "Week starts on",
+    "Solo en calendarios; la planificación semanal es siempre de lunes a domingo.": "Calendars only; weekly planning is always Monday to Sunday.",
+    "Generar ocurrencias recurrentes con antelación (días)": "Generate recurring occurrences in advance (days)",
+    "Tiempo para «Deshacer» (segundos)": "Time for \"Undo\" (seconds)",
+    "Duración del aviso con «Deshacer» tras una acción directa (3–60 s).": "Duration of the \"Undo\" notice after a direct action (3–60 s).",
+    "Horario laboral": "Working hours",
+    "Horario de cada día. Se usa en las horas laborables de las revisiones, en las recurrencias de días laborables y en la disponibilidad de la planificación.": "Hours for each day. Used for working hours in reviews, working-day recurrences and planning availability.",
+    "Día": "Day",
+    "Laborable": "Working",
+    "Inicio": "Start",
+    "Fin": "End",
+    "{dia} laborable": "{dia} working",
+    "{dia}: inicio": "{dia}: start",
+    "{dia}: fin": "{dia}: end",
+    "Resumen: {horario}": "Summary: {horario}",
+    "Los festivos se gestionan por oficina en la sección «Oficinas y festivos».": "Holidays are managed per office in the \"Offices and holidays\" section.",
+    "Recordatorios y notificaciones": "Reminders and notifications",
+    "Avisar de vencimientos con (días) de antelación": "Warn about due dates (days) in advance",
+    "Horario silencioso desde": "Quiet hours from",
+    "hasta": "to",
+    "Horario silencioso hasta": "Quiet hours to",
+    "Contenido discreto (sin títulos ni datos de cliente)": "Discreet content (no titles or client data)",
+    "Notificaciones del sistema:": "System notifications:",
+    "activadas": "enabled",
+    "desactivadas": "disabled",
+    "Opcionales y solo con la aplicación abierta; el centro de recordatorios interno funciona siempre.": "Optional and only while the application is open; the internal reminder centre always works.",
+    "Notificaciones desactivadas.": "Notifications disabled.",
+    "Desactivar notificaciones": "Disable notifications",
+    "Activar notificaciones del sistema": "Enable system notifications",
+    "Copias de seguridad": "Backups",
+    "Datos": "Data",
+    "Copias": "Backups",
+    "Copias automáticas diarias a conservar": "Daily automatic backups to keep",
+    "Copia creada: {copia}": "Backup created: {copia}",
+    "Crear copia ahora": "Create backup now",
+    "Las copias locales están en el mismo equipo: no protegen ante pérdida, robo o avería del portátil. Guarda periódicamente la exportación completa en una ubicación autorizada por tu organización.": "Local backups are on the same computer: they do not protect against loss, theft or failure of the laptop. Regularly store the full export in a location authorised by your organisation.",
+    "Exportar": "Export",
+    "Exportación completa (JSON)": "Full export (JSON)",
+    "Única exportación restaurable.": "The only restorable export.",
+    "Notas en Markdown (ZIP)": "Notes in Markdown (ZIP)",
+    "Tareas en CSV": "Tasks in CSV",
+    "Para consulta; no es copia completa.": "For reference; not a full backup.",
+    "La exportación por proyecto está en la pantalla de cada proyecto.": "Per-project export is on each project's screen.",
+    "Restaurar desde exportación completa": "Restore from full export",
+    "Restauración completa (sin fusión). Se valida el archivo, se muestra qué se restaurará y se crea una copia previa. Se admiten exportaciones de esta versión y de la 0.2.": "Full restore (no merge). The file is validated, what will be restored is shown and a previous backup is created. Exports from this version and 0.2 are accepted.",
+    "Archivo de exportación completa": "Full export file",
+    "Exportado: {fecha} · versión {version}": "Exported: {fecha} · version {version}",
+    "Tabla": "Table",
+    "Actual": "Current",
+    "Tras restaurar": "After restore",
+    "Restaurar (sustituye todos los datos)": "Restore (replaces all data)",
+    "Sistema": "System",
+    "Versión {version}": "Version {version}",
+    "MODO DEMO (datos ficticios)": "DEMO MODE (fictitious data)",
+    "Escucha solo en 127.0.0.1. Sin conexiones externas ni telemetría.": "Listens only on 127.0.0.1. No external connections or telemetry.",
+    "Sin inicio de sesión: cualquier persona con acceso a tu sesión de Windows puede abrir la aplicación. Protege tu equipo con las medidas de tu organización.": "No sign-in: anyone with access to your Windows session can open the application. Protect your computer with your organisation's measures.",
+    "Cerrar aplicación": "Close application",
+    "Tema no válido: {motivo}": "Invalid theme: {motivo}",
+    "Tema «{nombre}» importado y aplicado": "Theme \"{nombre}\" imported and applied",
+    "Aviso de contraste (texto por debajo de 4,5:1): {pares}": "Contrast warning (text below 4.5:1): {pares}",
+    "Aspecto": "Appearance",
+    "Modo": "Mode",
+    "Claro": "Light",
+    "Oscuro": "Dark",
+    "Según el sistema": "Follow system",
+    "Ahora se ve en modo {modo}.": "Currently shown in {modo} mode.",
+    "oscuro": "dark",
+    "claro": "light",
+    "En uso": "In use",
+    "Usar": "Use",
+    "¿Eliminar el tema «{nombre}»?": "Delete the theme \"{nombre}\"?",
+    "Importar tema (JSON)": "Import theme (JSON)",
+    "Descargar plantilla del tema actual": "Download template of current theme",
+    "Los temas solo admiten colores (#hex, rgb[a], hsl[a]), una fuente de la lista (sistema, serif, mono, redondeada) y el radio de las esquinas. Nada de CSS libre, URLs ni fuentes remotas. Consulta docs/TEMAS.md.": "Themes only accept colours (#hex, rgb[a], hsl[a]), a font from the list (sistema, serif, mono, redondeada) and the corner radius. No free CSS, URLs or remote fonts. See docs/TEMAS.md.",
+    "Oficinas y festivos": "Offices and holidays",
+    "Asigna a cada persona su oficina (Equipo → Editar). Un festivo «común» aplica a todas. No se infieren festivos: solo cuentan los registrados aquí.": "Assign each person their office (Team → Edit). A \"common\" holiday applies to all. Holidays are never inferred: only those registered here count.",
+    "Oficinas": "Offices",
+    "{p} persona(s) · {h} festivo(s)": "{p} person(s) · {h} holiday(s)",
+    "Nuevo nombre de la oficina:": "New office name:",
+    "¿Eliminar «{nombre}»? Se eliminan sus festivos locales y sus personas quedan sin oficina.": "Delete \"{nombre}\"? Its local holidays are deleted and its people are left without an office.",
+    "Sin oficinas: todos los festivos serán comunes.": "No offices: all holidays will be common.",
+    "Nueva oficina": "New office",
+    "Nueva oficina (p. ej. Zaragoza)": "New office (e.g. Zaragoza)",
+    "Añadir oficina": "Add office",
+    "Festivos": "Holidays",
+    "Año anterior": "Previous year",
+    "Año siguiente": "Next year",
+    "Sin festivos registrados en {anio}.": "No holidays registered in {anio}.",
+    "Común": "Common",
+    "Eliminar festivo {fecha}": "Delete holiday {fecha}",
+    "Fecha del festivo": "Holiday date",
+    "Nombre del festivo": "Holiday name",
+    "Nombre (opcional)": "Name (optional)",
+    "Común (todas)": "Common (all)",
+    "Añadir festivo": "Add holiday",
+    "Importar festivos en bloque…": "Bulk import holidays…",
+    "Ya está registrado": "Already registered",
+    "Repetido en el texto": "Repeated in the text",
+    "Fecha no válida: «{texto}» (usa dd/mm/aaaa o AAAA-MM-DD)": "Invalid date: \"{texto}\" (use dd/mm/yyyy or YYYY-MM-DD)",
+    "Oficina desconocida: «{oficina}» (no se importa como común)": "Unknown office: \"{oficina}\" (not imported as common)",
+    "Demasiadas columnas: usa día;nombre;oficina": "Too many columns: use day;name;office",
+    "Se creará la oficina": "The office will be created",
+    "{n} festivo(s) importado(s)": "{n} holiday(s) imported",
+    "Se importará": "Will be imported",
+    "Duplicado": "Duplicate",
+    "Importar festivos en bloque": "Bulk import holidays",
+    "Formato por línea: día;nombre;oficina. Fecha dd/mm/aaaa (también AAAA-MM-DD). Nombre opcional. Oficina vacía o «Común» = todas las oficinas. Separador «;», «,» o tabulador; cabecera opcional.": "Format per line: day;name;office. Date dd/mm/yyyy (also YYYY-MM-DD). Name optional. Empty office or \"Común\" = all offices. Separator \";\", \",\" or tab; header optional.",
+    "Festivos a importar": "Holidays to import",
+    "Pega aquí las líneas…": "Paste the lines here…",
+    "Subir CSV…": "Upload CSV…",
+    "Subir CSV": "Upload CSV",
+    "Crear oficinas que no existan": "Create offices that do not exist",
+    "{a} se importarán · {d} duplicados · {e} con error": "{a} will be imported · {d} duplicates · {e} with errors",
+    "Línea": "Line",
+    "Resultado": "Result",
+    "(nueva)": "(new)",
+    "Importar {n} festivo(s)": "Import {n} holiday(s)",
+    "Se crean al escribirlas en una tarea o nota. Renombrar a un nombre existente fusiona ambas. Eliminar la quita de todas las tareas y notas.": "Created when typed in a task or note. Renaming to an existing name merges both. Deleting removes it from all tasks and notes.",
+    "Sin etiquetas.": "No tags.",
+    "{tareas} tarea(s) · {notas} nota(s)": "{tareas} task(s) · {notas} note(s)",
+    "Nuevo nombre de la etiqueta:": "New tag name:",
+    "¿Eliminar la etiqueta «{nombre}»? Se quitará de {tareas} tarea(s) y {notas} nota(s).": "Delete the tag \"{nombre}\"? It will be removed from {tareas} task(s) and {notas} note(s).",
+    "Última confirmación: se borrarán TODOS los datos (tareas, proyectos, notas, personas, festivos y configuración). Antes se creará una copia. ¿Continuar?": "Final confirmation: ALL data (tasks, projects, notes, people, holidays and settings) will be deleted. A backup will be created first. Continue?",
+    "Datos borrados. Copia previa: {copia} (en la carpeta de copias; se puede restaurar desde «Copias de seguridad»).": "Data deleted. Previous backup: {copia} (in the backups folder; it can be restored from \"Backups\").",
+    "Zona de peligro": "Danger zone",
+    "Borrar todo el entorno": "Delete the whole environment",
+    "elimina todos los datos y deja la aplicación como recién instalada (con la persona «Yo»). Antes se crea una copia automática y se informa de su nombre.": "deletes all data and leaves the application as freshly installed (with the person \"Yo\"). An automatic backup is created first and its name is shown.",
+    "Para confirmar, escribe «{nombre}» o «BORRAR TODO»": "To confirm, type \"{nombre}\" or \"BORRAR TODO\"",
+    "Volver a cargar los datos ficticios de la demo": "Reload the demo's fictitious data",
+    "Borrar todo": "Delete everything",
+    "Secciones de equipo": "Team sections",
+    "Personas": "People",
+    "Planificación semanal": "Weekly planning",
+    "Nueva persona": "New person",
+    "Vista operativa de los datos registrados. No se muestran rankings, puntuaciones ni valoraciones de desempeño.": "Operational view of registered data. No rankings, scores or performance ratings are shown.",
+    "(yo)": "(me)",
+    "inactiva": "inactive",
+    "Añade personas del equipo.": "Add team members.",
+    "Nueva tarea para mí": "New task for me",
+    "Nueva tarea para {nombre}": "New task for {nombre}",
+    "Capacidad semanal": "Weekly capacity",
+    "Esfuerzo estimado registrado (no backlog)": "Registered estimated effort (excluding backlog)",
+    "{h} h en {n} tareas": "{h} h in {n} tasks",
+    "{n} sin estimación": "{n} without estimate",
+    "ninguno vinculado": "none linked",
+    "Sin tareas activas registradas.": "No active tasks registered.",
+    "Tareas activas": "Active tasks",
+    "Ninguna.": "None.",
+    "Próximos vencimientos (14 días)": "Upcoming due dates (14 days)",
+    "Con espera o bloqueo": "Waiting or blocked",
+    "Planificado esta semana": "Planned this week",
+    "Nada planificado con fecha esta semana.": "Nothing planned with a date this week.",
+    "Ausencias y festivos registrados": "Registered absences and holidays",
+    "Ausencia": "Absence",
+    "¿Eliminar esta ausencia?": "Delete this absence?",
+    "Sin ausencias registradas.": "No absences registered.",
+    "Festivos próximos": "Upcoming holidays",
+    "(común)": "(common)",
+    "Desde": "From",
+    "Hasta": "To",
+    "Etiqueta opcional": "Optional label",
+    "Registrar ausencia": "Register absence",
+    "No se piden motivos. Las tareas no se reasignan automáticamente.": "No reasons are asked. Tasks are not reassigned automatically.",
+    "Últimas actualizaciones de sus tareas": "Latest updates on their tasks",
+    "Sin actualizaciones registradas.": "No updates registered.",
+    "Semana anterior": "Previous week",
+    "Esta semana": "This week",
+    "Semana siguiente": "Next week",
+    "¿Cómo se calcula?": "How is it calculated?",
+    "Esfuerzo registrado": "Registered effort",
+    "estimación de las tareas planificadas esa semana (o el reparto semanal explícito si lo hay). Las tareas sin estimación se listan aparte; nunca cuentan como 0.": "estimate of the tasks planned that week (or the explicit weekly split if any). Tasks without an estimate are listed separately; they never count as 0.",
+    "Disponible": "Available",
+    "capacidad semanal × proporción de las horas del horario laboral de la semana que quedan tras festivos (comunes y de su oficina) y ausencias registrados. La semana es siempre de lunes a domingo.": "weekly capacity × share of the week's working-hour schedule left after registered holidays (common and their office) and absences. The week is always Monday to Sunday.",
+    "Por proyecto": "By project",
+    "dedicación (% de su capacidad, definido en cada proyecto) frente al esfuerzo estimado de las tareas de ese proyecto.": "allocation (% of their capacity, set in each project) versus the estimated effort of that project's tasks.",
+    "Son datos de referencia para planificar; no miden rendimiento ni horas trabajadas.": "These are reference figures for planning; they do not measure performance or hours worked.",
+    "sin estimar": "not estimated",
+    "{a} de {n} días laborables": "{a} of {n} working days",
+    "{n} festivo(s)": "{n} holiday(s)",
+    "{n} de ausencia": "{n} absent",
+    "El esfuerzo registrado supera lo disponible": "Registered effort exceeds availability",
+    "Estimado": "Estimated",
+    "sin est.": "no est.",
+    "Supera la dedicación registrada": "Exceeds the registered allocation",
+    "Coincide con festivo o ausencia registrados": "Coincides with a registered holiday or absence",
+    "vence el {fecha}": "due on {fecha}",
+    "planificada el {fecha}": "planned on {fecha}",
+    "Tareas de la semana ({n})": "Tasks of the week ({n})",
+    "reparto semanal": "weekly split",
+    "estimación": "estimate",
+    "sin estimación": "no estimate",
+    "se cuentan sus subtareas": "its subtasks are counted",
+    "Editar persona": "Edit person",
+    "Rol (opcional)": "Role (optional)",
+    "Oficina (opcional)": "Office (optional)",
+    "Determina qué festivos locales le aplican. Gestiona oficinas en Configuración.": "Determines which local holidays apply. Manage offices in Settings.",
+    "Capacidad semanal en horas (opcional)": "Weekly capacity in hours (optional)",
+    "Vacío = no informada. Se combina con la dedicación por proyecto y con festivos/ausencias en la Planificación semanal.": "Empty = not provided. Combined with project allocation and holidays/absences in weekly planning.",
+    "Activa (desmarca para ocultarla sin borrar su historial)": "Active (untick to hide without deleting history)",
+    "Promover": "Promote",
+    "Marcada como hecha": "Marked as done",
+    "esta semana": "this week",
+    "Resumen de atención. Cada tarea aparece una sola vez; las demás señales se indican en la tarjeta. Las series recurrentes se muestran una vez con «↻ +N esta semana».": "Attention summary. Each task appears only once; other signals are shown on the card. Recurring series appear once with \"↻ +N this week\".",
+    "Nada requiere acción según los datos registrados. Esto no significa que todo esté bien: revisa los proyectos si hace tiempo que no los actualizas.": "Nothing requires action according to registered data. This does not mean everything is fine: review projects if you have not updated them for a while.",
+    "Vence hoy y esta semana": "Due today and this week",
+    "Sin vencimientos registrados hasta el {fecha}.": "No due dates registered until {fecha}.",
+    "Hitos y compromisos": "Milestones and commitments",
+    "Revisiones y recordatorios": "Reviews and reminders",
+    "Centro de recordatorios": "Reminder centre",
+    "Pendientes de mi revisión": "Awaiting my review",
+    "Sin revisiones ni recordatorios pendientes.": "No pending reviews or reminders.",
+    "Programados esta semana": "Scheduled this week",
+    "Ningún recordatorio programado para lo que queda de semana.": "No reminders scheduled for the rest of the week.",
+    "Programar un recordatorio": "Schedule a reminder",
+    "Bloqueos externos": "External blockers",
+    "Sin esperas ni bloqueos registrados.": "No waits or blockers registered.",
+    "Tareas que dependen de mí": "Tasks that depend on me",
+    "Configura quién eres en Equipo.": "Set who you are in Team.",
+    "Ninguna tarea registrada está esperando por ti (fuera de las secciones anteriores).": "No registered task is waiting on you (outside the sections above).",
+    "Resumen operativo del equipo": "Team operational summary",
+    "{n} activas": "{n} active",
+    "{n} en revisión": "{n} in review",
+    "{n} con espera/bloqueo": "{n} waiting/blocked",
+    "{n} vencen esta semana": "{n} due this week",
+    "Sin tareas activas registradas": "No active tasks registered",
+    "Nombre de la vista guardada:": "Saved view name:",
+    "Vista guardada": "Saved view",
+    "Kanban": "Kanban",
+    "Lista": "List",
+    "Calendario": "Calendar",
+    "Archivadas": "Archived",
+    "Tipo de vista": "View type",
+    "Ver y gestionar todas las series recurrentes": "View and manage all recurring series",
+    "Recurrentes": "Recurring",
+    "Guardar vista": "Save view",
+    "¿Eliminar esta vista guardada? Las tareas no se ven afectadas.": "Delete this saved view? Tasks are not affected.",
+    "Eliminar vista": "Delete view",
+    "Tareas archivadas: restáuralas o elimínalas definitivamente. Archivar oculta una tarea de todas las vistas sin borrarla.": "Archived tasks: restore or permanently delete them. Archiving hides a task from all views without deleting it.",
+    "Una tarjeta por serie y estado (la ocurrencia abierta más antigua) con «↻ +N»; pulsa para desplegar la serie": "One card per series and status (the oldest open occurrence) with \"↻ +N\"; click to expand the series",
+    "Agrupar series recurrentes": "Group recurring series",
+    "Backlog y terminadas ocultos por defecto (actívalos en los filtros).": "Backlog and finished tasks hidden by default (enable them in the filters).",
+    "Predeterminado": "Default",
+    "Aspecto por defecto de KAOSnt: sobrio, azul y gris.": "KAOSnt's default look: sober, blue and grey.",
+    "Minimalista": "Minimalist",
+    "Blanco y negro, sin color de acento, bordes finos y esquinas casi rectas.": "Black and white, no accent colour, thin borders and nearly square corners.",
+    "Cupertino": "Cupertino",
+    "Inspirado en el estilo de Apple: gris claro, azul de sistema y esquinas redondeadas.": "Inspired by Apple's style: light grey, system blue and rounded corners.",
+    "Retro": "Retro",
+    "Papel crema con tinta sepia; en oscuro, una terminal ámbar.": "Cream paper with sepia ink; in dark mode, an amber terminal.",
+    "Alto contraste": "High contrast",
+    "Máximo contraste: negro sobre blanco (o amarillo y blanco sobre negro) y bordes marcados.": "Maximum contrast: black on white (or yellow and white on black) with strong borders.",
+    "laborables": "working",
+    "naturales": "calendar",
+};
+
+},{}]; // build/src/i18n/en.js
+defs[10]=[function(module,exports,require){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.setDateConfig = setDateConfig;
+exports.dateConfig = dateConfig;
+exports.dowShort = dowShort;
+exports.monthName = monthName;
+exports.weekHeaders = weekHeaders;
 exports.pad = pad;
 exports.todayIn = todayIn;
 exports.addDays = addDays;
 exports.weekStart = weekStart;
+exports.viewWeekStart = viewWeekStart;
 exports.isoDow = isoDow;
+exports.formatIso = formatIso;
+exports.parseDateText = parseDateText;
+exports.formatHint = formatHint;
 exports.fmtDate = fmtDate;
+exports.fmtDateDow = fmtDateDow;
 exports.fmtDateTime = fmtDateTime;
+exports.parseTimeText = parseTimeText;
 exports.daysBetween = daysBetween;
 exports.dueLabel = dueLabel;
 exports.fmtDuration = fmtDuration;
@@ -17461,9 +18521,26 @@ exports.zonedToUtc = zonedToUtc;
 exports.utcToZonedInput = utcToZonedInput;
 exports.inQuietHours = inQuietHours;
 exports.monthGrid = monthGrid;
-// Fechas: instantes en UTC o 'YYYY-MM-DD'. Se muestran en la zona configurada (Europe/Madrid por defecto).
-const DOW = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
-const MON = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+// Fechas: instantes en UTC o 'YYYY-MM-DD'. Se muestran en la zona configurada (Europe/Madrid por defecto)
+// y en el formato configurado (dd/mm/aaaa por defecto). Internamente siempre AAAA-MM-DD.
+const i18n_1 = require("./i18n");
+const cfg = { format: "dd/mm/aaaa", weekStart: 1 };
+function setDateConfig(format, weekStartDay) {
+    cfg.format = format === "aaaa-mm-dd" || format === "mm/dd/aaaa" ? format : "dd/mm/aaaa";
+    cfg.weekStart = weekStartDay === 7 ? 7 : 1;
+}
+function dateConfig() { return { ...cfg }; }
+const DOW_ES = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+const DOW_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+const MONTHS_EN = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+function dowShort(jsDay) { return ((0, i18n_1.getLang)() === "en" ? DOW_EN : DOW_ES)[jsDay]; }
+function monthName(m0) { return ((0, i18n_1.getLang)() === "en" ? MONTHS_EN : MONTHS_ES)[m0]; }
+/** Cabeceras de la semana (lun…dom o dom…sáb según configuración). */
+function weekHeaders() {
+    const order = cfg.weekStart === 7 ? [0, 1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5, 6, 0];
+    return order.map(dowShort);
+}
 function parts(d, tz) {
     const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
         hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
@@ -17483,19 +18560,78 @@ function addDays(iso, n) {
     d.setUTCDate(d.getUTCDate() + n);
     return d.toISOString().slice(0, 10);
 }
+/** Lunes de la semana (planificación: siempre lunes-domingo). */
 function weekStart(iso) { return addDays(iso, -((new Date(iso + "T12:00:00Z").getUTCDay() + 6) % 7)); }
+/** Primer día de la semana para presentación (lunes o domingo, configurable). */
+function viewWeekStart(iso) {
+    return cfg.weekStart === 7 ? addDays(iso, -new Date(iso + "T12:00:00Z").getUTCDay()) : weekStart(iso);
+}
 function isoDow(iso) { return ((new Date(iso + "T12:00:00Z").getUTCDay() + 6) % 7) + 1; }
+/** AAAA-MM-DD → texto en el formato configurado (o el indicado). */
+function formatIso(iso, format = cfg.format) {
+    const [y, m, d] = iso.slice(0, 10).split("-");
+    if (!y || !m || !d)
+        return iso;
+    return format === "aaaa-mm-dd" ? `${y}-${m}-${d}` : format === "mm/dd/aaaa" ? `${m}/${d}/${y}` : `${d}/${m}/${y}`;
+}
+/** Texto en el formato configurado → AAAA-MM-DD, o null si no es una fecha válida. Acepta también AAAA-MM-DD. */
+function parseDateText(text, format = cfg.format) {
+    const s = (text || "").trim();
+    let y, m, d;
+    let mt = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s);
+    if (mt) {
+        y = +mt[1];
+        m = +mt[2];
+        d = +mt[3];
+    }
+    else {
+        mt = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/.exec(s);
+        if (!mt)
+            return null;
+        if (format === "mm/dd/aaaa") {
+            m = +mt[1];
+            d = +mt[2];
+        }
+        else {
+            d = +mt[1];
+            m = +mt[2];
+        }
+        y = +mt[3];
+    }
+    const dt = new Date(Date.UTC(y, m - 1, d, 12));
+    if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d)
+        return null;
+    return `${y}-${pad(m)}-${pad(d)}`;
+}
+/** Placeholder del formato configurado (dd/mm/aaaa, …; en inglés dd/mm/yyyy). */
+function formatHint(format = cfg.format) {
+    return (0, i18n_1.getLang)() === "en" ? format.replace("aaaa", "yyyy") : format;
+}
 function fmtDate(iso) {
     if (!iso)
-        return "sin fecha";
+        return (0, i18n_1.t)("sin fecha");
+    return formatIso(iso.slice(0, 10));
+}
+/** Con día de la semana: «mié 14/10/2026». */
+function fmtDateDow(iso) {
+    if (!iso)
+        return (0, i18n_1.t)("sin fecha");
     const d = new Date(iso.slice(0, 10) + "T12:00:00Z");
-    return `${DOW[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]}`;
+    return `${dowShort(d.getUTCDay())} ${formatIso(iso.slice(0, 10))}`;
 }
 function fmtDateTime(utc, tz) {
     if (!utc)
-        return "no informado";
+        return (0, i18n_1.t)("no informado");
     const p = parts(new Date(utc), tz);
-    return `${fmtDate(`${p.year}-${pad(p.month)}-${pad(p.day)}`)} ${p.year} ${pad(p.hour)}:${pad(p.minute)}`;
+    return `${formatIso(`${p.year}-${pad(p.month)}-${pad(p.day)}`)} ${pad(p.hour)}:${pad(p.minute)}`;
+}
+/** «HH:MM» válido en 24 h. */
+function parseTimeText(text) {
+    const m = /^(\d{1,2})(?::|\.|h)?(\d{2})$/.exec((text || "").trim());
+    if (!m)
+        return null;
+    const h = +m[1], mi = +m[2];
+    return h < 24 && mi < 60 ? `${pad(h)}:${pad(mi)}` : null;
 }
 function daysBetween(a, b) {
     return Math.round((Date.parse(b + "T12:00:00Z") - Date.parse(a + "T12:00:00Z")) / 86400000);
@@ -17503,12 +18639,12 @@ function daysBetween(a, b) {
 function dueLabel(due, today) {
     const d = daysBetween(today, due);
     if (d < 0)
-        return `venció hace ${-d} d`;
+        return (0, i18n_1.t)("venció hace {n} d", { n: -d });
     if (d === 0)
-        return "vence hoy";
+        return (0, i18n_1.t)("vence hoy");
     if (d === 1)
-        return "vence mañana";
-    return `vence ${fmtDate(due)}`;
+        return (0, i18n_1.t)("vence mañana");
+    return (0, i18n_1.t)("vence {fecha}", { fecha: fmtDateDow(due) });
 }
 /** Duración natural legible. Nunca se presenta como horas trabajadas. */
 function fmtDuration(ms) {
@@ -17517,19 +18653,20 @@ function fmtDuration(ms) {
     const min = Math.floor(ms / 60000);
     const d = Math.floor(min / 1440), h = Math.floor((min % 1440) / 60), m = min % 60;
     if (d > 0)
-        return `${d} d ${h} h`;
+        return (0, i18n_1.t)("{d} d {h} h", { d, h });
     if (h > 0)
-        return `${h} h ${m} min`;
-    return `${m} min`;
+        return (0, i18n_1.t)("{h} h {m} min", { h, m });
+    return (0, i18n_1.t)("{m} min", { m });
 }
 function elapsedSinceStart(startedAt, completedAt, now = new Date()) {
     if (!startedAt)
-        return "no informado (sin fecha de inicio)";
+        return (0, i18n_1.t)("no informado (sin fecha de inicio)");
     const end = completedAt ? Date.parse(completedAt) : now.getTime();
-    return `${fmtDuration(end - Date.parse(startedAt))} de tiempo natural transcurrido${completedAt ? " (hasta la finalización)" : ""}`;
+    return completedAt ? (0, i18n_1.t)("{dur} de tiempo natural transcurrido (hasta la finalización)", { dur: fmtDuration(end - Date.parse(startedAt)) })
+        : (0, i18n_1.t)("{dur} de tiempo natural transcurrido", { dur: fmtDuration(end - Date.parse(startedAt)) });
 }
 function sinceLabel(utc, now = new Date()) {
-    return utc ? `hace ${fmtDuration(now.getTime() - Date.parse(utc))}` : "no informado";
+    return utc ? (0, i18n_1.t)("hace {dur}", { dur: fmtDuration(now.getTime() - Date.parse(utc)) }) : (0, i18n_1.t)("no informado");
 }
 function zonedToUtc(local, tz) {
     const [d, t] = local.split("T");
@@ -17562,12 +18699,471 @@ function inQuietHours(start, end, tz, now = new Date()) {
     return s < e ? cur >= s && cur < e : cur >= s || cur < e;
 }
 function monthGrid(iso) {
-    const start = weekStart(iso.slice(0, 8) + "01");
+    const start = viewWeekStart(iso.slice(0, 8) + "01");
     return Array.from({ length: 42 }, (_, i) => addDays(start, i));
 }
 
-},{}]; // build/src/lib/dates.js
-defs[9]=[function(module,exports,require){
+},{"./i18n":8}]; // build/src/lib/dates.js
+defs[11]=[function(module,exports,require){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.applyCachedPrefs = applyCachedPrefs;
+exports.applyPrefs = applyPrefs;
+// Preferencias de interfaz (idioma, formato de fecha, inicio de semana y aspecto) aplicadas antes del primer
+// render: al arrancar se usan las últimas conocidas (localStorage) y, al cargar la configuración, las del servidor.
+const dates_1 = require("./dates");
+const i18n_1 = require("./i18n");
+const theme_1 = require("./theme");
+const KEY = "kaosnt-preferencias";
+function applyCachedPrefs() {
+    try {
+        const p = JSON.parse(localStorage.getItem(KEY) || "null");
+        if (p) {
+            (0, i18n_1.setLang)(p.language);
+            (0, dates_1.setDateConfig)(p.date_format, p.week_start);
+        }
+    }
+    catch { /* sin almacenamiento local */ }
+}
+let lastKey = "";
+function applyPrefs(s, systemDark) {
+    const key = JSON.stringify([s.language, s.date_format, s.week_start, s.theme_mode, s.theme_id, s.custom_themes, systemDark]);
+    if (key === lastKey)
+        return;
+    lastKey = key;
+    (0, i18n_1.setLang)(s.language);
+    (0, dates_1.setDateConfig)(s.date_format, s.week_start);
+    if (typeof document !== "undefined") {
+        document.documentElement.lang = s.language === "en" ? "en" : "es";
+        const theme = (0, theme_1.findTheme)(s.theme_id, s.custom_themes || []);
+        (0, theme_1.applyAppearance)((0, theme_1.resolveAppearance)(theme, (0, theme_1.effectiveMode)(s.theme_mode, systemDark)));
+    }
+    try {
+        localStorage.setItem(KEY, JSON.stringify({ language: s.language, date_format: s.date_format, week_start: s.week_start }));
+    }
+    catch { /* */ }
+}
+
+},{"./dates":10,"./i18n":8,"./theme":12}]; // build/src/lib/prefs.js
+defs[12]=[function(module,exports,require){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.CONTRAST_PAIRS = exports.BASE = exports.BUILTIN_THEMES = exports.FONTS = exports.COLOR_VARS = void 0;
+exports.isColor = isColor;
+exports.validateTheme = validateTheme;
+exports.findTheme = findTheme;
+exports.prefersDark = prefersDark;
+exports.effectiveMode = effectiveMode;
+exports.resolveAppearance = resolveAppearance;
+exports.applyAppearance = applyAppearance;
+exports.applyCachedAppearance = applyCachedAppearance;
+exports.themeTemplate = themeTemplate;
+exports.contrast = contrast;
+exports.contrastIssues = contrastIssues;
+// Temas declarativos y modo claro/oscuro. Solo colores (#hex, rgb[a], hsl[a]), fuente de una lista cerrada y radio.
+// Se aplican por CSSOM (style.setProperty), compatible con la CSP estricta (sin estilos en línea en el HTML).
+const i18n_1 = require("./i18n");
+const themes_data_1 = require("./themes-data");
+Object.defineProperty(exports, "BUILTIN_THEMES", { enumerable: true, get: function () { return themes_data_1.BUILTIN_THEMES; } });
+exports.COLOR_VARS = ["bg", "surface", "surface-2", "border", "text", "muted", "accent", "accent-text", "accent-soft",
+    "danger", "danger-soft", "warn", "warn-soft", "info", "info-soft", "ok", "ok-soft", "subtle", "focus",
+    "toast-bg", "toast-text", "code-bg", "shadow"];
+exports.FONTS = {
+    sistema: '"Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif',
+    serif: 'Georgia, Cambria, "Times New Roman", Times, serif',
+    mono: 'Consolas, "Cascadia Mono", "SF Mono", Menlo, "Courier New", monospace',
+    redondeada: '"Segoe UI Variable Display", "SF Pro Rounded", "Arial Rounded MT Bold", "Segoe UI", system-ui, sans-serif',
+};
+exports.BASE = themes_data_1.BUILTIN_THEMES[0];
+const NUM = String.raw `\s*-?\d{1,3}(\.\d+)?%?\s*`;
+const ALPHA = String.raw `\s*(0|1|0?\.\d+|\d{1,3}%)\s*`;
+const COLOR_RE = new RegExp(String.raw `^(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{4}|#[0-9a-fA-F]{6}|#[0-9a-fA-F]{8}` +
+    String.raw `|rgba?\(${NUM},${NUM},${NUM}(,${ALPHA})?\)|hsla?\(${NUM},${NUM},${NUM}(,${ALPHA})?\))$`);
+function isColor(v) { return typeof v === "string" && v.length <= 60 && COLOR_RE.test(v.trim()); }
+/** Validación en el cliente (la misma que backend/kaosnt/themes.py). Devuelve el mensaje de error o "". */
+function validateTheme(x) {
+    if (!x || typeof x !== "object" || Array.isArray(x))
+        return (0, i18n_1.t)("El tema debe ser un objeto JSON");
+    const allowed = ["format", "version", "id", "name", "description", "font", "radius", "light", "dark"];
+    const extra = Object.keys(x).filter((k) => !allowed.includes(k));
+    if (extra.length)
+        return (0, i18n_1.t)("Campos no admitidos en el tema: {campos}", { campos: extra.join(", ") });
+    if (x.format !== "kaosnt-theme")
+        return (0, i18n_1.t)('El archivo no es un tema de KAOSnt (format debe ser "kaosnt-theme")');
+    if (x.version !== 1)
+        return (0, i18n_1.t)("Versión de tema no compatible: {v}", { v: String(x.version) });
+    if (typeof x.id !== "string" || !/^[a-z0-9][a-z0-9-]{0,39}$/.test(x.id))
+        return (0, i18n_1.t)("Identificador de tema no válido (minúsculas, números y guiones; máx. 40)");
+    if (typeof x.name !== "string" || !x.name.trim() || x.name.length > 60)
+        return (0, i18n_1.t)("El nombre del tema es obligatorio (máx. 60 caracteres)");
+    if (x.description !== undefined && (typeof x.description !== "string" || x.description.length > 300))
+        return (0, i18n_1.t)("Descripción no válida (máx. 300 caracteres)");
+    if (x.font !== undefined && !(x.font in exports.FONTS))
+        return (0, i18n_1.t)("Fuente no admitida: usa {fuentes}", { fuentes: Object.keys(exports.FONTS).join(", ") });
+    if (x.radius !== undefined && !(Number.isInteger(x.radius) && x.radius >= 0 && x.radius <= 16))
+        return (0, i18n_1.t)("El radio debe ser un número entero entre 0 y 16");
+    for (const mode of ["light", "dark"]) {
+        const v = x[mode] ?? {};
+        if (typeof v !== "object" || Array.isArray(v))
+            return (0, i18n_1.t)("«{modo}» debe ser un objeto de variables", { modo: mode });
+        const bad = Object.keys(v).filter((k) => !exports.COLOR_VARS.includes(k));
+        if (bad.length)
+            return (0, i18n_1.t)("Variables desconocidas en «{modo}»: {vars}", { modo: mode, vars: bad.join(", ") });
+        for (const [k, c] of Object.entries(v))
+            if (!isColor(c))
+                return (0, i18n_1.t)("Color no válido en «{campo}»: solo #hex, rgb(a) o hsl(a)", { campo: `${mode}.${k}` });
+    }
+    return "";
+}
+function findTheme(id, custom = []) {
+    return themes_data_1.BUILTIN_THEMES.find((x) => x.id === id) || custom.find((x) => x.id === id) || exports.BASE;
+}
+function prefersDark() {
+    return typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+function effectiveMode(mode, systemDark = prefersDark()) {
+    return mode === "oscuro" ? "dark" : mode === "claro" ? "light" : systemDark ? "dark" : "light";
+}
+/** Variables completas: base del modo + las del tema (las ausentes se toman del tema base). */
+function resolveAppearance(theme, mode) {
+    const vars = { ...exports.BASE[mode], ...(theme[mode] || {}) };
+    return { mode, vars, font: exports.FONTS[theme.font] || exports.FONTS.sistema, radius: `${theme.radius ?? 6}px` };
+}
+const CACHE = "kaosnt-aspecto";
+function applyAppearance(a, cache = true) {
+    if (typeof document === "undefined")
+        return;
+    const st = document.documentElement.style;
+    for (const [k, v] of Object.entries(a.vars))
+        st.setProperty(`--${k}`, v);
+    st.setProperty("--font", a.font);
+    st.setProperty("--radius", a.radius);
+    document.documentElement.setAttribute("data-mode", a.mode);
+    if (cache) {
+        try {
+            localStorage.setItem(CACHE, JSON.stringify(a));
+        }
+        catch { /* sin almacenamiento local */ }
+    }
+}
+/** Al arrancar: aplica el último aspecto conocido antes del primer render. */
+function applyCachedAppearance() {
+    try {
+        const a = JSON.parse(localStorage.getItem(CACHE) || "null");
+        if (a && a.vars)
+            applyAppearance(a, false);
+    }
+    catch { /* */ }
+}
+/** Plantilla descargable del tema actual (todas las variables explícitas). */
+function themeTemplate(theme) {
+    return {
+        format: "kaosnt-theme", version: 1, id: theme.id === "predeterminado" ? "mi-tema" : theme.id + "-copia",
+        name: theme.name + " (copia)", description: theme.description, font: theme.font, radius: theme.radius,
+        light: { ...exports.BASE.light, ...theme.light }, dark: { ...exports.BASE.dark, ...theme.dark },
+    };
+}
+// Contraste WCAG (para avisar al importar)
+function rgb(c) {
+    c = c.trim();
+    if (c.startsWith("#")) {
+        let h = c.slice(1);
+        if (h.length === 3 || h.length === 4)
+            h = h.slice(0, 3).split("").map((x) => x + x).join("");
+        return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+    }
+    const m = /^rgba?\(([^)]*)\)/.exec(c);
+    if (m)
+        return m[1].split(",").slice(0, 3).map((x) => (x.trim().endsWith("%") ? parseFloat(x) * 2.55 : parseFloat(x)) / 255);
+    const hm = /^hsla?\(([^)]*)\)/.exec(c);
+    if (hm) {
+        const [h, s, l] = hm[1].split(",").slice(0, 3).map((x) => parseFloat(x));
+        const a = (s / 100) * Math.min(l / 100, 1 - l / 100);
+        const f = (n) => { const k = (n + h / 30) % 12; return l / 100 - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
+        return [f(0), f(8), f(4)];
+    }
+    return null;
+}
+function contrast(a, b) {
+    const lum = (c) => { const [r, g, bl] = c.map((x) => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4)); return 0.2126 * r + 0.7152 * g + 0.0722 * bl; };
+    const ca = rgb(a), cb = rgb(b);
+    if (!ca || !cb)
+        return 0;
+    const la = lum(ca), lb = lum(cb);
+    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+exports.CONTRAST_PAIRS = [["text", "bg"], ["text", "surface"], ["text", "surface-2"], ["muted", "bg"], ["muted", "surface"],
+    ["accent", "surface"], ["accent", "accent-soft"], ["accent-text", "accent"], ["danger", "danger-soft"], ["danger", "surface"], ["warn", "warn-soft"],
+    ["info", "info-soft"], ["ok", "ok-soft"], ["toast-text", "toast-bg"], ["text", "code-bg"]];
+function contrastIssues(vars) {
+    return exports.CONTRAST_PAIRS.filter(([f, b]) => vars[f] && vars[b] && contrast(vars[f], vars[b]) < 4.5)
+        .map(([f, b]) => `${f}/${b} ${contrast(vars[f], vars[b]).toFixed(2)}:1`);
+}
+
+},{"./i18n":8,"./themes-data":13}]; // build/src/lib/theme.js
+defs[13]=[function(module,exports,require){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.BUILTIN_THEMES = void 0;
+exports.BUILTIN_THEMES = [
+    {
+        "format": "kaosnt-theme",
+        "version": 1,
+        "id": "predeterminado",
+        "name": "Predeterminado",
+        "description": "Aspecto por defecto de KAOSnt: sobrio, azul y gris.",
+        "font": "sistema",
+        "radius": 6,
+        "light": {
+            "bg": "#f6f7f9",
+            "surface": "#ffffff",
+            "surface-2": "#eceff3",
+            "border": "#d5d9e0",
+            "text": "#1c2230",
+            "muted": "#545e6f",
+            "accent": "#1f5fbf",
+            "accent-text": "#ffffff",
+            "accent-soft": "#e6eefb",
+            "danger": "#a4262c",
+            "danger-soft": "#fbe9ea",
+            "warn": "#7a4900",
+            "warn-soft": "#fff4e0",
+            "info": "#155e75",
+            "info-soft": "#e3f4f8",
+            "ok": "#1d6b36",
+            "ok-soft": "#e5f4ea",
+            "subtle": "#eef0f3",
+            "focus": "#f2a900",
+            "toast-bg": "#1c2230",
+            "toast-text": "#ffffff",
+            "code-bg": "#f0f2f5",
+            "shadow": "rgba(0, 0, 0, 0.12)"
+        },
+        "dark": {
+            "bg": "#14171c",
+            "surface": "#1d2128",
+            "surface-2": "#262b33",
+            "border": "#3a414c",
+            "text": "#e6e9ee",
+            "muted": "#a3acb9",
+            "accent": "#80b2ff",
+            "accent-text": "#0b1220",
+            "accent-soft": "#1e2f4d",
+            "danger": "#ff9499",
+            "danger-soft": "#3a1d20",
+            "warn": "#f0b45a",
+            "warn-soft": "#3a2a12",
+            "info": "#6fd0e8",
+            "info-soft": "#133038",
+            "ok": "#7ad69a",
+            "ok-soft": "#15301f",
+            "subtle": "#252a31",
+            "focus": "#ffc94a",
+            "toast-bg": "#e6e9ee",
+            "toast-text": "#14171c",
+            "code-bg": "#262b33",
+            "shadow": "rgba(0, 0, 0, 0.5)"
+        }
+    },
+    {
+        "format": "kaosnt-theme",
+        "version": 1,
+        "id": "minimalista",
+        "name": "Minimalista",
+        "description": "Blanco y negro, sin color de acento, bordes finos y esquinas casi rectas.",
+        "font": "sistema",
+        "radius": 2,
+        "light": {
+            "bg": "#ffffff",
+            "surface": "#ffffff",
+            "surface-2": "#f4f4f4",
+            "border": "#e2e2e2",
+            "text": "#111111",
+            "muted": "#595959",
+            "accent": "#111111",
+            "accent-text": "#ffffff",
+            "accent-soft": "#efefef",
+            "subtle": "#f4f4f4",
+            "code-bg": "#f4f4f4",
+            "focus": "#111111",
+            "toast-bg": "#111111"
+        },
+        "dark": {
+            "bg": "#0f0f0f",
+            "surface": "#151515",
+            "surface-2": "#1f1f1f",
+            "border": "#2e2e2e",
+            "text": "#f2f2f2",
+            "muted": "#a6a6a6",
+            "accent": "#f2f2f2",
+            "accent-text": "#111111",
+            "accent-soft": "#2a2a2a",
+            "subtle": "#1c1c1c",
+            "code-bg": "#1f1f1f",
+            "focus": "#f2f2f2",
+            "toast-bg": "#f2f2f2",
+            "toast-text": "#111111"
+        }
+    },
+    {
+        "format": "kaosnt-theme",
+        "version": 1,
+        "id": "cupertino",
+        "name": "Cupertino",
+        "description": "Inspirado en el estilo de Apple: gris claro, azul de sistema y esquinas redondeadas.",
+        "font": "sistema",
+        "radius": 12,
+        "light": {
+            "bg": "#f2f2f7",
+            "surface": "#ffffff",
+            "surface-2": "#e9e9ee",
+            "border": "#d1d1d6",
+            "text": "#1c1c1e",
+            "muted": "#5d5d63",
+            "accent": "#0062cc",
+            "accent-text": "#ffffff",
+            "accent-soft": "#e3eefc",
+            "subtle": "#ececf1",
+            "code-bg": "#f2f2f7",
+            "focus": "#0a84ff",
+            "toast-bg": "#1c1c1e"
+        },
+        "dark": {
+            "bg": "#000000",
+            "surface": "#1c1c1e",
+            "surface-2": "#2c2c2e",
+            "border": "#3a3a3c",
+            "text": "#f2f2f7",
+            "muted": "#a1a1a8",
+            "accent": "#4aa3ff",
+            "accent-text": "#000000",
+            "accent-soft": "#0f2a47",
+            "subtle": "#232325",
+            "code-bg": "#2c2c2e",
+            "focus": "#0a84ff",
+            "toast-bg": "#f2f2f7",
+            "toast-text": "#1c1c1e"
+        }
+    },
+    {
+        "format": "kaosnt-theme",
+        "version": 1,
+        "id": "retro",
+        "name": "Retro",
+        "description": "Papel crema con tinta sepia; en oscuro, una terminal ámbar.",
+        "font": "mono",
+        "radius": 0,
+        "light": {
+            "bg": "#f4ecd8",
+            "surface": "#fbf6e9",
+            "surface-2": "#ece2c8",
+            "border": "#cdbf9c",
+            "text": "#3b2f1e",
+            "muted": "#5e4f36",
+            "accent": "#8b3a1a",
+            "accent-text": "#fbf6e9",
+            "accent-soft": "#efdcc6",
+            "danger": "#9a1f1f",
+            "danger-soft": "#f5dccf",
+            "warn": "#6f4800",
+            "warn-soft": "#f6e5bf",
+            "info": "#1f5560",
+            "info-soft": "#dfeadf",
+            "ok": "#2f5d1e",
+            "ok-soft": "#e2ead0",
+            "subtle": "#efe5cc",
+            "code-bg": "#ece2c8",
+            "focus": "#c46a00",
+            "toast-bg": "#3b2f1e",
+            "toast-text": "#fbf6e9"
+        },
+        "dark": {
+            "bg": "#0d0a05",
+            "surface": "#15100a",
+            "surface-2": "#1f180d",
+            "border": "#4a3610",
+            "text": "#ffb000",
+            "muted": "#d9962a",
+            "accent": "#ffcc66",
+            "accent-text": "#0d0a05",
+            "accent-soft": "#33240a",
+            "danger": "#ff7a5c",
+            "danger-soft": "#2e130b",
+            "warn": "#ffd27a",
+            "warn-soft": "#2e2208",
+            "info": "#ffc46b",
+            "info-soft": "#251a08",
+            "ok": "#d8e070",
+            "ok-soft": "#1e1f08",
+            "subtle": "#1a140b",
+            "code-bg": "#1f180d",
+            "focus": "#ffe08a",
+            "toast-bg": "#ffb000",
+            "toast-text": "#0d0a05",
+            "shadow": "rgba(0, 0, 0, 0.6)"
+        }
+    },
+    {
+        "format": "kaosnt-theme",
+        "version": 1,
+        "id": "alto-contraste",
+        "name": "Alto contraste",
+        "description": "Máximo contraste: negro sobre blanco (o amarillo y blanco sobre negro) y bordes marcados.",
+        "font": "sistema",
+        "radius": 4,
+        "light": {
+            "bg": "#ffffff",
+            "surface": "#ffffff",
+            "surface-2": "#ffffff",
+            "border": "#000000",
+            "text": "#000000",
+            "muted": "#2b2b2b",
+            "accent": "#0000b8",
+            "accent-text": "#ffffff",
+            "accent-soft": "#e0e0ff",
+            "danger": "#a30000",
+            "danger-soft": "#ffe5e5",
+            "warn": "#5c3a00",
+            "warn-soft": "#fff0cc",
+            "info": "#003d4d",
+            "info-soft": "#e0f4ff",
+            "ok": "#004d14",
+            "ok-soft": "#e0ffe8",
+            "subtle": "#ffffff",
+            "code-bg": "#f0f0f0",
+            "focus": "#d10000",
+            "toast-bg": "#000000",
+            "toast-text": "#ffffff"
+        },
+        "dark": {
+            "bg": "#000000",
+            "surface": "#000000",
+            "surface-2": "#000000",
+            "border": "#ffffff",
+            "text": "#ffffff",
+            "muted": "#e0e0e0",
+            "accent": "#ffff00",
+            "accent-text": "#000000",
+            "accent-soft": "#333300",
+            "danger": "#ff8080",
+            "danger-soft": "#330000",
+            "warn": "#ffd166",
+            "warn-soft": "#332400",
+            "info": "#80e5ff",
+            "info-soft": "#00262e",
+            "ok": "#80ff9f",
+            "ok-soft": "#003311",
+            "subtle": "#000000",
+            "code-bg": "#1a1a1a",
+            "focus": "#00ffff",
+            "toast-bg": "#ffffff",
+            "toast-text": "#000000"
+        }
+    }
+];
+
+},{}]; // build/src/lib/themes-data.js
+defs[14]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.apiCache = exports.Ctx = void 0;
@@ -17575,11 +19171,12 @@ exports.useApp = useApp;
 exports.useApi = useApi;
 const react_1 = require("react");
 const api_1 = require("./api");
+const i18n_1 = require("./i18n");
 exports.Ctx = (0, react_1.createContext)(null);
 function useApp() {
     const c = (0, react_1.useContext)(exports.Ctx);
     if (!c)
-        throw new Error("Contexto de aplicación no disponible");
+        throw new Error("Contexto de aplicación no disponible"); // error de programación, no se muestra al usuario
     return c;
 }
 // Caché por URL: muestra datos previos mientras se recargan y facilita las pruebas de renderizado.
@@ -17608,7 +19205,7 @@ function useApi(url) {
             setError("");
             setLoading(false);
         } }, (e) => { if (alive) {
-            setError(e.message || "Error");
+            setError(e.message || (0, i18n_1.t)("Error"));
             setLoading(false);
         } });
         return () => { alive = false; };
@@ -17617,8 +19214,8 @@ function useApi(url) {
     return { data, error, loading, reload };
 }
 
-},{"react":2,"./api":7}]; // build/src/lib/store.js
-defs[10]=[function(module,exports,require){
+},{"react":2,"./api":7,"./i18n":8}]; // build/src/lib/store.js
+defs[15]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.QuickTask = QuickTask;
@@ -17627,8 +19224,10 @@ const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const api_1 = require("../lib/api");
 const dates_1 = require("../lib/dates");
+const i18n_1 = require("../lib/i18n");
 const store_1 = require("../lib/store");
 const Recurrences_1 = require("./Recurrences");
+const DateInput_1 = require("./DateInput");
 const ui_1 = require("./ui");
 /** Captura rápida de tarea: solo el título es obligatorio. Más campos (incluida la repetición) bajo demanda. */
 function QuickTask({ preset, onClose }) {
@@ -17637,7 +19236,7 @@ function QuickTask({ preset, onClose }) {
     const [more, setMore] = (0, react_1.useState)(false);
     const [projectId, setProjectId] = (0, react_1.useState)(preset.project_id ?? null);
     const [assignee, setAssignee] = (0, react_1.useState)(preset.assignee_id ?? null);
-    const [due, setDue] = (0, react_1.useState)("");
+    const [due, setDue] = (0, react_1.useState)(null);
     const [backlog, setBacklog] = (0, react_1.useState)(!!preset.backlog);
     const [repeat, setRepeat] = (0, react_1.useState)(false);
     const [rule, setRule] = (0, react_1.useState)((0, Recurrences_1.emptyRule)((0, dates_1.todayIn)(app.tz)));
@@ -17648,24 +19247,24 @@ function QuickTask({ preset, onClose }) {
             return;
         setBusy(true);
         try {
-            let t = await api_1.api.post("/api/tasks", { title: title.trim(), project_id: projectId, assignee_id: assignee,
+            let task = await api_1.api.post("/api/tasks", { title: title.trim(), project_id: projectId, assignee_id: assignee,
                 due_date: due || null, status: backlog ? "backlog" : "pendiente" });
             if (repeat) {
-                t = await api_1.api.post(`/api/tasks/${t.id}/recurrence`, { rule: rule.rule, weekdays: rule.rule === "semanal" ? rule.weekdays : [],
+                task = await api_1.api.post(`/api/tasks/${task.id}/recurrence`, { rule: rule.rule, weekdays: rule.rule === "semanal" ? rule.weekdays : [],
                     interval_days: rule.rule === "cada_n_dias" ? rule.interval_days : null, start_date: due || rule.start_date, end_date: rule.end_date, non_working: rule.non_working });
             }
             app.changed();
-            app.toast(`Tarea creada: ${t.title}`, "ok", { label: "Abrir", run: () => app.openTask(t.id) });
+            app.toast((0, i18n_1.t)("Tarea creada: {titulo}", { titulo: task.title }), "ok", { label: (0, i18n_1.t)("Abrir"), run: () => app.openTask(task.id) });
             onClose();
             if (openAfter)
-                app.openTask(t.id);
+                app.openTask(task.id);
         }
         catch (e) {
             setError(e.message);
             setBusy(false);
         }
     };
-    return ((0, jsx_runtime_1.jsx)(ui_1.Modal, { title: "Nueva tarea", onClose: onClose, wide: repeat, children: (0, jsx_runtime_1.jsxs)("form", { onSubmit: (e) => { e.preventDefault(); void submit(false); }, children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: "T\u00EDtulo (obligatorio)", children: (0, jsx_runtime_1.jsx)("input", { value: title, onChange: (e) => setTitle(e.target.value), placeholder: "\u00BFQu\u00E9 hay que hacer?", required: true, maxLength: 300 }) }), (0, jsx_runtime_1.jsx)("button", { type: "button", className: "ghost small", onClick: () => setMore(!more), "aria-expanded": more, children: more ? "Menos campos" : "Más campos (opcionales)" }), more && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("div", { className: "grid2", children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Proyecto", children: (0, jsx_runtime_1.jsx)(ui_1.ProjectSelect, { value: projectId, onChange: setProjectId }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Responsable", children: (0, jsx_runtime_1.jsx)(ui_1.PersonSelect, { value: assignee, onChange: setAssignee }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Fecha l\u00EDmite", children: (0, jsx_runtime_1.jsx)("input", { type: "date", value: due, onChange: (e) => setDue(e.target.value) }) })] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: backlog, onChange: (e) => setBacklog(e.target.checked) }), " Guardar en Backlog (a\u00FAn no comprometida)"] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: repeat, onChange: (e) => setRepeat(e.target.checked) }), " Se repite"] }), repeat && (0, jsx_runtime_1.jsx)(Recurrences_1.RuleEditor, { value: { ...rule, start_date: due || rule.start_date }, onChange: setRule })] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error }), (0, jsx_runtime_1.jsxs)("div", { className: "modal-foot", children: [(0, jsx_runtime_1.jsx)("button", { type: "submit", className: "primary", disabled: !title.trim() || busy || (repeat && !(0, Recurrences_1.ruleIsValid)(rule)), children: "Crear (Enter)" }), (0, jsx_runtime_1.jsx)("button", { type: "button", disabled: !title.trim() || busy, onClick: () => submit(true), children: "Crear y abrir detalle" }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, children: "Cancelar" })] })] }) }));
+    return ((0, jsx_runtime_1.jsx)(ui_1.Modal, { title: (0, i18n_1.t)("Nueva tarea"), onClose: onClose, wide: repeat, children: (0, jsx_runtime_1.jsxs)("form", { onSubmit: (e) => { e.preventDefault(); void submit(false); }, children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Título (obligatorio)"), children: (0, jsx_runtime_1.jsx)("input", { value: title, onChange: (e) => setTitle(e.target.value), placeholder: (0, i18n_1.t)("¿Qué hay que hacer?"), required: true, maxLength: 300 }) }), (0, jsx_runtime_1.jsx)("button", { type: "button", className: "ghost small", onClick: () => setMore(!more), "aria-expanded": more, children: more ? (0, i18n_1.t)("Menos campos") : (0, i18n_1.t)("Más campos (opcionales)") }), more && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("div", { className: "grid2", children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Proyecto"), children: (0, jsx_runtime_1.jsx)(ui_1.ProjectSelect, { value: projectId, onChange: setProjectId }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Responsable"), children: (0, jsx_runtime_1.jsx)(ui_1.PersonSelect, { value: assignee, onChange: setAssignee }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Fecha límite"), children: (0, jsx_runtime_1.jsx)(DateInput_1.DateInput, { label: (0, i18n_1.t)("Fecha límite"), value: due, onChange: setDue }) })] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: backlog, onChange: (e) => setBacklog(e.target.checked) }), " ", (0, i18n_1.t)("Guardar en Backlog (aún no comprometida)")] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: repeat, onChange: (e) => setRepeat(e.target.checked) }), " ", (0, i18n_1.t)("Se repite")] }), repeat && (0, jsx_runtime_1.jsx)(Recurrences_1.RuleEditor, { value: { ...rule, start_date: due || rule.start_date }, onChange: setRule })] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error }), (0, jsx_runtime_1.jsxs)("div", { className: "modal-foot", children: [(0, jsx_runtime_1.jsx)("button", { type: "submit", className: "primary", disabled: !title.trim() || busy || (repeat && !(0, Recurrences_1.ruleIsValid)(rule)), children: (0, i18n_1.t)("Crear (Enter)") }), (0, jsx_runtime_1.jsx)("button", { type: "button", disabled: !title.trim() || busy, onClick: () => submit(true), children: (0, i18n_1.t)("Crear y abrir detalle") }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, children: (0, i18n_1.t)("Cancelar") })] })] }) }));
 }
 function SearchDialog({ onClose }) {
     const app = (0, store_1.useApp)();
@@ -17684,7 +19283,7 @@ function SearchDialog({ onClose }) {
             return;
         }
         const my = ++seq.current;
-        const t = setTimeout(() => {
+        const timer = setTimeout(() => {
             api_1.api.get(`/api/search?q=${encodeURIComponent(q)}${archived ? "&archived=true" : ""}${trash ? "&trash=true" : ""}`)
                 .then((r) => { if (my === seq.current) {
                 setResults(r.results);
@@ -17693,7 +19292,7 @@ function SearchDialog({ onClose }) {
                 setError("");
             } }, (e) => setError(e.message));
         }, 200);
-        return () => clearTimeout(t);
+        return () => clearTimeout(timer);
     }, [q, archived, trash]);
     const open = (r) => {
         onClose();
@@ -17702,7 +19301,7 @@ function SearchDialog({ onClose }) {
         else
             app.navigate(r.type === "nota" ? `#/notas/${r.id}` : `#/proyectos/${r.id}`);
     };
-    return ((0, jsx_runtime_1.jsxs)(ui_1.Modal, { title: "Buscar", onClose: onClose, wide: true, children: [(0, jsx_runtime_1.jsx)("input", { "aria-label": "Texto a buscar", placeholder: 'Palabras o "frase exacta" en tareas, proyectos y notas', value: q, onChange: (e) => setQ(e.target.value), onKeyDown: (e) => {
+    return ((0, jsx_runtime_1.jsxs)(ui_1.Modal, { title: (0, i18n_1.t)("Buscar"), onClose: onClose, wide: true, children: [(0, jsx_runtime_1.jsx)("input", { "aria-label": (0, i18n_1.t)("Texto a buscar"), placeholder: (0, i18n_1.t)('Palabras o "frase exacta" en tareas, proyectos y notas'), value: q, onChange: (e) => setQ(e.target.value), onKeyDown: (e) => {
                     if (e.key === "ArrowDown") {
                         e.preventDefault();
                         setSel(Math.min(sel + 1, results.length - 1));
@@ -17715,23 +19314,26 @@ function SearchDialog({ onClose }) {
                         e.preventDefault();
                         open(results[sel]);
                     }
-                } }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: archived, onChange: (e) => setArchived(e.target.checked) }), " Incluir archivados"] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: trash, onChange: (e) => setTrash(e.target.checked) }), " Incluir papelera"] })] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error }), q.trim() && !results.length && !error && (0, jsx_runtime_1.jsx)("p", { className: "empty", children: "Sin resultados. Prueba con menos palabras o sin comillas." }), (0, jsx_runtime_1.jsx)("ul", { className: "results", role: "listbox", "aria-label": "Resultados", children: results.map((r, i) => ((0, jsx_runtime_1.jsx)("li", { role: "option", "aria-selected": i === sel, className: i === sel ? "sel" : "", children: (0, jsx_runtime_1.jsxs)("button", { className: "result", onClick: () => open(r), children: [(0, jsx_runtime_1.jsx)("span", { className: "result-type", children: r.type === "nota" ? "Nota" : r.type === "tarea" ? "Tarea" : "Proyecto" }), (0, jsx_runtime_1.jsx)("strong", { children: r.title }), " ", (0, jsx_runtime_1.jsxs)("span", { className: "muted", children: ["\u00B7 ", r.context] }), r.snippet && (0, jsx_runtime_1.jsx)("span", { className: "snippet", children: r.snippet })] }) }, r.type + r.id))) }), total > results.length && (0, jsx_runtime_1.jsxs)("p", { className: "hint", children: ["Mostrando ", results.length, " de ", total, ". Afina la b\u00FAsqueda."] })] }));
+                } }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: archived, onChange: (e) => setArchived(e.target.checked) }), " ", (0, i18n_1.t)("Incluir archivados")] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: trash, onChange: (e) => setTrash(e.target.checked) }), " ", (0, i18n_1.t)("Incluir papelera")] })] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error }), q.trim() && !results.length && !error && (0, jsx_runtime_1.jsx)("p", { className: "empty", children: (0, i18n_1.t)("Sin resultados. Prueba con menos palabras o sin comillas.") }), (0, jsx_runtime_1.jsx)("ul", { className: "results", role: "listbox", "aria-label": (0, i18n_1.t)("Resultados"), children: results.map((r, i) => ((0, jsx_runtime_1.jsx)("li", { role: "option", "aria-selected": i === sel, className: i === sel ? "sel" : "", children: (0, jsx_runtime_1.jsxs)("button", { className: "result", onClick: () => open(r), children: [(0, jsx_runtime_1.jsx)("span", { className: "result-type", children: r.type === "nota" ? (0, i18n_1.t)("Nota") : r.type === "tarea" ? (0, i18n_1.t)("Tarea") : (0, i18n_1.t)("Proyecto") }), (0, jsx_runtime_1.jsx)("strong", { children: r.title }), " ", (0, jsx_runtime_1.jsxs)("span", { className: "muted", children: ["\u00B7 ", r.context] }), r.snippet && (0, jsx_runtime_1.jsx)("span", { className: "snippet", children: r.snippet })] }) }, r.type + r.id))) }), total > results.length && (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Mostrando {n} de {total}. Afina la búsqueda.", { n: results.length, total }) })] }));
 }
 
-},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":8,"../lib/store":9,"./Recurrences":11,"./ui":13}]; // build/src/components/QuickCapture.js
-defs[11]=[function(module,exports,require){
+},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":10,"../lib/i18n":8,"../lib/store":14,"./Recurrences":16,"./DateInput":18,"./ui":19}]; // build/src/components/QuickCapture.js
+defs[16]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.emptyRule = emptyRule;
 exports.ruleIsValid = ruleIsValid;
 exports.RuleEditor = RuleEditor;
 exports.RecurrencesModal = RecurrencesModal;
+exports.DeleteSeriesDialog = DeleteSeriesDialog;
 const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const api_1 = require("../lib/api");
 const dates_1 = require("../lib/dates");
+const i18n_1 = require("../lib/i18n");
 const labels_1 = require("../lib/labels");
 const store_1 = require("../lib/store");
+const DateInput_1 = require("./DateInput");
 const ui_1 = require("./ui");
 function emptyRule(start) {
     return { rule: "semanal", weekdays: [(0, dates_1.isoDow)(start)], interval_days: 2, start_date: start, end_date: null, non_working: "saltar" };
@@ -17742,20 +19344,21 @@ function ruleIsValid(r) {
 /** Editor de la regla de repetición (compartido por la tarea, la captura rápida y el gestor). */
 function RuleEditor({ value, onChange, lockRule }) {
     const set = (p) => onChange({ ...value, ...p });
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "rule-editor", children: [(0, jsx_runtime_1.jsxs)("div", { className: "grid2", children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Se repite", children: (0, jsx_runtime_1.jsx)("select", { value: value.rule, disabled: lockRule, onChange: (e) => set({ rule: e.target.value }), children: Object.keys(labels_1.RULE).map((k) => (0, jsx_runtime_1.jsx)("option", { value: k, children: labels_1.RULE[k] }, k)) }) }), value.rule === "cada_n_dias" && (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Cada cu\u00E1ntos d\u00EDas", children: (0, jsx_runtime_1.jsx)("input", { type: "number", min: "1", disabled: lockRule, value: value.interval_days ?? "", onChange: (e) => set({ interval_days: e.target.value ? Number(e.target.value) : null }) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Empieza", children: (0, jsx_runtime_1.jsx)("input", { type: "date", disabled: lockRule, value: value.start_date, onChange: (e) => set({ start_date: e.target.value }) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Termina (opcional)", children: (0, jsx_runtime_1.jsx)("input", { type: "date", value: value.end_date || "", onChange: (e) => set({ end_date: e.target.value || null }) }) })] }), value.rule === "semanal" && ((0, jsx_runtime_1.jsxs)("fieldset", { className: "weekdays", disabled: lockRule, children: [(0, jsx_runtime_1.jsx)("legend", { children: "D\u00EDas de la semana" }), labels_1.DAYS_SHORT.map((d, i) => ((0, jsx_runtime_1.jsxs)("label", { className: "daybox", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: value.weekdays.includes(i + 1), onChange: (e) => set({ weekdays: e.target.checked ? [...value.weekdays, i + 1].sort() : value.weekdays.filter((x) => x !== i + 1) }) }), d] }, d)))] })), value.rule !== "laborables" && ((0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Si cae en d\u00EDa no laborable", hint: "No laborables: d\u00EDas de la semana y festivos registrados (comunes y de la oficina del responsable)", children: (0, jsx_runtime_1.jsx)("select", { value: value.non_working, onChange: (e) => set({ non_working: e.target.value }), children: Object.entries(labels_1.NONWORK).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k)) }) }))] }));
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "rule-editor", children: [(0, jsx_runtime_1.jsxs)("div", { className: "grid2", children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Se repite"), children: (0, jsx_runtime_1.jsx)("select", { value: value.rule, disabled: lockRule, onChange: (e) => set({ rule: e.target.value }), children: Object.keys(labels_1.RULE).map((k) => (0, jsx_runtime_1.jsx)("option", { value: k, children: labels_1.RULE[k] }, k)) }) }), value.rule === "cada_n_dias" && (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Cada cuántos días"), children: (0, jsx_runtime_1.jsx)("input", { type: "number", min: "1", disabled: lockRule, value: value.interval_days ?? "", onChange: (e) => set({ interval_days: e.target.value ? Number(e.target.value) : null }) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Empieza"), children: lockRule ? (0, jsx_runtime_1.jsx)("input", { disabled: true, value: value.start_date, "aria-label": (0, i18n_1.t)("Empieza") }) : (0, jsx_runtime_1.jsx)(DateInput_1.DateInput, { label: (0, i18n_1.t)("Empieza"), value: value.start_date, onChange: (v) => set({ start_date: v || value.start_date }) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Termina (opcional)"), children: (0, jsx_runtime_1.jsx)(DateInput_1.DateInput, { label: (0, i18n_1.t)("Termina (opcional)"), value: value.end_date, onChange: (v) => set({ end_date: v }) }) })] }), value.rule === "semanal" && ((0, jsx_runtime_1.jsxs)("fieldset", { className: "weekdays", disabled: lockRule, children: [(0, jsx_runtime_1.jsx)("legend", { children: (0, i18n_1.t)("Días de la semana") }), labels_1.DAYS_SHORT.map((d, i) => ((0, jsx_runtime_1.jsxs)("label", { className: "daybox", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: value.weekdays.includes(i + 1), onChange: (e) => set({ weekdays: e.target.checked ? [...value.weekdays, i + 1].sort() : value.weekdays.filter((x) => x !== i + 1) }) }), d] }, d)))] })), value.rule !== "laborables" && ((0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Si cae en día no laborable"), hint: (0, i18n_1.t)("No laborables: días sin horario laboral y festivos registrados (comunes y de la oficina del responsable)"), children: (0, jsx_runtime_1.jsx)("select", { value: value.non_working, onChange: (e) => set({ non_working: e.target.value }), children: Object.entries(labels_1.NONWORK).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k)) }) }))] }));
 }
 function RecurrencesModal({ onClose }) {
     const app = (0, store_1.useApp)();
     const { data, error, reload } = (0, store_1.useApi)("/api/recurrences");
     const [form, setForm] = (0, react_1.useState)(null);
     const [err, setErr] = (0, react_1.useState)("");
+    const [deleting, setDeleting] = (0, react_1.useState)(null);
     const save = async () => {
         if (!form)
             return;
         const { r, ...f } = form;
         try {
             if (f.id) {
-                const applyFuture = window.confirm("¿Aplicar también a las ocurrencias futuras ya generadas que sigan pendientes?\n\nAceptar = también las futuras · Cancelar = solo las nuevas");
+                const applyFuture = window.confirm((0, i18n_1.t)("¿Aplicar también a las ocurrencias futuras ya generadas que sigan pendientes?\n\nAceptar = también las futuras · Cancelar = solo las nuevas"));
                 await api_1.api.patch(`/api/recurrences/${f.id}`, { title: f.title, project_id: f.project_id ?? null, assignee_id: f.assignee_id ?? null,
                     priority: f.priority, estimate_hours: f.estimate_hours ?? null, end_date: r.end_date, non_working: r.non_working, apply_to_future: applyFuture });
             }
@@ -17772,55 +19375,227 @@ function RecurrencesModal({ onClose }) {
             setErr(e.message);
         }
     };
-    return ((0, jsx_runtime_1.jsxs)(ui_1.Modal, { title: "Tareas recurrentes", onClose: onClose, wide: true, children: [(0, jsx_runtime_1.jsx)("p", { className: "hint", children: "Tambi\u00E9n puedes hacer recurrente cualquier tarea desde su detalle (secci\u00F3n \u00ABRepetici\u00F3n\u00BB). Cada ocurrencia es una tarea propia: se completa o se salta sin afectar a las dem\u00E1s." }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error || err, onRetry: reload }), !form && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("div", { className: "table-wrap", children: (0, jsx_runtime_1.jsxs)("table", { className: "list compact", children: [(0, jsx_runtime_1.jsx)("thead", { children: (0, jsx_runtime_1.jsxs)("tr", { children: [(0, jsx_runtime_1.jsx)("th", { children: "T\u00EDtulo" }), (0, jsx_runtime_1.jsx)("th", { children: "Repetici\u00F3n" }), (0, jsx_runtime_1.jsx)("th", { children: "Responsable" }), (0, jsx_runtime_1.jsx)("th", { children: "Estado" }), (0, jsx_runtime_1.jsx)("th", {})] }) }), (0, jsx_runtime_1.jsx)("tbody", { children: data?.map((r) => ((0, jsx_runtime_1.jsxs)("tr", { children: [(0, jsx_runtime_1.jsx)("td", { children: r.title }), (0, jsx_runtime_1.jsxs)("td", { children: [(0, labels_1.describeRule)(r), " \u00B7 desde ", (0, dates_1.fmtDate)(r.start_date), r.end_date ? ` hasta ${(0, dates_1.fmtDate)(r.end_date)}` : ""] }), (0, jsx_runtime_1.jsx)("td", { children: app.person(r.assignee_id)?.name || "Sin asignar" }), (0, jsx_runtime_1.jsx)("td", { children: r.active ? "Activa" : "Pausada" }), (0, jsx_runtime_1.jsxs)("td", { className: "nowrap", children: [(0, jsx_runtime_1.jsx)("button", { className: "small", onClick: () => setForm({ ...r, r: { rule: r.rule, weekdays: r.weekdays, interval_days: r.interval_days, start_date: r.start_date, end_date: r.end_date, non_working: r.non_working } }), children: "Editar" }), (0, jsx_runtime_1.jsx)("button", { className: "small ghost", onClick: async () => { await api_1.api.patch(`/api/recurrences/${r.id}`, { active: !r.active }); reload(); app.changed(); }, children: r.active ? "Pausar" : "Reactivar" })] })] }, r.id))) })] }) }), data && !data.length && (0, jsx_runtime_1.jsx)("p", { className: "empty", children: "No hay tareas recurrentes." }), (0, jsx_runtime_1.jsx)("div", { className: "modal-foot", children: (0, jsx_runtime_1.jsx)("button", { className: "primary", onClick: () => setForm({ priority: "normal", r: emptyRule((0, dates_1.todayIn)(app.tz)) }), children: "Nueva recurrencia" }) })] }), form && ((0, jsx_runtime_1.jsxs)("form", { onSubmit: (e) => { e.preventDefault(); void save(); }, children: [(0, jsx_runtime_1.jsxs)("div", { className: "grid2", children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: "T\u00EDtulo", children: (0, jsx_runtime_1.jsx)("input", { value: form.title || "", onChange: (e) => setForm({ ...form, title: e.target.value }), required: true }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Responsable", children: (0, jsx_runtime_1.jsx)(ui_1.PersonSelect, { value: form.assignee_id, onChange: (v) => setForm({ ...form, assignee_id: v }) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Proyecto", children: (0, jsx_runtime_1.jsx)(ui_1.ProjectSelect, { value: form.project_id, onChange: (v) => setForm({ ...form, project_id: v }) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Prioridad", children: (0, jsx_runtime_1.jsx)("select", { value: form.priority, onChange: (e) => setForm({ ...form, priority: e.target.value }), children: Object.entries(labels_1.PRIORITY).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k)) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Esfuerzo estimado por ocurrencia (h)", children: (0, jsx_runtime_1.jsx)("input", { type: "number", min: "0", step: "0.5", value: form.estimate_hours ?? "", onChange: (e) => setForm({ ...form, estimate_hours: e.target.value === "" ? null : Number(e.target.value) }) }) })] }), (0, jsx_runtime_1.jsx)(RuleEditor, { value: form.r, onChange: (r) => setForm({ ...form, r }), lockRule: !!form.id }), form.id && (0, jsx_runtime_1.jsx)("p", { className: "hint", children: "La regla y el inicio no se modifican para no alterar el hist\u00F3rico; si cambian, pausa esta serie y crea otra." }), (0, jsx_runtime_1.jsxs)("div", { className: "modal-foot", children: [(0, jsx_runtime_1.jsx)("button", { className: "primary", type: "submit", disabled: !form.title?.trim() || !ruleIsValid(form.r), children: "Guardar" }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: () => setForm(null), children: "Volver" })] })] }))] }));
+    return ((0, jsx_runtime_1.jsxs)(ui_1.Modal, { title: (0, i18n_1.t)("Tareas recurrentes"), onClose: onClose, wide: true, children: [(0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("También puedes hacer recurrente cualquier tarea desde su detalle (sección «Repetición»). Cada ocurrencia es una tarea propia: se completa o se salta sin afectar a las demás.") }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error || err, onRetry: reload }), !form && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("div", { className: "table-wrap", children: (0, jsx_runtime_1.jsxs)("table", { className: "list compact", children: [(0, jsx_runtime_1.jsx)("thead", { children: (0, jsx_runtime_1.jsxs)("tr", { children: [(0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Título") }), (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Repetición") }), (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Responsable") }), (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Estado") }), (0, jsx_runtime_1.jsx)("th", {})] }) }), (0, jsx_runtime_1.jsx)("tbody", { children: data?.map((r) => ((0, jsx_runtime_1.jsxs)("tr", { children: [(0, jsx_runtime_1.jsx)("td", { children: r.title }), (0, jsx_runtime_1.jsxs)("td", { children: [(0, labels_1.describeRule)(r), " \u00B7 ", (0, i18n_1.t)("desde {fecha}", { fecha: (0, dates_1.fmtDate)(r.start_date) }), r.end_date ? " " + (0, i18n_1.t)("hasta {fecha}", { fecha: (0, dates_1.fmtDate)(r.end_date) }) : ""] }), (0, jsx_runtime_1.jsx)("td", { children: app.person(r.assignee_id)?.name || (0, i18n_1.t)("Sin asignar") }), (0, jsx_runtime_1.jsx)("td", { children: r.active ? (0, i18n_1.t)("Activa") : (0, i18n_1.t)("Pausada") }), (0, jsx_runtime_1.jsxs)("td", { className: "nowrap", children: [(0, jsx_runtime_1.jsx)("button", { className: "small", onClick: () => setForm({ ...r, r: { rule: r.rule, weekdays: r.weekdays, interval_days: r.interval_days, start_date: r.start_date, end_date: r.end_date, non_working: r.non_working } }), children: (0, i18n_1.t)("Editar") }), (0, jsx_runtime_1.jsx)("button", { className: "small ghost", onClick: async () => { await api_1.api.patch(`/api/recurrences/${r.id}`, { active: !r.active }); reload(); app.changed(); }, children: r.active ? (0, i18n_1.t)("Pausar") : (0, i18n_1.t)("Reactivar") }), (0, jsx_runtime_1.jsx)("button", { className: "small ghost danger", onClick: () => setDeleting(r), children: (0, i18n_1.t)("Eliminar serie") })] })] }, r.id))) })] }) }), data && !data.length && (0, jsx_runtime_1.jsx)("p", { className: "empty", children: (0, i18n_1.t)("No hay tareas recurrentes.") }), (0, jsx_runtime_1.jsx)("div", { className: "modal-foot", children: (0, jsx_runtime_1.jsx)("button", { className: "primary", onClick: () => setForm({ priority: "normal", r: emptyRule((0, dates_1.todayIn)(app.tz)) }), children: (0, i18n_1.t)("Nueva recurrencia") }) })] }), form && ((0, jsx_runtime_1.jsxs)("form", { onSubmit: (e) => { e.preventDefault(); void save(); }, children: [(0, jsx_runtime_1.jsxs)("div", { className: "grid2", children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Título"), children: (0, jsx_runtime_1.jsx)("input", { value: form.title || "", onChange: (e) => setForm({ ...form, title: e.target.value }), required: true }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Responsable"), children: (0, jsx_runtime_1.jsx)(ui_1.PersonSelect, { value: form.assignee_id, onChange: (v) => setForm({ ...form, assignee_id: v }) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Proyecto"), children: (0, jsx_runtime_1.jsx)(ui_1.ProjectSelect, { value: form.project_id, onChange: (v) => setForm({ ...form, project_id: v }) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Prioridad"), children: (0, jsx_runtime_1.jsx)("select", { value: form.priority, onChange: (e) => setForm({ ...form, priority: e.target.value }), children: Object.entries(labels_1.PRIORITY).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k)) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Esfuerzo estimado por ocurrencia (h)"), children: (0, jsx_runtime_1.jsx)("input", { type: "number", min: "0", step: "0.5", value: form.estimate_hours ?? "", onChange: (e) => setForm({ ...form, estimate_hours: e.target.value === "" ? null : Number(e.target.value) }) }) })] }), (0, jsx_runtime_1.jsx)(RuleEditor, { value: form.r, onChange: (r) => setForm({ ...form, r }), lockRule: !!form.id }), form.id && (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("La regla y el inicio no se modifican para no alterar el histórico; si cambian, pausa esta serie y crea otra.") }), (0, jsx_runtime_1.jsxs)("div", { className: "modal-foot", children: [(0, jsx_runtime_1.jsx)("button", { className: "primary", type: "submit", disabled: !form.title?.trim() || !ruleIsValid(form.r), children: (0, i18n_1.t)("Guardar") }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: () => setForm(null), children: (0, i18n_1.t)("Volver") })] })] })), deleting && (0, jsx_runtime_1.jsx)(DeleteSeriesDialog, { rec: deleting, onClose: () => setDeleting(null), onDone: () => { setDeleting(null); reload(); app.changed(); } })] }));
+}
+/** Eliminar una serie: conservar las ocurrencias como tareas normales o eliminar también las pendientes. */
+function DeleteSeriesDialog({ rec, onClose, onDone }) {
+    const app = (0, store_1.useApp)();
+    const [mode, setMode] = (0, react_1.useState)("conservar");
+    const [err, setErr] = (0, react_1.useState)("");
+    const run = async () => {
+        if (!window.confirm(mode === "conservar" ? (0, i18n_1.t)("¿Eliminar la serie «{titulo}»? Sus ocurrencias se conservan como tareas normales.", { titulo: rec.title })
+            : (0, i18n_1.t)("¿Eliminar la serie «{titulo}» y sus ocurrencias pendientes? No se puede deshacer. Las hechas, en curso o en revisión se conservan.", { titulo: rec.title })))
+            return;
+        try {
+            const r = await api_1.api.del(`/api/recurrences/${rec.id}?mode=${mode}`);
+            app.toast((0, i18n_1.t)("Serie eliminada: {borradas} ocurrencia(s) eliminada(s), {conservadas} conservada(s) como tareas normales", { borradas: r.deleted, conservadas: r.kept }), "ok");
+            onDone();
+        }
+        catch (e) {
+            setErr(e.message);
+        }
+    };
+    return ((0, jsx_runtime_1.jsxs)(ui_1.Modal, { title: (0, i18n_1.t)("Eliminar serie recurrente"), onClose: onClose, children: [(0, jsx_runtime_1.jsx)("p", { children: (0, jsx_runtime_1.jsx)("strong", { children: rec.title }) }), (0, jsx_runtime_1.jsxs)("fieldset", { className: "plain-fieldset", children: [(0, jsx_runtime_1.jsx)("legend", { children: (0, i18n_1.t)("¿Qué hacer con las ocurrencias ya creadas?") }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "radio", name: "del-mode", checked: mode === "conservar", onChange: () => setMode("conservar") }), " ", (0, i18n_1.t)("Conservarlas como tareas normales (dejan de ser recurrentes)")] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "radio", name: "del-mode", checked: mode === "eliminar_pendientes", onChange: () => setMode("eliminar_pendientes") }), " ", (0, i18n_1.t)("Eliminar también las pendientes (no iniciadas y saltadas)")] })] }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Las ocurrencias hechas, en curso o en revisión se conservan siempre. No se generarán más ocurrencias.") }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: err }), (0, jsx_runtime_1.jsxs)("div", { className: "modal-foot", children: [(0, jsx_runtime_1.jsx)("button", { className: "danger", onClick: run, children: (0, i18n_1.t)("Eliminar serie") }), (0, jsx_runtime_1.jsx)("button", { onClick: onClose, children: (0, i18n_1.t)("Cancelar") })] })] }));
 }
 
-},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":8,"../lib/labels":12,"../lib/store":9,"./ui":13}]; // build/src/components/Recurrences.js
-defs[12]=[function(module,exports,require){
+},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":10,"../lib/i18n":8,"../lib/labels":17,"../lib/store":14,"./DateInput":18,"./ui":19}]; // build/src/components/Recurrences.js
+defs[17]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.DAYS_LONG = exports.DAYS_SHORT = exports.NONWORK = exports.RULE = exports.SIGNAL = exports.GROUPING_KIND = exports.MILESTONE_KIND = exports.NOTE_KIND = exports.PROJECT_TYPE = exports.HEALTH = exports.PROJECT_STATUS = exports.APPROVAL = exports.KIND = exports.CONDITION = exports.PRIORITY_MARK = exports.PRIORITY = exports.STATUS_ORDER = exports.BOARD_COLUMNS = exports.STATUS = void 0;
+exports.CONFLICT_REASON = exports.REMINDER_RULE = exports.DAYS_LONG = exports.DAYS_SHORT = exports.NONWORK = exports.RULE = exports.SIGNAL = exports.GROUPING_KIND = exports.MILESTONE_KIND = exports.NOTE_KIND = exports.PROJECT_TYPE = exports.HEALTH = exports.PROJECT_STATUS = exports.APPROVAL = exports.KIND = exports.CONDITION = exports.PRIORITY_MARK = exports.PRIORITY = exports.STATUS_ORDER = exports.BOARD_COLUMNS = exports.STATUS = void 0;
 exports.projectTypeLabel = projectTypeLabel;
 exports.describeRule = describeRule;
-exports.STATUS = {
+exports.describeSchedule = describeSchedule;
+const i18n_1 = require("./i18n");
+exports.STATUS = (0, i18n_1.tr)({
     backlog: "Backlog", pendiente: "Pendiente", en_curso: "En curso", en_revision: "En revisión", hecha: "Hecha", cancelada: "Cancelada",
-};
+});
 exports.BOARD_COLUMNS = ["pendiente", "en_curso", "en_revision", "hecha"];
 exports.STATUS_ORDER = ["backlog", "pendiente", "en_curso", "en_revision", "hecha", "cancelada"];
-exports.PRIORITY = { urgente: "Urgente", alta: "Alta", normal: "Normal", baja: "Baja" };
+exports.PRIORITY = (0, i18n_1.tr)({ urgente: "Urgente", alta: "Alta", normal: "Normal", baja: "Baja" });
 exports.PRIORITY_MARK = { urgente: "‼", alta: "!", normal: "", baja: "↓" };
-exports.CONDITION = { espera: "En espera", bloqueada: "Bloqueada" };
-exports.KIND = { tarea: "Tarea", peticion: "Petición", incidencia: "Incidencia", mejora: "Mejora", evolutivo: "Evolutivo" };
-exports.APPROVAL = { no_requerida: "No requerida", pendiente: "Pendiente", aprobada: "Aprobada", rechazada: "Rechazada" };
-exports.PROJECT_STATUS = { activo: "Activo", pausado: "Pausado", cerrado: "Cerrado", archivado: "Archivado" };
-exports.HEALTH = { normal: "Normal", atencion: "Requiere atención", bloqueado: "Bloqueado" };
-exports.PROJECT_TYPE = {
+exports.CONDITION = (0, i18n_1.tr)({ espera: "En espera", bloqueada: "Bloqueada" });
+exports.KIND = (0, i18n_1.tr)({ tarea: "Tarea", peticion: "Petición", incidencia: "Incidencia", mejora: "Mejora", evolutivo: "Evolutivo" });
+exports.APPROVAL = (0, i18n_1.tr)({ no_requerida: "No requerida", pendiente: "Pendiente", aprobada: "Aprobada", rechazada: "Rechazada" });
+exports.PROJECT_STATUS = (0, i18n_1.tr)({ activo: "Activo", pausado: "Pausado", cerrado: "Cerrado", archivado: "Archivado" });
+exports.HEALTH = (0, i18n_1.tr)({ normal: "Normal", atencion: "Requiere atención", bloqueado: "Bloqueado" });
+exports.PROJECT_TYPE = (0, i18n_1.tr)({
     implementacion: "Implementación", mantenimiento: "Mantenimiento", id: "I+D", consultoria: "Consultoría",
     benchmark: "Benchmark", propuesta: "Propuesta comercial", otro: "Otro",
-};
-exports.NOTE_KIND = { acta: "Acta", decision: "Decisión", documentacion: "Documentación" };
-exports.MILESTONE_KIND = { hito: "Hito", decision: "Decisión pendiente", compromiso: "Compromiso" };
-exports.GROUPING_KIND = { linea: "Línea de trabajo", fase: "Fase", entregable: "Entregable" };
-exports.SIGNAL = {
+});
+exports.NOTE_KIND = (0, i18n_1.tr)({ acta: "Acta", decision: "Decisión", documentacion: "Documentación" });
+exports.MILESTONE_KIND = (0, i18n_1.tr)({ hito: "Hito", decision: "Decisión pendiente", compromiso: "Compromiso" });
+exports.GROUPING_KIND = (0, i18n_1.tr)({ linea: "Línea de trabajo", fase: "Fase", entregable: "Entregable" });
+exports.SIGNAL = (0, i18n_1.tr)({
     vencida: "Vencida", vence_hoy: "Vence hoy", vence_semana: "Vence esta semana", espera: "En espera", bloqueada: "Bloqueada",
     bloqueada_por_dependencia: "Depende de otra tarea", bloquea_otras: "Bloquea otras tareas", backlog: "En backlog",
     aprobacion_pendiente: "Aprobación pendiente", aprobacion_rechazada: "Aprobación rechazada",
-};
-exports.RULE = { diaria: "Todos los días", laborables: "Días laborables", semanal: "Semanal (días concretos)", cada_n_dias: "Cada X días" };
-exports.NONWORK = { saltar: "Saltar ese día", siguiente_laborable: "Mover al siguiente laborable", mantener: "Mantener la fecha" };
-exports.DAYS_SHORT = ["L", "M", "X", "J", "V", "S", "D"];
-exports.DAYS_LONG = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
-function projectTypeLabel(t) { return exports.PROJECT_TYPE[t] || t; }
+});
+exports.RULE = (0, i18n_1.tr)({ diaria: "Todos los días", laborables: "Días laborables", semanal: "Semanal (días concretos)", cada_n_dias: "Cada X días" });
+exports.NONWORK = (0, i18n_1.tr)({ saltar: "Saltar ese día", siguiente_laborable: "Mover al siguiente laborable", mantener: "Mantener la fecha" });
+const DAYS_SHORT_ES = ["L", "M", "X", "J", "V", "S", "D"];
+const DAYS_LONG_ES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+/** Días ISO (1 = lunes); se traducen al leerlos. */
+exports.DAYS_SHORT = new Proxy(DAYS_SHORT_ES, { get: (a, k) => (typeof k === "string" && /^\d+$/.test(k) ? (0, i18n_1.t)(a[Number(k)]) : a[k]) });
+exports.DAYS_LONG = new Proxy(DAYS_LONG_ES, { get: (a, k) => (typeof k === "string" && /^\d+$/.test(k) ? (0, i18n_1.t)(a[Number(k)]) : a[k]) });
+exports.REMINDER_RULE = (0, i18n_1.tr)({
+    vence: "Vencimiento próximo", revision: "Fecha de revisión alcanzada", inicio: "Duración desde el inicio superada",
+    inactividad: "Sin actualización significativa", seguimiento: "Seguimiento pendiente", manual: "Recordatorio",
+});
+exports.CONFLICT_REASON = (0, i18n_1.tr)({ ausencia: "ausencia", festivo: "festivo" });
+function projectTypeLabel(type) { return exports.PROJECT_TYPE[type] || type; }
 function describeRule(r) {
     if (r.rule === "semanal")
-        return "Cada semana: " + ([...(r.weekdays || [])].sort().map((d) => exports.DAYS_LONG[d - 1].toLowerCase()).join(", ") || "—");
+        return (0, i18n_1.t)("Cada semana: {dias}", { dias: [...(r.weekdays || [])].sort().map((d) => exports.DAYS_LONG[d - 1].toLowerCase()).join(", ") || "—" });
     if (r.rule === "cada_n_dias")
-        return `Cada ${r.interval_days || 1} días`;
+        return (0, i18n_1.t)("Cada {n} días", { n: r.interval_days || 1 });
     return exports.RULE[r.rule];
 }
+/** «L–J 09:00–19:00 · V 09:00–15:00» (días consecutivos con el mismo horario se agrupan). */
+function describeSchedule(sch) {
+    if (!sch)
+        return "";
+    const parts = [];
+    let i = 1;
+    while (i <= 7) {
+        const w = sch[String(i)];
+        if (!w) {
+            i++;
+            continue;
+        }
+        let j = i;
+        while (j < 7) {
+            const n = sch[String(j + 1)];
+            if (n && n.start === w.start && n.end === w.end)
+                j++;
+            else
+                break;
+        }
+        parts.push(`${exports.DAYS_SHORT[i - 1]}${j > i ? "–" + exports.DAYS_SHORT[j - 1] : ""} ${w.start}–${w.end}`);
+        i = j + 1;
+    }
+    return parts.join(" · ") || (0, i18n_1.t)("sin días laborables");
+}
 
-},{}]; // build/src/lib/labels.js
-defs[13]=[function(module,exports,require){
+},{"./i18n":8}]; // build/src/lib/labels.js
+defs[18]=[function(module,exports,require){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.DateInput = DateInput;
+exports.TimeInput = TimeInput;
+exports.DateTimeInput = DateTimeInput;
+const jsx_runtime_1 = require("react/jsx-runtime");
+// Campos de fecha y hora propios: siguen el formato configurado (no el idioma del navegador).
+// DateInput: texto en el formato configurado + calendario emergente; el valor se aplica en cuanto la fecha es válida.
+// TimeInput: 24 h (HH:MM). DateTimeInput: fecha + hora en la zona configurada (valor local «AAAA-MM-DDTHH:MM»).
+const react_1 = require("react");
+const dates_1 = require("../lib/dates");
+const i18n_1 = require("../lib/i18n");
+const store_1 = require("../lib/store");
+function DateInput({ value, onChange, label, id, required, className }) {
+    const [text, setText] = (0, react_1.useState)(value ? (0, dates_1.formatIso)(value) : "");
+    const [open, setOpen] = (0, react_1.useState)(false);
+    const [invalid, setInvalid] = (0, react_1.useState)(false);
+    const box = (0, react_1.useRef)(null);
+    (0, react_1.useEffect)(() => { setText(value ? (0, dates_1.formatIso)(value) : ""); setInvalid(false); }, [value, (0, dates_1.dateConfig)().format]);
+    (0, react_1.useEffect)(() => {
+        if (!open)
+            return;
+        const close = (e) => { if (box.current && !box.current.contains(e.target))
+            setOpen(false); };
+        document.addEventListener("mousedown", close);
+        return () => document.removeEventListener("mousedown", close);
+    }, [open]);
+    const edit = (v) => {
+        setText(v);
+        if (!v.trim()) {
+            setInvalid(false);
+            if (value)
+                onChange(null);
+            return;
+        }
+        const iso = (0, dates_1.parseDateText)(v);
+        if (iso)
+            setInvalid(false);
+        if (iso && iso !== value)
+            onChange(iso);
+    };
+    return ((0, jsx_runtime_1.jsxs)("span", { className: "date-input" + (className ? " " + className : ""), ref: box, children: [(0, jsx_runtime_1.jsx)("input", { id: id, type: "text", inputMode: "numeric", "aria-label": label, placeholder: (0, dates_1.formatHint)(), value: text, required: required, "aria-invalid": invalid || undefined, className: invalid ? "invalid" : "", size: 11, maxLength: 10, onChange: (e) => edit(e.target.value), onBlur: () => { const ok = !text.trim() || !!(0, dates_1.parseDateText)(text); setInvalid(!ok); if (ok && value)
+                    setText((0, dates_1.formatIso)(value)); }, onKeyDown: (e) => {
+                    if (e.key === "ArrowDown" && e.altKey) {
+                        e.preventDefault();
+                        setOpen(true);
+                    }
+                    if (e.key === "Escape" && open) {
+                        e.stopPropagation();
+                        setOpen(false);
+                    }
+                } }), (0, jsx_runtime_1.jsx)("button", { type: "button", className: "ghost small date-btn", "aria-label": (0, i18n_1.t)("Abrir calendario: {campo}", { campo: label }), "aria-expanded": open, title: (0, i18n_1.t)("Calendario (Alt+↓)"), onClick: () => setOpen(!open), children: "\uD83D\uDCC5" }), invalid && (0, jsx_runtime_1.jsx)("span", { className: "field-error small", children: (0, i18n_1.t)("Fecha no válida ({formato})", { formato: (0, dates_1.formatHint)() }) }), open && (0, jsx_runtime_1.jsx)(DatePopup, { value: value || null, onPick: (iso) => { onChange(iso); setText((0, dates_1.formatIso)(iso)); setInvalid(false); setOpen(false); }, onClose: () => setOpen(false) })] }));
+}
+function DatePopup({ value, onPick, onClose }) {
+    const app = (0, store_1.useApp)();
+    const today = (0, dates_1.todayIn)(app.tz);
+    const [anchor, setAnchor] = (0, react_1.useState)((value || today).slice(0, 8) + "15");
+    const [focus, setFocus] = (0, react_1.useState)(value || today);
+    const days = (0, dates_1.monthGrid)(anchor);
+    const shift = (n) => { const d = new Date(anchor + "T12:00:00Z"); d.setUTCMonth(d.getUTCMonth() + n); setAnchor(d.toISOString().slice(0, 8) + "15"); };
+    const move = (n) => { const f = (0, dates_1.addDays)(focus, n); setFocus(f); if (f.slice(0, 7) !== anchor.slice(0, 7))
+        setAnchor(f.slice(0, 8) + "15"); };
+    const ref = (0, react_1.useRef)(null);
+    (0, react_1.useEffect)(() => { ref.current?.querySelector(".dp-focus")?.focus(); }, [focus, anchor]);
+    const d0 = new Date(anchor + "T12:00:00Z");
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "date-popup", role: "dialog", "aria-label": (0, i18n_1.t)("Elegir fecha"), ref: ref, onKeyDown: (e) => {
+            const k = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
+            if (k[e.key] !== undefined) {
+                e.preventDefault();
+                move(k[e.key]);
+            }
+            else if (e.key === "PageUp") {
+                e.preventDefault();
+                shift(-1);
+            }
+            else if (e.key === "PageDown") {
+                e.preventDefault();
+                shift(1);
+            }
+            else if (e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                onClose();
+            }
+        }, children: [(0, jsx_runtime_1.jsxs)("div", { className: "dp-head", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", className: "ghost small", onClick: () => shift(-1), "aria-label": (0, i18n_1.t)("Mes anterior"), children: "\u25C0" }), (0, jsx_runtime_1.jsxs)("strong", { children: [(0, dates_1.monthName)(d0.getUTCMonth()), " ", d0.getUTCFullYear()] }), (0, jsx_runtime_1.jsx)("button", { type: "button", className: "ghost small", onClick: () => shift(1), "aria-label": (0, i18n_1.t)("Mes siguiente"), children: "\u25B6" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "dp-grid", role: "grid", children: [(0, dates_1.weekHeaders)().map((h) => (0, jsx_runtime_1.jsx)("span", { className: "dp-dow", "aria-hidden": "true", children: h }, h)), days.map((d) => ((0, jsx_runtime_1.jsx)("button", { type: "button", tabIndex: d === focus ? 0 : -1, className: "dp-day" + (d.slice(0, 7) !== anchor.slice(0, 7) ? " out" : "") + (d === today ? " today" : "") + (d === value ? " sel" : "") + (d === focus ? " dp-focus" : ""), "aria-label": (0, dates_1.formatIso)(d), "aria-pressed": d === value, onClick: () => onPick(d), children: Number(d.slice(8)) }, d)))] }), (0, jsx_runtime_1.jsxs)("div", { className: "dp-foot", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", className: "small", onClick: () => onPick(today), children: (0, i18n_1.t)("Hoy") }), (0, jsx_runtime_1.jsx)("button", { type: "button", className: "small ghost", onClick: onClose, children: (0, i18n_1.t)("Cerrar") })] })] }));
+}
+function TimeInput({ value, onChange, label }) {
+    const [text, setText] = (0, react_1.useState)(value || "");
+    const [invalid, setInvalid] = (0, react_1.useState)(false);
+    (0, react_1.useEffect)(() => { setText(value || ""); setInvalid(false); }, [value]);
+    return ((0, jsx_runtime_1.jsxs)("span", { className: "time-input", children: [(0, jsx_runtime_1.jsx)("input", { type: "text", inputMode: "numeric", "aria-label": label, placeholder: "HH:MM", size: 5, maxLength: 5, value: text, "aria-invalid": invalid || undefined, className: invalid ? "invalid" : "", onChange: (e) => {
+                    const v = e.target.value;
+                    setText(v);
+                    if (!v.trim()) {
+                        setInvalid(false);
+                        if (value)
+                            onChange(null);
+                        return;
+                    }
+                    const hm = (0, dates_1.parseTimeText)(v);
+                    if (hm)
+                        setInvalid(false);
+                    if (hm && hm !== value)
+                        onChange(hm);
+                }, onBlur: () => { const ok = !text.trim() || !!(0, dates_1.parseTimeText)(text); setInvalid(!ok); if (ok && value)
+                    setText(value); } }), invalid && (0, jsx_runtime_1.jsx)("span", { className: "field-error small", children: (0, i18n_1.t)("Hora no válida (HH:MM, 24 h)") })] }));
+}
+/** Valor local «AAAA-MM-DDTHH:MM» en la zona configurada (el llamador convierte a UTC). */
+function DateTimeInput({ value, onChange, label, defaultTime = "09:00" }) {
+    const date = value ? value.slice(0, 10) : null;
+    const time = value ? value.slice(11, 16) : null;
+    return ((0, jsx_runtime_1.jsxs)("span", { className: "datetime-input", children: [(0, jsx_runtime_1.jsx)(DateInput, { label: (0, i18n_1.t)("{campo} (fecha)", { campo: label }), value: date, onChange: (d) => onChange(d ? `${d}T${time || defaultTime}` : null) }), (0, jsx_runtime_1.jsx)(TimeInput, { label: (0, i18n_1.t)("{campo} (hora)", { campo: label }), value: time, onChange: (h) => { if (date && h)
+                    onChange(`${date}T${h}`); } })] }));
+}
+
+},{"react/jsx-runtime":1,"react":2,"../lib/dates":10,"../lib/i18n":8,"../lib/store":14}]; // build/src/components/DateInput.js
+defs[19]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Modal = Modal;
@@ -17841,6 +19616,7 @@ exports.AccItem = AccItem;
 exports.Section = Section;
 const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
+const i18n_1 = require("../lib/i18n");
 const labels_1 = require("../lib/labels");
 const links_1 = require("../lib/links");
 const store_1 = require("../lib/store");
@@ -17857,7 +19633,7 @@ function Modal({ title, onClose, children, wide }) {
         return () => { window.removeEventListener("keydown", onKey, true); prev?.focus?.(); };
     }, []);
     return ((0, jsx_runtime_1.jsx)("div", { className: "modal-backdrop", onMouseDown: (e) => { if (e.target === e.currentTarget)
-            onClose(); }, children: (0, jsx_runtime_1.jsxs)("div", { className: "modal" + (wide ? " modal-wide" : ""), role: "dialog", "aria-modal": "true", "aria-label": title, ref: ref, children: [(0, jsx_runtime_1.jsxs)("div", { className: "modal-head", children: [(0, jsx_runtime_1.jsx)("h2", { children: title }), (0, jsx_runtime_1.jsx)("button", { className: "ghost modal-close", onClick: onClose, "aria-label": "Cerrar (Esc)", children: "\u2715" })] }), children] }) }));
+            onClose(); }, children: (0, jsx_runtime_1.jsxs)("div", { className: "modal" + (wide ? " modal-wide" : ""), role: "dialog", "aria-modal": "true", "aria-label": title, ref: ref, children: [(0, jsx_runtime_1.jsxs)("div", { className: "modal-head", children: [(0, jsx_runtime_1.jsx)("h2", { children: title }), (0, jsx_runtime_1.jsx)("button", { className: "ghost modal-close", onClick: onClose, "aria-label": (0, i18n_1.t)("Cerrar (Esc)"), children: "\u2715" })] }), children] }) }));
 }
 function Field({ label, children, hint, wide }) {
     return ((0, jsx_runtime_1.jsxs)("label", { className: "field" + (wide ? " field-wide" : ""), children: [(0, jsx_runtime_1.jsx)("span", { className: "field-label", children: label }), children, hint && (0, jsx_runtime_1.jsx)("span", { className: "hint", children: hint })] }));
@@ -17894,17 +19670,17 @@ function CommitText({ value, onCommit, placeholder, label, maxRows = 6 }) {
             }
         } });
 }
-function PersonSelect({ value, onChange, label = "Persona", allowEmpty = true, emptyLabel = "Sin asignar" }) {
+function PersonSelect({ value, onChange, label = (0, i18n_1.t)("Persona"), allowEmpty = true, emptyLabel = (0, i18n_1.t)("Sin asignar") }) {
     const { boot } = (0, store_1.useApp)();
     return ((0, jsx_runtime_1.jsxs)("select", { "aria-label": label, value: value ?? "", onChange: (e) => onChange(e.target.value ? Number(e.target.value) : null), children: [allowEmpty && (0, jsx_runtime_1.jsx)("option", { value: "", children: emptyLabel }), boot.people.filter((p) => p.active || p.id === value).map((p) => (0, jsx_runtime_1.jsxs)("option", { value: p.id, children: [p.name, p.is_me ? " (yo)" : ""] }, p.id))] }));
 }
-function ProjectSelect({ value, onChange, label = "Proyecto", emptyLabel = "Sin proyecto" }) {
+function ProjectSelect({ value, onChange, label = (0, i18n_1.t)("Proyecto"), emptyLabel = (0, i18n_1.t)("Sin proyecto") }) {
     const { boot } = (0, store_1.useApp)();
     return ((0, jsx_runtime_1.jsxs)("select", { "aria-label": label, value: value ?? "", onChange: (e) => onChange(e.target.value ? Number(e.target.value) : null), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: emptyLabel }), boot.projects.filter((p) => p.status !== "archivado" || p.id === value).map((p) => ((0, jsx_runtime_1.jsxs)("option", { value: p.id, children: [p.name, p.status !== "activo" ? ` (${p.status})` : ""] }, p.id)))] }));
 }
-function LocationSelect({ value, onChange, emptyLabel = "Sin oficina" }) {
+function LocationSelect({ value, onChange, emptyLabel = (0, i18n_1.t)("Sin oficina") }) {
     const { boot } = (0, store_1.useApp)();
-    return ((0, jsx_runtime_1.jsxs)("select", { "aria-label": "Oficina", value: value ?? "", onChange: (e) => onChange(e.target.value ? Number(e.target.value) : null), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: emptyLabel }), boot.locations.map((l) => (0, jsx_runtime_1.jsx)("option", { value: l.id, children: l.name }, l.id))] }));
+    return ((0, jsx_runtime_1.jsxs)("select", { "aria-label": (0, i18n_1.t)("Oficina"), value: value ?? "", onChange: (e) => onChange(e.target.value ? Number(e.target.value) : null), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: emptyLabel }), boot.locations.map((l) => (0, jsx_runtime_1.jsx)("option", { value: l.id, children: l.name }, l.id))] }));
 }
 function Chip({ children, tone = "neutral", title }) {
     return (0, jsx_runtime_1.jsx)("span", { className: `chip chip-${tone}`, title: title, children: children });
@@ -17913,11 +19689,11 @@ function Empty({ children }) { return (0, jsx_runtime_1.jsx)("p", { className: "
 function ErrorBox({ error, onRetry }) {
     if (!error)
         return null;
-    return (0, jsx_runtime_1.jsxs)("div", { className: "error-box", role: "alert", children: [(0, jsx_runtime_1.jsx)("span", { children: error }), onRetry && (0, jsx_runtime_1.jsx)("button", { onClick: onRetry, children: "Reintentar" })] });
+    return (0, jsx_runtime_1.jsxs)("div", { className: "error-box", role: "alert", children: [(0, jsx_runtime_1.jsx)("span", { children: error }), onRetry && (0, jsx_runtime_1.jsx)("button", { onClick: onRetry, children: (0, i18n_1.t)("Reintentar") })] });
 }
 function SafeLink({ link }) {
     if (!(0, links_1.isSafeUrl)(link.url))
-        return (0, jsx_runtime_1.jsxs)("span", { className: "unsafe-link", children: [link.label || link.url, " [bloqueado]"] });
+        return (0, jsx_runtime_1.jsxs)("span", { className: "unsafe-link", children: [link.label || link.url, " [", (0, i18n_1.t)("bloqueado"), "]"] });
     return (0, jsx_runtime_1.jsx)("a", { ...(0, links_1.linkProps)(link.url), title: link.url, children: link.label || link.url });
 }
 function LinksEditor({ value, onChange }) {
@@ -17926,7 +19702,7 @@ function LinksEditor({ value, onChange }) {
     const [err, setErr] = (0, react_1.useState)("");
     const add = () => {
         if (!(0, links_1.isSafeUrl)(url)) {
-            setErr("Usa un enlace http(s), mailto o file. Otros esquemas se bloquean.");
+            setErr((0, i18n_1.t)("Usa un enlace http(s), mailto o file. Otros esquemas se bloquean."));
             return;
         }
         onChange([...value, { label: label.trim(), url: url.trim() }]);
@@ -17934,10 +19710,10 @@ function LinksEditor({ value, onChange }) {
         setUrl("");
         setErr("");
     };
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "links-editor", children: [value.length === 0 && (0, jsx_runtime_1.jsx)("span", { className: "muted", children: "Sin enlaces" }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: value.map((l, i) => ((0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)(SafeLink, { link: l }), " ", (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => onChange(value.filter((_, j) => j !== i)), "aria-label": `Quitar enlace ${l.label || l.url}`, children: "Quitar" })] }, i))) }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)("input", { placeholder: "Etiqueta (opcional)", "aria-label": "Etiqueta del enlace", value: label, onChange: (e) => setLabel(e.target.value) }), (0, jsx_runtime_1.jsx)("input", { className: "grow", placeholder: "https://\u2026 o file:///\u2026", "aria-label": "URL del enlace", value: url, onChange: (e) => setUrl(e.target.value), onKeyDown: (e) => { if (e.key === "Enter") {
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "links-editor", children: [value.length === 0 && (0, jsx_runtime_1.jsx)("span", { className: "muted", children: (0, i18n_1.t)("Sin enlaces") }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: value.map((l, i) => ((0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)(SafeLink, { link: l }), " ", (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => onChange(value.filter((_, j) => j !== i)), "aria-label": (0, i18n_1.t)("Quitar enlace {enlace}", { enlace: l.label || l.url }), children: (0, i18n_1.t)("Quitar") })] }, i))) }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)("input", { placeholder: (0, i18n_1.t)("Etiqueta (opcional)"), "aria-label": (0, i18n_1.t)("Etiqueta del enlace"), value: label, onChange: (e) => setLabel(e.target.value) }), (0, jsx_runtime_1.jsx)("input", { className: "grow", placeholder: (0, i18n_1.t)("https://… o file:///…"), "aria-label": (0, i18n_1.t)("URL del enlace"), value: url, onChange: (e) => setUrl(e.target.value), onKeyDown: (e) => { if (e.key === "Enter") {
                             e.preventDefault();
                             add();
-                        } } }), (0, jsx_runtime_1.jsx)("button", { onClick: add, disabled: !url.trim(), children: "A\u00F1adir enlace" })] }), err && (0, jsx_runtime_1.jsx)("p", { className: "field-error", children: err })] }));
+                        } } }), (0, jsx_runtime_1.jsx)("button", { onClick: add, disabled: !url.trim(), children: (0, i18n_1.t)("Añadir enlace") })] }), err && (0, jsx_runtime_1.jsx)("p", { className: "field-error", children: err })] }));
 }
 /** Selector de etiquetas: reutiliza las existentes; Enter elige la sugerencia resaltada o crea una nueva. */
 function TagPicker({ value, onChange }) {
@@ -17947,23 +19723,23 @@ function TagPicker({ value, onChange }) {
     const [open, setOpen] = (0, react_1.useState)(false);
     const lower = value.map((v) => v.toLowerCase());
     const q = text.trim().toLowerCase();
-    const exact = boot.tags.find((t) => t.toLowerCase() === q);
+    const exact = boot.tags.find((x) => x.toLowerCase() === q);
     const items = (0, react_1.useMemo)(() => {
-        const opts = boot.tags.filter((t) => !lower.includes(t.toLowerCase()) && (!q || t.toLowerCase().includes(q))).slice(0, 8)
-            .map((t) => ({ label: "#" + t, name: t }));
+        const opts = boot.tags.filter((x) => !lower.includes(x.toLowerCase()) && (!q || x.toLowerCase().includes(q))).slice(0, 8)
+            .map((x) => ({ label: "#" + x, name: x }));
         if (q && !exact)
-            opts.push({ label: `Crear «${text.trim()}»`, name: text.trim() });
+            opts.push({ label: (0, i18n_1.t)("Crear «{nombre}»", { nombre: text.trim() }), name: text.trim() });
         return opts;
     }, [boot.tags, value.join("|"), q, text]);
     const add = (name) => {
         const n = name.trim().replace(/\s+/g, " ");
         if (n && !lower.includes(n.toLowerCase()))
-            onChange([...value, boot.tags.find((t) => t.toLowerCase() === n.toLowerCase()) || n]);
+            onChange([...value, boot.tags.find((x) => x.toLowerCase() === n.toLowerCase()) || n]);
         setText("");
         setSel(0);
     };
     return ((0, jsx_runtime_1.jsxs)("div", { className: "tagpicker", onBlur: (e) => { if (!e.currentTarget.contains(e.relatedTarget))
-            setOpen(false); }, children: [value.map((t) => ((0, jsx_runtime_1.jsxs)("span", { className: "tagchip", children: ["#", t, (0, jsx_runtime_1.jsx)("button", { className: "ghost small", "aria-label": `Quitar etiqueta ${t}`, onClick: () => onChange(value.filter((x) => x !== t)), children: "\u00D7" })] }, t))), (0, jsx_runtime_1.jsx)("input", { "aria-label": "A\u00F1adir etiqueta", placeholder: value.length ? "" : "Añadir etiqueta…", value: text, maxLength: 60, onFocus: () => setOpen(true), onChange: (e) => { setText(e.target.value); setOpen(true); setSel(0); }, onKeyDown: (e) => {
+            setOpen(false); }, children: [value.map((x) => ((0, jsx_runtime_1.jsxs)("span", { className: "tagchip", children: ["#", x, (0, jsx_runtime_1.jsx)("button", { className: "ghost small", "aria-label": (0, i18n_1.t)("Quitar etiqueta {nombre}", { nombre: x }), onClick: () => onChange(value.filter((y) => y !== x)), children: "\u00D7" })] }, x))), (0, jsx_runtime_1.jsx)("input", { "aria-label": (0, i18n_1.t)("Añadir etiqueta"), placeholder: value.length ? "" : (0, i18n_1.t)("Añadir etiqueta…"), value: text, maxLength: 60, onFocus: () => setOpen(true), onChange: (e) => { setText(e.target.value); setOpen(true); setSel(0); }, onKeyDown: (e) => {
                     if (e.key === "ArrowDown") {
                         e.preventDefault();
                         setOpen(true);
@@ -17989,14 +19765,14 @@ function TagPicker({ value, onChange }) {
                 } }), open && items.length > 0 && ((0, jsx_runtime_1.jsx)("ul", { className: "dropdown", role: "listbox", children: items.map((it, i) => (0, jsx_runtime_1.jsx)("li", { children: (0, jsx_runtime_1.jsx)("button", { tabIndex: -1, className: i === sel ? "sel" : "", onMouseDown: (e) => { e.preventDefault(); add(it.name); }, children: it.label }) }, it.label)) }))] }));
 }
 /** Buscador de tareas por título, con contexto (proyecto, estado, responsable) en lugar de identificadores. */
-function TaskPicker({ tasks, onPick, placeholder = "Buscar tarea por título…", exclude = [] }) {
+function TaskPicker({ tasks, onPick, placeholder = (0, i18n_1.t)("Buscar tarea por título…"), exclude = [] }) {
     const app = (0, store_1.useApp)();
     const [q, setQ] = (0, react_1.useState)("");
     const [open, setOpen] = (0, react_1.useState)(false);
     const [sel, setSel] = (0, react_1.useState)(0);
     const norm = (s) => s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
     const nq = norm(q.trim());
-    const list = tasks.filter((t) => !exclude.includes(t.id) && (!nq || norm(t.title + " " + (app.project(t.project_id)?.name || "")).includes(nq))).slice(0, 10);
+    const list = tasks.filter((x) => !exclude.includes(x.id) && (!nq || norm(x.title + " " + (app.project(x.project_id)?.name || "")).includes(nq))).slice(0, 10);
     const pick = (id) => { onPick(id); setQ(""); setOpen(false); };
     return ((0, jsx_runtime_1.jsxs)("div", { className: "taskpicker", onBlur: (e) => { if (!e.currentTarget.contains(e.relatedTarget))
             setOpen(false); }, children: [(0, jsx_runtime_1.jsx)("input", { "aria-label": placeholder, placeholder: placeholder, value: q, onFocus: () => setOpen(true), onChange: (e) => { setQ(e.target.value); setOpen(true); setSel(0); }, onKeyDown: (e) => {
@@ -18016,7 +19792,7 @@ function TaskPicker({ tasks, onPick, placeholder = "Buscar tarea por título…"
                         e.stopPropagation();
                         setOpen(false);
                     }
-                } }), open && ((0, jsx_runtime_1.jsxs)("ul", { className: "dropdown", role: "listbox", children: [list.length === 0 && (0, jsx_runtime_1.jsx)("li", { className: "muted pad-s", children: "Sin coincidencias" }), list.map((t, i) => ((0, jsx_runtime_1.jsx)("li", { children: (0, jsx_runtime_1.jsxs)("button", { tabIndex: -1, className: i === sel ? "sel" : "", onMouseDown: (e) => { e.preventDefault(); pick(t.id); }, children: [(0, jsx_runtime_1.jsx)("span", { className: "dd-title", children: t.title }), (0, jsx_runtime_1.jsx)("span", { className: "dd-ctx", children: [app.project(t.project_id)?.name || "Sin proyecto", labels_1.STATUS[t.status], app.person(t.assignee_id)?.name || "Sin asignar"].join(" · ") })] }) }, t.id)))] }))] }));
+                } }), open && ((0, jsx_runtime_1.jsxs)("ul", { className: "dropdown", role: "listbox", children: [list.length === 0 && (0, jsx_runtime_1.jsx)("li", { className: "muted pad-s", children: (0, i18n_1.t)("Sin coincidencias") }), list.map((x, i) => ((0, jsx_runtime_1.jsx)("li", { children: (0, jsx_runtime_1.jsxs)("button", { tabIndex: -1, className: i === sel ? "sel" : "", onMouseDown: (e) => { e.preventDefault(); pick(x.id); }, children: [(0, jsx_runtime_1.jsx)("span", { className: "dd-title", children: x.title }), (0, jsx_runtime_1.jsx)("span", { className: "dd-ctx", children: [app.project(x.project_id)?.name || (0, i18n_1.t)("Sin proyecto"), labels_1.STATUS[x.status], app.person(x.assignee_id)?.name || (0, i18n_1.t)("Sin asignar")].join(" · ") })] }) }, x.id)))] }))] }));
 }
 /** Acordeón: solo una sección abierta a la vez (lo controla el padre). */
 function AccItem({ id, title, open, setOpen, children, badge }) {
@@ -18027,8 +19803,8 @@ function Section({ title, count, children, actions, id }) {
     return ((0, jsx_runtime_1.jsxs)("section", { className: "section", "aria-labelledby": id, children: [(0, jsx_runtime_1.jsxs)("div", { className: "section-head", children: [(0, jsx_runtime_1.jsxs)("h2", { id: id, children: [title, count !== undefined && (0, jsx_runtime_1.jsxs)("span", { className: "count", children: [" (", count, ")"] })] }), actions] }), children] }));
 }
 
-},{"react/jsx-runtime":1,"react":2,"../lib/labels":12,"../lib/links":14,"../lib/store":9}]; // build/src/components/ui.js
-defs[14]=[function(module,exports,require){
+},{"react/jsx-runtime":1,"react":2,"../lib/i18n":8,"../lib/labels":17,"../lib/links":20,"../lib/store":14}]; // build/src/components/ui.js
+defs[20]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isSafeUrl = isSafeUrl;
@@ -18048,7 +19824,99 @@ function linkProps(url) {
 }
 
 },{}]; // build/src/lib/links.js
-defs[15]=[function(module,exports,require){
+defs[21]=[function(module,exports,require){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ReminderCenter = ReminderCenter;
+exports.reminderLabel = reminderLabel;
+exports.ReminderList = ReminderList;
+exports.TaskReminders = TaskReminders;
+const jsx_runtime_1 = require("react/jsx-runtime");
+// Centro de recordatorios (🔔): Pendientes, Programados (futuros y pospuestos) y Resueltos.
+// Los manuales se pueden editar y cancelar; los resueltos se pueden reabrir. «Recordar contactar» no envía nada.
+const react_1 = require("react");
+const api_1 = require("../lib/api");
+const dates_1 = require("../lib/dates");
+const i18n_1 = require("../lib/i18n");
+const labels_1 = require("../lib/labels");
+const store_1 = require("../lib/store");
+const DateInput_1 = require("./DateInput");
+const ui_1 = require("./ui");
+function ReminderCenter({ initial = "pendientes", onClose }) {
+    const [tab, setTab] = (0, react_1.useState)(initial);
+    const { data, error, reload } = (0, store_1.useApi)("/api/reminders");
+    const tabs = [
+        ["pendientes", (0, i18n_1.t)("Pendientes"), data?.active.length], ["programados", (0, i18n_1.t)("Programados"), data?.scheduled.length], ["resueltos", (0, i18n_1.t)("Resueltos"), data?.resolved.length]
+    ];
+    const items = !data ? [] : tab === "pendientes" ? data.active : tab === "programados" ? data.scheduled : data.resolved;
+    return ((0, jsx_runtime_1.jsxs)(ui_1.Modal, { title: (0, i18n_1.t)("Recordatorios"), onClose: onClose, wide: true, children: [(0, jsx_runtime_1.jsx)("div", { role: "tablist", className: "tabs-inline", "aria-label": (0, i18n_1.t)("Bandejas de recordatorios"), children: tabs.map(([k, label, n]) => (0, jsx_runtime_1.jsxs)("button", { role: "tab", "aria-selected": tab === k, className: tab === k ? "active" : "", onClick: () => setTab(k), children: [label, n !== undefined ? ` (${n})` : ""] }, k)) }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: tab === "pendientes" ? (0, i18n_1.t)("Avisos ya vencidos. Atiende, pospón o descarta.")
+                    : tab === "programados" ? (0, i18n_1.t)("Recordatorios futuros y pospuestos. Los manuales se pueden editar o cancelar.")
+                        : (0, i18n_1.t)("Últimos atendidos o descartados. Puedes reabrirlos.") }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error, onRetry: reload }), data && !items.length && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: tab === "pendientes" ? (0, i18n_1.t)("No hay recordatorios pendientes.") : tab === "programados" ? (0, i18n_1.t)("No hay recordatorios programados.") : (0, i18n_1.t)("No hay recordatorios resueltos.") }), (0, jsx_runtime_1.jsx)(ReminderList, { items: items, mode: tab, onChange: reload })] }));
+}
+function reminderLabel(r) { return labels_1.REMINDER_RULE[r.rule] || r.rule_label; }
+function ReminderList({ items, mode, onChange, hideTask }) {
+    const app = (0, store_1.useApp)();
+    const [err, setErr] = (0, react_1.useState)("");
+    const [editing, setEditing] = (0, react_1.useState)(null);
+    const act = async (r, action, until) => {
+        try {
+            const res = await api_1.api.post(`/api/reminders/${r.id}/action?undo=1`, { action, until, also_ids: r.grouped_ids || [] });
+            onChange();
+            app.changed();
+            setErr("");
+            const msg = { atendido: (0, i18n_1.t)("Recordatorio atendido"), descartar: (0, i18n_1.t)("Recordatorio descartado"), posponer: (0, i18n_1.t)("Recordatorio pospuesto"), reabrir: (0, i18n_1.t)("Recordatorio reabierto") };
+            app.undoable(msg[action], res.undo_id);
+        }
+        catch (e) {
+            setErr(e.message);
+        }
+    };
+    const save = async () => {
+        if (!editing || !editing.title.trim() || !editing.when)
+            return;
+        try {
+            await api_1.api.patch(`/api/reminders/${editing.id}`, { title: editing.title.trim(), due_at: (0, dates_1.zonedToUtc)(editing.when, app.tz) });
+            setEditing(null);
+            onChange();
+            app.changed();
+            app.toast((0, i18n_1.t)("Recordatorio actualizado"), "ok");
+        }
+        catch (e) {
+            setErr(e.message);
+        }
+    };
+    const tomorrow9 = (0, dates_1.zonedToUtc)((0, dates_1.addDays)((0, dates_1.todayIn)(app.tz), 1) + "T09:00", app.tz);
+    const in2h = new Date(Date.now() + 2 * 3600 * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "reminders", children: [(0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: err }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: items.map((r) => ((0, jsx_runtime_1.jsx)("li", { className: "rem", children: editing?.id === r.id ? (0, jsx_runtime_1.jsxs)("form", { className: "row", onSubmit: (e) => { e.preventDefault(); void save(); }, children: [(0, jsx_runtime_1.jsx)("input", { className: "grow", "aria-label": (0, i18n_1.t)("Texto del recordatorio"), value: editing.title, onChange: (e) => setEditing({ ...editing, title: e.target.value }) }), (0, jsx_runtime_1.jsx)(DateInput_1.DateTimeInput, { label: (0, i18n_1.t)("Fecha y hora"), value: editing.when, onChange: (v) => setEditing({ ...editing, when: v }) }), (0, jsx_runtime_1.jsx)("button", { type: "submit", className: "small primary", disabled: !editing.title.trim() || !editing.when, children: (0, i18n_1.t)("Guardar") }), (0, jsx_runtime_1.jsx)("button", { type: "button", className: "small", onClick: () => setEditing(null), children: (0, i18n_1.t)("Cancelar") })] }) : (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("div", { className: "rem-text", children: [(0, jsx_runtime_1.jsx)("span", { className: "chip", children: reminderLabel(r) }), " ", r.task_id && !hideTask ? (0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.openTask(r.task_id), children: r.task_title }) : (0, jsx_runtime_1.jsx)("strong", { children: (0, i18n_1.translateServer)(r.title) }), (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [" \u00B7 ", r.task_id && !hideTask ? (0, i18n_1.translateServer)(r.title) + " · " : "", r.project_name ? `${r.project_name} · ` : "", mode === "resueltos" ? (0, i18n_1.t)("{estado} el {fecha}", { estado: r.status === "atendido" ? (0, i18n_1.t)("Atendido") : (0, i18n_1.t)("Descartado"), fecha: (0, dates_1.fmtDateTime)(r.resolved_at, app.tz) })
+                                                : r.snoozed_until && mode === "programados" ? (0, i18n_1.t)("pospuesto hasta {fecha}", { fecha: (0, dates_1.fmtDateTime)(r.snoozed_until, app.tz) })
+                                                    : mode === "programados" ? (0, i18n_1.t)("programado para {fecha}", { fecha: (0, dates_1.fmtDateTime)(r.due_at, app.tz) })
+                                                        : (0, i18n_1.t)("desde {fecha}", { fecha: (0, dates_1.fmtDateTime)(r.due_at, app.tz) }), (r.grouped || 1) > 1 ? " · " + (0, i18n_1.t)("{n} avisos agrupados de la misma serie", { n: r.grouped }) : "", r.task_shown_elsewhere ? " · " + (0, i18n_1.t)("también arriba") : ""] })] }), (0, jsx_runtime_1.jsxs)("div", { className: "row tight", children: [mode === "pendientes" && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("button", { className: "small", onClick: () => act(r, "atendido"), children: (0, i18n_1.t)("Atendido") }), (0, jsx_runtime_1.jsx)("button", { className: "small", onClick: () => act(r, "posponer", in2h), children: (0, i18n_1.t)("+2 h") }), (0, jsx_runtime_1.jsx)("button", { className: "small", onClick: () => act(r, "posponer", tomorrow9), children: (0, i18n_1.t)("Mañana 9:00") }), (0, jsx_runtime_1.jsx)("button", { className: "small ghost", onClick: () => act(r, "descartar"), children: (0, i18n_1.t)("Descartar") })] }), mode === "resueltos" && (0, jsx_runtime_1.jsx)("button", { className: "small", onClick: () => act(r, "reabrir"), children: (0, i18n_1.t)("Reabrir") }), mode !== "resueltos" && r.rule === "manual" && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("button", { className: "small ghost", onClick: () => setEditing({ id: r.id, title: r.title, when: (0, dates_1.utcToZonedInput)(r.snoozed_until || r.due_at, app.tz) }), children: (0, i18n_1.t)("Editar") }), (0, jsx_runtime_1.jsx)("button", { className: "small ghost", onClick: async () => {
+                                                    if (!window.confirm((0, i18n_1.t)("¿Cancelar el recordatorio «{titulo}»? Se elimina y no se puede deshacer.", { titulo: r.title })))
+                                                        return;
+                                                    try {
+                                                        await api_1.api.del(`/api/reminders/${r.id}`);
+                                                        onChange();
+                                                        app.changed();
+                                                        app.toast((0, i18n_1.t)("Recordatorio cancelado"), "ok");
+                                                    }
+                                                    catch (e) {
+                                                        setErr(e.message);
+                                                    }
+                                                }, children: (0, i18n_1.t)("Cancelar recordatorio") })] })] })] }) }, r.id))) })] }));
+}
+/** Recordatorios de una tarea (en su detalle). */
+function TaskReminders({ taskId }) {
+    const { data, reload } = (0, store_1.useApi)(`/api/tasks/${taskId}/reminders`);
+    if (!data)
+        return null;
+    const total = data.active.length + data.scheduled.length + data.resolved.length;
+    if (!total)
+        return (0, jsx_runtime_1.jsx)("p", { className: "muted small", children: (0, i18n_1.t)("Esta tarea no tiene recordatorios.") });
+    return (0, jsx_runtime_1.jsxs)("div", { className: "task-reminders", children: [data.active.length > 0 && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("h4", { children: (0, i18n_1.t)("Pendientes") }), (0, jsx_runtime_1.jsx)(ReminderList, { items: data.active, mode: "pendientes", onChange: reload, hideTask: true })] }), data.scheduled.length > 0 && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("h4", { children: (0, i18n_1.t)("Programados") }), (0, jsx_runtime_1.jsx)(ReminderList, { items: data.scheduled, mode: "programados", onChange: reload, hideTask: true })] }), data.resolved.length > 0 && (0, jsx_runtime_1.jsxs)("details", { className: "mini", children: [(0, jsx_runtime_1.jsx)("summary", { children: (0, i18n_1.t)("Resueltos ({n})", { n: data.resolved.length }) }), (0, jsx_runtime_1.jsx)(ReminderList, { items: data.resolved, mode: "resueltos", onChange: reload, hideTask: true })] })] });
+}
+
+},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":10,"../lib/i18n":8,"../lib/labels":17,"../lib/store":14,"./DateInput":18,"./ui":19}]; // build/src/components/ReminderCenter.js
+defs[22]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.patchTask = patchTask;
@@ -18057,10 +19925,13 @@ const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const api_1 = require("../lib/api");
 const dates_1 = require("../lib/dates");
+const i18n_1 = require("../lib/i18n");
 const labels_1 = require("../lib/labels");
 const markdown_1 = require("../lib/markdown");
 const store_1 = require("../lib/store");
+const DateInput_1 = require("./DateInput");
 const Recurrences_1 = require("./Recurrences");
+const ReminderCenter_1 = require("./ReminderCenter");
 const ReminderForm_1 = require("./ReminderForm");
 const ui_1 = require("./ui");
 const EDITABLE = [
@@ -18070,23 +19941,30 @@ const EDITABLE = [
     "next_review_at", "review_after_start_hours", "review_after_idle_hours", "review_hours_mode", "links", "started_at",
 ];
 const KEEP_EMPTY_STRING = new Set(["title", "description", "wait_reason", "wait_on", "wait_next_action"]);
-/** PATCH de tarea; si la aprobación comercial está pendiente, pide confirmación explícita. */
-async function patchTask(id, body) {
+/** PATCH de tarea; si la aprobación comercial está pendiente, pide confirmación explícita.
+ * Con undo=true el servidor guarda una instantánea y devuelve undo_id para «Deshacer». */
+async function patchTask(id, body, undo = false) {
+    const url = `/api/tasks/${id}${undo ? "?undo=1" : ""}`;
     try {
-        return await api_1.api.patch(`/api/tasks/${id}`, body);
+        return await api_1.api.patch(url, body);
     }
     catch (e) {
         if (e instanceof api_1.ApiError && e.code === "aprobacion_pendiente") {
-            return window.confirm(e.message) ? api_1.api.patch(`/api/tasks/${id}`, { ...body, force: true }) : null;
+            return window.confirm(e.message) ? api_1.api.patch(url, { ...body, force: true }) : null;
         }
         throw e;
     }
 }
-function pick(t) {
+function pick(task) {
     const o = {};
     for (const k of EDITABLE)
-        o[k] = t[k];
+        o[k] = task[k];
     return o;
+}
+/** Fecha y hora UTC ↔ campo local en la zona configurada. */
+function UtcDateTime({ value, onChange, label }) {
+    const app = (0, store_1.useApp)();
+    return (0, jsx_runtime_1.jsx)(DateInput_1.DateTimeInput, { label: label, value: (0, dates_1.utcToZonedInput)(value, app.tz) || null, onChange: (v) => onChange(v ? (0, dates_1.zonedToUtc)(v, app.tz) : null) });
 }
 function TaskPanel({ id, onClose }) {
     const app = (0, store_1.useApp)();
@@ -18096,18 +19974,21 @@ function TaskPanel({ id, onClose }) {
     const [saving, setSaving] = (0, react_1.useState)(false);
     const [open, setOpen] = (0, react_1.useState)("basico");
     const [allTasks, setAllTasks] = (0, react_1.useState)([]);
-    const load = () => api_1.api.get(`/api/tasks/${id}`).then((t) => { setTask(t); setDraft(pick(t)); setError(""); }, (e) => setError(e.message));
+    const load = () => api_1.api.get(`/api/tasks/${id}`).then((x) => { setTask(x); setDraft(pick(x)); setError(""); }, (e) => setError(e.message));
     (0, react_1.useEffect)(() => { void load(); }, [id]);
     (0, react_1.useEffect)(() => { api_1.api.get("/api/tasks?include_backlog=1").then(setAllTasks, () => undefined); }, [id, app.dataVersion]);
     const dirtyKeys = (0, react_1.useMemo)(() => task ? EDITABLE.filter((k) => JSON.stringify(draft[k] ?? null) !== JSON.stringify(task[k] ?? null)) : [], [draft, task]);
+    // Tras «Deshacer» u otros cambios externos se recarga la tarea (si no hay cambios sin guardar en el formulario)
+    (0, react_1.useEffect)(() => { if (task && !dirtyKeys.length)
+        void load(); }, [app.dataVersion]);
     (0, react_1.useEffect)(() => {
         const onKey = (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === "s") {
                 e.preventDefault();
                 void save();
             }
-            if (e.key === "Escape" && !document.querySelector(".modal")) {
-                if (dirtyKeys.length && !window.confirm("Hay cambios sin guardar en la tarea. ¿Cerrar sin guardar?"))
+            if (e.key === "Escape" && !document.querySelector(".modal") && !document.querySelector(".date-popup")) {
+                if (dirtyKeys.length && !window.confirm((0, i18n_1.t)("Hay cambios sin guardar en la tarea. ¿Cerrar sin guardar?")))
                     return;
                 onClose();
             }
@@ -18116,18 +19997,22 @@ function TaskPanel({ id, onClose }) {
         return () => window.removeEventListener("keydown", onKey);
     });
     if (!task)
-        return (0, jsx_runtime_1.jsxs)("aside", { className: "panel", "aria-label": "Detalle de tarea", children: [(0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error, onRetry: load }), !error && (0, jsx_runtime_1.jsx)("p", { className: "muted pad", children: "Cargando\u2026" })] });
+        return (0, jsx_runtime_1.jsxs)("aside", { className: "panel", "aria-label": (0, i18n_1.t)("Detalle de tarea"), children: [(0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error, onRetry: load }), !error && (0, jsx_runtime_1.jsx)("p", { className: "muted pad", children: (0, i18n_1.t)("Cargando…") })] });
     const set = (k, v) => setDraft((d) => ({ ...d, [k]: v }));
-    const after = (t, msg) => {
-        if (!t)
+    const after = (x, msg) => {
+        if (!x)
             return;
         // conserva los cambios del borrador que no tocaba esta acción
-        setTask(t);
-        setDraft((d) => { const base = pick(t); for (const k of dirtyKeys)
+        setTask(x);
+        setDraft((d) => { const base = pick(x); for (const k of dirtyKeys)
             base[k] = d[k]; return base; });
         app.changed();
-        if (msg)
-            app.toast(msg, "ok");
+        if (msg) {
+            if (x.undo_id)
+                app.undoable(msg, x.undo_id);
+            else
+                app.toast(msg, "ok");
+        }
     };
     const run = async (fn, msg) => {
         setError("");
@@ -18140,49 +20025,54 @@ function TaskPanel({ id, onClose }) {
             return false;
         }
     };
+    /** Guarda los cambios pendientes del formulario. Devuelve false si hay un error. */
     async function save() {
         if (!task || !dirtyKeys.length)
-            return;
+            return true;
         const body = {};
         for (const k of dirtyKeys)
             body[k] = draft[k] === "" && !KEEP_EMPTY_STRING.has(k) ? null : draft[k];
         if (typeof body.title === "string" && !body.title.trim()) {
-            setError("El título es obligatorio");
-            return;
+            setError((0, i18n_1.t)("El título es obligatorio"));
+            return false;
         }
         setSaving(true);
         setError("");
+        let ok = false;
         try {
-            const t = await patchTask(task.id, body);
-            if (t) {
-                setTask(t);
-                setDraft(pick(t));
+            const x = await patchTask(task.id, body);
+            if (x) {
+                setTask(x);
+                setDraft(pick(x));
                 app.changed();
-                app.toast("Tarea guardada", "ok");
+                app.toast((0, i18n_1.t)("Tarea guardada"), "ok");
+                ok = true;
             }
         }
         catch (e) {
             setError(e.message);
         }
         setSaving(false);
+        return ok;
     }
-    const quick = (body, msg) => run(() => patchTask(task.id, body), msg);
+    /** Acción directa con «Deshacer». */
+    const quick = (body, msg) => run(() => patchTask(task.id, body, true), msg);
     const setTags = async (tags) => {
         if (await run(() => api_1.api.patch(`/api/tasks/${task.id}`, { tags })))
             await app.reloadBoot();
     };
     const groupings = app.boot.groupings.filter((g) => g.project_id === draft.project_id);
-    const deps = allTasks.filter((t) => t.id !== task.id);
+    const deps = allTasks.filter((x) => x.id !== task.id);
     const acc = { open, setOpen };
-    return ((0, jsx_runtime_1.jsxs)("aside", { className: "panel", "aria-label": `Detalle de la tarea ${task.title}`, children: [(0, jsx_runtime_1.jsxs)("div", { className: "panel-head", children: [(0, jsx_runtime_1.jsxs)("div", { className: "grow", children: [task.parent_id && (0, jsx_runtime_1.jsxs)("p", { className: "parent-line", children: ["\u21B3 Subtarea de ", (0, jsx_runtime_1.jsxs)("button", { className: "linklike", onClick: () => app.openTask(task.parent_id), children: ["\u00AB", task.parent_title, "\u00BB"] }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => quick({ parent_id: null }, "Ya no es subtarea"), title: "Convertir en tarea independiente", children: "Independizar" })] }), (0, jsx_runtime_1.jsx)(ui_1.AutoText, { className: "title-input autotext", "aria-label": "T\u00EDtulo", value: draft.title, maxRows: 4, onChange: (v) => set("title", v.replace(/\n/g, " ")) })] }), (0, jsx_runtime_1.jsx)("button", { className: "ghost", onClick: () => { if (!dirtyKeys.length || window.confirm("Hay cambios sin guardar. ¿Cerrar sin guardar?"))
-                            onClose(); }, "aria-label": "Cerrar detalle (Esc)", children: "\u2715" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "panel-bar", children: [(0, jsx_runtime_1.jsxs)("label", { className: "inline", children: ["Estado ", (0, jsx_runtime_1.jsx)("select", { value: task.status, onChange: (e) => quick({ status: e.target.value }, "Estado actualizado"), children: labels_1.STATUS_ORDER.map((s) => (0, jsx_runtime_1.jsx)("option", { value: s, children: labels_1.STATUS[s] }, s)) })] }), (0, jsx_runtime_1.jsxs)("label", { className: "inline", children: ["Prioridad ", (0, jsx_runtime_1.jsx)("select", { value: task.priority, onChange: (e) => quick({ priority: e.target.value }, "Prioridad actualizada"), children: Object.entries(labels_1.PRIORITY).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k)) })] }), task.status === "backlog" && (0, jsx_runtime_1.jsx)("button", { onClick: () => quick({ status: "pendiente" }, "Promovida a Pendiente"), children: "Promover a Pendiente" }), task.condition && (0, jsx_runtime_1.jsx)(ui_1.Chip, { tone: task.condition === "bloqueada" ? "danger" : "warn", children: labels_1.CONDITION[task.condition] }), task.recurrence && (0, jsx_runtime_1.jsx)(ui_1.Chip, { title: (0, labels_1.describeRule)(task.recurrence), children: "\u21BB recurrente" }), task.archived && (0, jsx_runtime_1.jsx)(ui_1.Chip, { children: "Archivada" })] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error }), (0, jsx_runtime_1.jsxs)("div", { className: "panel-body", children: [(0, jsx_runtime_1.jsxs)(ui_1.AccItem, { id: "basico", title: "B\u00E1sico", ...acc, children: [(0, jsx_runtime_1.jsx)(DescriptionField, { value: draft.description || "", onChange: (v) => set("description", v) }), (0, jsx_runtime_1.jsxs)("div", { className: "grid2", children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Proyecto", children: (0, jsx_runtime_1.jsx)(ui_1.ProjectSelect, { value: draft.project_id, onChange: (v) => setDraft((d) => ({ ...d, project_id: v, workstream_id: null, phase_id: null, deliverable_id: null })) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Tipo", children: (0, jsx_runtime_1.jsx)("select", { value: draft.kind, onChange: (e) => set("kind", e.target.value), children: Object.entries(labels_1.KIND).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k)) }) }), ["linea", "fase", "entregable"].map((kind) => {
+    return ((0, jsx_runtime_1.jsxs)("aside", { className: "panel", "aria-label": (0, i18n_1.t)("Detalle de la tarea {titulo}", { titulo: task.title }), children: [(0, jsx_runtime_1.jsxs)("div", { className: "panel-head", children: [(0, jsx_runtime_1.jsxs)("div", { className: "grow", children: [task.parent_id && (0, jsx_runtime_1.jsxs)("p", { className: "parent-line", children: ["\u21B3 ", (0, i18n_1.t)("Subtarea de"), " ", (0, jsx_runtime_1.jsxs)("button", { className: "linklike", onClick: () => app.openTask(task.parent_id), children: ["\u00AB", task.parent_title, "\u00BB"] }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => run(() => patchTask(task.id, { parent_id: null }), (0, i18n_1.t)("Ya no es subtarea")), title: (0, i18n_1.t)("Convertir en tarea independiente"), children: (0, i18n_1.t)("Independizar") })] }), (0, jsx_runtime_1.jsx)(ui_1.AutoText, { className: "title-input autotext", "aria-label": (0, i18n_1.t)("Título"), value: draft.title, maxRows: 4, onChange: (v) => set("title", v.replace(/\n/g, " ")) })] }), (0, jsx_runtime_1.jsx)("button", { className: "ghost", onClick: () => { if (!dirtyKeys.length || window.confirm((0, i18n_1.t)("Hay cambios sin guardar. ¿Cerrar sin guardar?")))
+                            onClose(); }, "aria-label": (0, i18n_1.t)("Cerrar detalle (Esc)"), children: "\u2715" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "panel-bar", children: [(0, jsx_runtime_1.jsxs)("label", { className: "inline", children: [(0, i18n_1.t)("Estado"), " ", (0, jsx_runtime_1.jsx)("select", { value: task.status, onChange: (e) => quick({ status: e.target.value }, (0, i18n_1.t)("Estado: {estado}", { estado: labels_1.STATUS[e.target.value] })), children: labels_1.STATUS_ORDER.map((s) => (0, jsx_runtime_1.jsx)("option", { value: s, children: labels_1.STATUS[s] }, s)) })] }), (0, jsx_runtime_1.jsxs)("label", { className: "inline", children: [(0, i18n_1.t)("Prioridad"), " ", (0, jsx_runtime_1.jsx)("select", { value: task.priority, onChange: (e) => run(() => patchTask(task.id, { priority: e.target.value }), (0, i18n_1.t)("Prioridad actualizada")), children: Object.entries(labels_1.PRIORITY).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k)) })] }), task.status === "backlog" && (0, jsx_runtime_1.jsx)("button", { onClick: () => quick({ status: "pendiente" }, (0, i18n_1.t)("Promovida a Pendiente")), children: (0, i18n_1.t)("Promover a Pendiente") }), task.condition && (0, jsx_runtime_1.jsx)(ui_1.Chip, { tone: task.condition === "bloqueada" ? "danger" : "warn", children: labels_1.CONDITION[task.condition] }), task.recurrence && (0, jsx_runtime_1.jsxs)(ui_1.Chip, { title: (0, labels_1.describeRule)(task.recurrence), children: ["\u21BB ", (0, i18n_1.t)("recurrente")] }), task.archived && (0, jsx_runtime_1.jsx)(ui_1.Chip, { children: (0, i18n_1.t)("Archivada") })] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error }), (0, jsx_runtime_1.jsxs)("div", { className: "panel-body", children: [(0, jsx_runtime_1.jsxs)(ui_1.AccItem, { id: "basico", title: (0, i18n_1.t)("Básico"), ...acc, children: [(0, jsx_runtime_1.jsx)(DescriptionField, { value: draft.description || "", onChange: (v) => set("description", v) }), (0, jsx_runtime_1.jsxs)("div", { className: "grid2", children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Proyecto"), children: (0, jsx_runtime_1.jsx)(ui_1.ProjectSelect, { value: draft.project_id, onChange: (v) => setDraft((d) => ({ ...d, project_id: v, workstream_id: null, phase_id: null, deliverable_id: null })) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Tipo"), children: (0, jsx_runtime_1.jsx)("select", { value: draft.kind, onChange: (e) => set("kind", e.target.value), children: Object.entries(labels_1.KIND).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k)) }) }), ["linea", "fase", "entregable"].map((kind) => {
                                         const opts = groupings.filter((g) => g.kind === kind);
                                         if (!opts.length)
                                             return null;
                                         const key = kind === "linea" ? "workstream_id" : kind === "fase" ? "phase_id" : "deliverable_id";
-                                        return (0, jsx_runtime_1.jsx)(ui_1.Field, { label: kind === "linea" ? "Línea de trabajo" : kind === "fase" ? "Fase" : "Entregable", children: (0, jsx_runtime_1.jsxs)("select", { value: draft[key] ?? "", onChange: (e) => set(key, e.target.value ? Number(e.target.value) : null), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: "\u2014" }), opts.map((g) => (0, jsx_runtime_1.jsx)("option", { value: g.id, children: g.name }, g.id))] }) }, kind);
-                                    }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Responsable de ejecuci\u00F3n", children: (0, jsx_runtime_1.jsx)(ui_1.PersonSelect, { value: draft.assignee_id, onChange: (v) => set("assignee_id", v) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Persona revisora", children: (0, jsx_runtime_1.jsx)(ui_1.PersonSelect, { value: draft.reviewer_id, onChange: (v) => set("reviewer_id", v), emptyLabel: "Sin revisor" }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Fecha l\u00EDmite", children: (0, jsx_runtime_1.jsx)("input", { type: "date", value: draft.due_date || "", onChange: (e) => set("due_date", e.target.value || null) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Fecha planificada", children: (0, jsx_runtime_1.jsx)("input", { type: "date", value: draft.planned_date || "", onChange: (e) => set("planned_date", e.target.value || null) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Esfuerzo estimado (h)", hint: "Vac\u00EDo = no informado (no cuenta como 0)", children: (0, jsx_runtime_1.jsx)("input", { type: "number", min: "0", step: "0.5", value: draft.estimate_hours ?? "", onChange: (e) => set("estimate_hours", e.target.value === "" ? null : Number(e.target.value)) }) })] }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Etiquetas", hint: "Se guardan al momento. Gestiona (renombrar/eliminar) en Configuraci\u00F3n.", children: (0, jsx_runtime_1.jsx)(ui_1.TagPicker, { value: task.tags, onChange: setTags }) })] }), (0, jsx_runtime_1.jsx)(ui_1.AccItem, { id: "pasos", title: "Pasos y subtareas", badge: (task.steps_total + task.subtasks.length) > 0 ? (0, jsx_runtime_1.jsxs)("span", { className: "count", children: ["(", task.steps_done, "/", task.steps_total, " pasos \u00B7 ", task.subtasks.length, " subtareas)"] }) : null, ...acc, children: (0, jsx_runtime_1.jsx)(StepsAndSubtasks, { task: task, run: run, reload: load }) }), (0, jsx_runtime_1.jsxs)(ui_1.AccItem, { id: "espera", title: "Espera o bloqueo", badge: task.condition ? (0, jsx_runtime_1.jsx)(ui_1.Chip, { tone: task.condition === "bloqueada" ? "danger" : "warn", children: labels_1.CONDITION[task.condition] }) : null, ...acc, children: [(0, jsx_runtime_1.jsxs)("p", { className: "hint", children: ["Condici\u00F3n adicional: la tarea conserva su estado (", labels_1.STATUS[task.status], ")."] }), (0, jsx_runtime_1.jsxs)("div", { className: "grid2", children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Condici\u00F3n", children: (0, jsx_runtime_1.jsxs)("select", { value: draft.condition ?? "", onChange: (e) => set("condition", e.target.value || null), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: "Ninguna" }), (0, jsx_runtime_1.jsx)("option", { value: "espera", children: "En espera" }), (0, jsx_runtime_1.jsx)("option", { value: "bloqueada", children: "Bloqueada" })] }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Depende de (persona del equipo)", children: (0, jsx_runtime_1.jsx)(ui_1.PersonSelect, { value: draft.wait_on_person_id, onChange: (v) => set("wait_on_person_id", v), emptyLabel: "\u2014" }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Depende de (tercero)", children: (0, jsx_runtime_1.jsx)("input", { value: draft.wait_on, onChange: (e) => set("wait_on", e.target.value), placeholder: "p. ej. sistemas del cliente" }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Fecha de seguimiento", children: (0, jsx_runtime_1.jsx)("input", { type: "datetime-local", value: (0, dates_1.utcToZonedInput)(draft.follow_up_at, app.tz), onChange: (e) => set("follow_up_at", e.target.value ? (0, dates_1.zonedToUtc)(e.target.value, app.tz) : null) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Recordar seguimiento cada (d\u00EDas)", children: (0, jsx_runtime_1.jsx)("input", { type: "number", min: "1", value: draft.follow_up_every_days ?? "", onChange: (e) => set("follow_up_every_days", e.target.value ? Number(e.target.value) : null) }) })] }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Motivo", children: (0, jsx_runtime_1.jsx)(ui_1.AutoText, { value: draft.wait_reason, minRows: 2, onChange: (v) => set("wait_reason", v), placeholder: "Qu\u00E9 falta y por qu\u00E9" }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Pr\u00F3xima acci\u00F3n", children: (0, jsx_runtime_1.jsx)(ui_1.AutoText, { value: draft.wait_next_action, minRows: 2, onChange: (v) => set("wait_next_action", v), placeholder: "Qu\u00E9 har\u00E1s para desbloquearlo" }) }), task.condition && (0, jsx_runtime_1.jsx)(FollowUp, { task: task, run: run, quick: quick })] }), (0, jsx_runtime_1.jsxs)(ui_1.AccItem, { id: "tiempos", title: "Tiempos, revisiones y recordatorios", ...acc, children: [(0, jsx_runtime_1.jsxs)("dl", { className: "facts", children: [(0, jsx_runtime_1.jsx)("dt", { children: "Tiempo desde el inicio" }), (0, jsx_runtime_1.jsxs)("dd", { children: [(0, dates_1.elapsedSinceStart)(task.started_at, task.completed_at), " ", (0, jsx_runtime_1.jsx)("span", { className: "hint", children: "(no equivale a dedicaci\u00F3n ni a horas trabajadas)" })] }), (0, jsx_runtime_1.jsx)("dt", { children: "\u00DAltima actualizaci\u00F3n significativa" }), (0, jsx_runtime_1.jsxs)("dd", { children: [(0, dates_1.sinceLabel)(task.last_significant_update), " \u00B7 ", (0, dates_1.fmtDateTime)(task.last_significant_update, app.tz)] }), (0, jsx_runtime_1.jsx)("dt", { children: "Inicio real" }), (0, jsx_runtime_1.jsx)("dd", { children: task.started_at ? (0, dates_1.fmtDateTime)(task.started_at, app.tz) : "no informado" }), (0, jsx_runtime_1.jsx)("dt", { children: "Finalizaci\u00F3n" }), (0, jsx_runtime_1.jsx)("dd", { children: task.completed_at ? (0, dates_1.fmtDateTime)(task.completed_at, app.tz) : "—" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "grid2", children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Revisar en fecha y hora", children: (0, jsx_runtime_1.jsx)("input", { type: "datetime-local", value: (0, dates_1.utcToZonedInput)(draft.next_review_at, app.tz), onChange: (e) => set("next_review_at", e.target.value ? (0, dates_1.zonedToUtc)(e.target.value, app.tz) : null) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Revisar tras (h) desde el inicio", children: (0, jsx_runtime_1.jsx)("input", { type: "number", min: "1", value: draft.review_after_start_hours ?? "", onChange: (e) => set("review_after_start_hours", e.target.value ? Number(e.target.value) : null) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Revisar tras (h) sin actualizaci\u00F3n", children: (0, jsx_runtime_1.jsx)("input", { type: "number", min: "1", value: draft.review_after_idle_hours ?? "", onChange: (e) => set("review_after_idle_hours", e.target.value ? Number(e.target.value) : null) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "C\u00F3mputo de esas horas", hint: `Laborables: ${app.boot.settings.work_start}–${app.boot.settings.work_end}, días y festivos registrados`, children: (0, jsx_runtime_1.jsxs)("select", { value: draft.review_hours_mode, onChange: (e) => set("review_hours_mode", e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "natural", children: "Tiempo natural" }), (0, jsx_runtime_1.jsx)("option", { value: "laborable", children: "Horas laborables" })] }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Inicio real (corregir)", children: (0, jsx_runtime_1.jsx)("input", { type: "datetime-local", value: (0, dates_1.utcToZonedInput)(draft.started_at, app.tz), onChange: (e) => set("started_at", e.target.value ? (0, dates_1.zonedToUtc)(e.target.value, app.tz) : null) }) })] }), (0, jsx_runtime_1.jsxs)("p", { className: "hint", children: ["Zona horaria: ", app.tz, ". Abrir o consultar la tarea no reinicia ning\u00FAn contador."] }), (0, jsx_runtime_1.jsx)("h4", { children: "Recordatorio puntual" }), (0, jsx_runtime_1.jsx)(ReminderForm_1.ReminderForm, { taskId: task.id, defaultTitle: task.wait_on ? `Contactar con ${task.wait_on}` : "" })] }), (0, jsx_runtime_1.jsx)(ui_1.AccItem, { id: "repeticion", title: "Repetici\u00F3n", badge: task.recurrence ? (0, jsx_runtime_1.jsxs)("span", { className: "count", children: ["(", (0, labels_1.describeRule)(task.recurrence), ")"] }) : null, ...acc, children: (0, jsx_runtime_1.jsx)(Repetition, { task: task, run: run }) }), (0, jsx_runtime_1.jsx)(ui_1.AccItem, { id: "aprobacion", title: "Aprobaci\u00F3n comercial", badge: task.approval !== "no_requerida" ? (0, jsx_runtime_1.jsx)(ui_1.Chip, { tone: task.approval === "aprobada" ? "neutral" : "warn", children: labels_1.APPROVAL[task.approval] }) : null, ...acc, children: (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Aprobaci\u00F3n (independiente del estado de ejecuci\u00F3n)", hint: "Puedes preparar el an\u00E1lisis antes; al iniciar la ejecuci\u00F3n sin aprobaci\u00F3n se pide confirmaci\u00F3n.", children: (0, jsx_runtime_1.jsx)("select", { value: draft.approval, onChange: (e) => set("approval", e.target.value), children: Object.entries(labels_1.APPROVAL).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k)) }) }) }), (0, jsx_runtime_1.jsxs)(ui_1.AccItem, { id: "dependencias", title: "Dependencias", badge: task.blocked_by.length + task.blocks.length ? (0, jsx_runtime_1.jsxs)("span", { className: "count", children: ["(", task.blocked_by.length, " de las que depende \u00B7 bloquea ", task.blocks.length, ")"] }) : null, ...acc, children: [(0, jsx_runtime_1.jsx)("h4", { children: "Esta tarea depende de" }), task.blocked_by.length === 0 && (0, jsx_runtime_1.jsx)("p", { className: "muted", children: "Ninguna" }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: task.blocked_by.map((d) => ((0, jsx_runtime_1.jsxs)("li", { className: "ref-row", children: [(0, jsx_runtime_1.jsx)(TaskRefLabel, { t: d }), d.assignee_id === app.meId && d.status !== "hecha" && (0, jsx_runtime_1.jsx)(ui_1.Chip, { tone: "info", children: "pendiente de m\u00ED" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => run(() => api_1.api.del(`/api/tasks/${task.id}/dependencies/${d.id}`)), children: "Quitar" })] }, d.id))) }), (0, jsx_runtime_1.jsx)(ui_1.TaskPicker, { tasks: deps, exclude: task.blocked_by.map((d) => d.id), placeholder: "A\u00F1adir dependencia: buscar tarea\u2026", onPick: (depId) => run(() => api_1.api.post(`/api/tasks/${task.id}/dependencies`, { depends_on_id: depId }), "Dependencia añadida") }), (0, jsx_runtime_1.jsx)("h4", { children: "Bloquea a" }), task.blocks.length === 0 ? (0, jsx_runtime_1.jsx)("p", { className: "muted", children: "Ninguna tarea depende de esta" }) :
-                                (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: task.blocks.map((d) => (0, jsx_runtime_1.jsx)("li", { className: "ref-row", children: (0, jsx_runtime_1.jsx)(TaskRefLabel, { t: d }) }, d.id)) })] }), (0, jsx_runtime_1.jsxs)(ui_1.AccItem, { id: "notas", title: "Notas vinculadas", badge: task.notes.length ? (0, jsx_runtime_1.jsxs)("span", { className: "count", children: ["(", task.notes.length, ")"] }) : null, ...acc, children: [task.notes.length === 0 && (0, jsx_runtime_1.jsx)("p", { className: "muted", children: "Sin notas vinculadas" }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: task.notes.map((n) => (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.navigate(`#/notas/${n.id}`), children: n.display_title }), n.excerpt && (0, jsx_runtime_1.jsx)("blockquote", { className: "excerpt", children: n.excerpt })] }, n.id)) }), (0, jsx_runtime_1.jsx)("button", { onClick: async () => {
+                                        return (0, jsx_runtime_1.jsx)(ui_1.Field, { label: kind === "linea" ? (0, i18n_1.t)("Línea de trabajo") : kind === "fase" ? (0, i18n_1.t)("Fase") : (0, i18n_1.t)("Entregable"), children: (0, jsx_runtime_1.jsxs)("select", { value: draft[key] ?? "", onChange: (e) => set(key, e.target.value ? Number(e.target.value) : null), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: "\u2014" }), opts.map((g) => (0, jsx_runtime_1.jsx)("option", { value: g.id, children: g.name }, g.id))] }) }, kind);
+                                    }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Responsable de ejecución"), children: (0, jsx_runtime_1.jsx)(ui_1.PersonSelect, { value: draft.assignee_id, onChange: (v) => set("assignee_id", v) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Persona revisora"), children: (0, jsx_runtime_1.jsx)(ui_1.PersonSelect, { value: draft.reviewer_id, onChange: (v) => set("reviewer_id", v), emptyLabel: (0, i18n_1.t)("Sin revisor") }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Fecha límite"), children: (0, jsx_runtime_1.jsx)(DateInput_1.DateInput, { label: (0, i18n_1.t)("Fecha límite"), value: draft.due_date, onChange: (v) => set("due_date", v) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Fecha planificada"), children: (0, jsx_runtime_1.jsx)(DateInput_1.DateInput, { label: (0, i18n_1.t)("Fecha planificada"), value: draft.planned_date, onChange: (v) => set("planned_date", v) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Esfuerzo estimado (h)"), hint: (0, i18n_1.t)("Vacío = no informado (no cuenta como 0)"), children: (0, jsx_runtime_1.jsx)("input", { type: "number", min: "0", step: "0.5", value: draft.estimate_hours ?? "", onChange: (e) => set("estimate_hours", e.target.value === "" ? null : Number(e.target.value)) }) })] }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Etiquetas"), hint: (0, i18n_1.t)("Se guardan al momento. Gestiona (renombrar/eliminar) en Configuración."), children: (0, jsx_runtime_1.jsx)(ui_1.TagPicker, { value: task.tags, onChange: setTags }) })] }), (0, jsx_runtime_1.jsx)(ui_1.AccItem, { id: "pasos", title: (0, i18n_1.t)("Pasos y subtareas"), badge: (task.steps_total + task.subtasks.length) > 0 ? (0, jsx_runtime_1.jsxs)("span", { className: "count", children: ["(", (0, i18n_1.t)("{hechos}/{total} pasos · {n} subtareas", { hechos: task.steps_done, total: task.steps_total, n: task.subtasks.length }), ")"] }) : null, ...acc, children: (0, jsx_runtime_1.jsx)(StepsAndSubtasks, { task: task, run: run, reload: load }) }), (0, jsx_runtime_1.jsxs)(ui_1.AccItem, { id: "espera", title: (0, i18n_1.t)("Espera o bloqueo"), badge: task.condition ? (0, jsx_runtime_1.jsx)(ui_1.Chip, { tone: task.condition === "bloqueada" ? "danger" : "warn", children: labels_1.CONDITION[task.condition] }) : null, ...acc, children: [(0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Condición adicional: la tarea conserva su estado ({estado}).", { estado: labels_1.STATUS[task.status] }) }), (0, jsx_runtime_1.jsxs)("div", { className: "grid2", children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Condición"), children: (0, jsx_runtime_1.jsxs)("select", { value: draft.condition ?? "", onChange: (e) => set("condition", e.target.value || null), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: (0, i18n_1.t)("Ninguna") }), (0, jsx_runtime_1.jsx)("option", { value: "espera", children: (0, i18n_1.t)("En espera") }), (0, jsx_runtime_1.jsx)("option", { value: "bloqueada", children: (0, i18n_1.t)("Bloqueada") })] }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Depende de (persona del equipo)"), children: (0, jsx_runtime_1.jsx)(ui_1.PersonSelect, { value: draft.wait_on_person_id, onChange: (v) => set("wait_on_person_id", v), emptyLabel: "\u2014" }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Depende de (tercero)"), children: (0, jsx_runtime_1.jsx)("input", { value: draft.wait_on, onChange: (e) => set("wait_on", e.target.value), placeholder: (0, i18n_1.t)("p. ej. sistemas del cliente") }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Fecha de seguimiento"), children: (0, jsx_runtime_1.jsx)(UtcDateTime, { label: (0, i18n_1.t)("Fecha de seguimiento"), value: draft.follow_up_at, onChange: (v) => set("follow_up_at", v) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Recordar seguimiento cada (días)"), children: (0, jsx_runtime_1.jsx)("input", { type: "number", min: "1", value: draft.follow_up_every_days ?? "", onChange: (e) => set("follow_up_every_days", e.target.value ? Number(e.target.value) : null) }) })] }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Motivo"), children: (0, jsx_runtime_1.jsx)(ui_1.AutoText, { value: draft.wait_reason, minRows: 2, onChange: (v) => set("wait_reason", v), placeholder: (0, i18n_1.t)("Qué falta y por qué") }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Próxima acción"), children: (0, jsx_runtime_1.jsx)(ui_1.AutoText, { value: draft.wait_next_action, minRows: 2, onChange: (v) => set("wait_next_action", v), placeholder: (0, i18n_1.t)("Qué harás para desbloquearlo") }) }), task.condition && (0, jsx_runtime_1.jsx)(FollowUp, { task: task, run: run, quick: quick })] }), (0, jsx_runtime_1.jsxs)(ui_1.AccItem, { id: "tiempos", title: (0, i18n_1.t)("Tiempos, revisiones y recordatorios"), ...acc, children: [(0, jsx_runtime_1.jsxs)("dl", { className: "facts", children: [(0, jsx_runtime_1.jsx)("dt", { children: (0, i18n_1.t)("Tiempo desde el inicio") }), (0, jsx_runtime_1.jsxs)("dd", { children: [(0, dates_1.elapsedSinceStart)(task.started_at, task.completed_at), " ", (0, jsx_runtime_1.jsx)("span", { className: "hint", children: (0, i18n_1.t)("(no equivale a dedicación ni a horas trabajadas)") })] }), (0, jsx_runtime_1.jsx)("dt", { children: (0, i18n_1.t)("Última actualización significativa") }), (0, jsx_runtime_1.jsxs)("dd", { children: [(0, dates_1.sinceLabel)(task.last_significant_update), " \u00B7 ", (0, dates_1.fmtDateTime)(task.last_significant_update, app.tz)] }), (0, jsx_runtime_1.jsx)("dt", { children: (0, i18n_1.t)("Inicio real") }), (0, jsx_runtime_1.jsx)("dd", { children: task.started_at ? (0, dates_1.fmtDateTime)(task.started_at, app.tz) : (0, i18n_1.t)("no informado") }), (0, jsx_runtime_1.jsx)("dt", { children: (0, i18n_1.t)("Finalización") }), (0, jsx_runtime_1.jsx)("dd", { children: task.completed_at ? (0, dates_1.fmtDateTime)(task.completed_at, app.tz) : "—" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "grid2", children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Revisar en fecha y hora"), children: (0, jsx_runtime_1.jsx)(UtcDateTime, { label: (0, i18n_1.t)("Revisar en fecha y hora"), value: draft.next_review_at, onChange: (v) => set("next_review_at", v) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Revisar tras (h) desde el inicio"), children: (0, jsx_runtime_1.jsx)("input", { type: "number", min: "1", value: draft.review_after_start_hours ?? "", onChange: (e) => set("review_after_start_hours", e.target.value ? Number(e.target.value) : null) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Revisar tras (h) sin actualización"), children: (0, jsx_runtime_1.jsx)("input", { type: "number", min: "1", value: draft.review_after_idle_hours ?? "", onChange: (e) => set("review_after_idle_hours", e.target.value ? Number(e.target.value) : null) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Cómputo de esas horas"), hint: (0, i18n_1.t)("Laborables: {horario}; sin festivos registrados", { horario: (0, labels_1.describeSchedule)(app.boot.settings.work_schedule) }), children: (0, jsx_runtime_1.jsxs)("select", { value: draft.review_hours_mode, onChange: (e) => set("review_hours_mode", e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "natural", children: (0, i18n_1.t)("Tiempo natural") }), (0, jsx_runtime_1.jsx)("option", { value: "laborable", children: (0, i18n_1.t)("Horas laborables") })] }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Inicio real (corregir)"), children: (0, jsx_runtime_1.jsx)(UtcDateTime, { label: (0, i18n_1.t)("Inicio real (corregir)"), value: draft.started_at, onChange: (v) => set("started_at", v) }) })] }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Zona horaria: {zona}. Abrir o consultar la tarea no reinicia ningún contador.", { zona: app.tz }) }), (0, jsx_runtime_1.jsx)("h4", { children: (0, i18n_1.t)("Recordatorios de esta tarea") }), (0, jsx_runtime_1.jsx)(ReminderCenter_1.TaskReminders, { taskId: task.id }, app.dataVersion), (0, jsx_runtime_1.jsx)("h4", { children: (0, i18n_1.t)("Recordatorio puntual") }), (0, jsx_runtime_1.jsx)(ReminderForm_1.ReminderForm, { taskId: task.id, defaultTitle: task.wait_on ? (0, i18n_1.t)("Contactar con {quien}", { quien: task.wait_on }) : "" })] }), (0, jsx_runtime_1.jsx)(ui_1.AccItem, { id: "repeticion", title: (0, i18n_1.t)("Repetición"), badge: task.recurrence ? (0, jsx_runtime_1.jsxs)("span", { className: "count", children: ["(", (0, labels_1.describeRule)(task.recurrence), ")"] }) : null, ...acc, children: (0, jsx_runtime_1.jsx)(Repetition, { task: task, run: run, saveFirst: save, dirty: dirtyKeys.length > 0, onDeleted: () => { void load(); app.changed(); } }) }), (0, jsx_runtime_1.jsx)(ui_1.AccItem, { id: "aprobacion", title: (0, i18n_1.t)("Aprobación comercial"), badge: task.approval !== "no_requerida" ? (0, jsx_runtime_1.jsx)(ui_1.Chip, { tone: task.approval === "aprobada" ? "neutral" : "warn", children: labels_1.APPROVAL[task.approval] }) : null, ...acc, children: (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Aprobación (independiente del estado de ejecución)"), hint: (0, i18n_1.t)("Puedes preparar el análisis antes; al iniciar la ejecución sin aprobación se pide confirmación."), children: (0, jsx_runtime_1.jsx)("select", { value: draft.approval, onChange: (e) => set("approval", e.target.value), children: Object.entries(labels_1.APPROVAL).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k)) }) }) }), (0, jsx_runtime_1.jsxs)(ui_1.AccItem, { id: "dependencias", title: (0, i18n_1.t)("Dependencias"), badge: task.blocked_by.length + task.blocks.length ? (0, jsx_runtime_1.jsxs)("span", { className: "count", children: ["(", (0, i18n_1.t)("{n} de las que depende · bloquea {m}", { n: task.blocked_by.length, m: task.blocks.length }), ")"] }) : null, ...acc, children: [(0, jsx_runtime_1.jsx)("h4", { children: (0, i18n_1.t)("Esta tarea depende de") }), task.blocked_by.length === 0 && (0, jsx_runtime_1.jsx)("p", { className: "muted", children: (0, i18n_1.t)("Ninguna") }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: task.blocked_by.map((d) => ((0, jsx_runtime_1.jsxs)("li", { className: "ref-row", children: [(0, jsx_runtime_1.jsx)(TaskRefLabel, { task: d }), d.assignee_id === app.meId && d.status !== "hecha" && (0, jsx_runtime_1.jsx)(ui_1.Chip, { tone: "info", children: (0, i18n_1.t)("pendiente de mí") }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => run(() => api_1.api.del(`/api/tasks/${task.id}/dependencies/${d.id}`)), children: (0, i18n_1.t)("Quitar") })] }, d.id))) }), (0, jsx_runtime_1.jsx)(ui_1.TaskPicker, { tasks: deps, exclude: task.blocked_by.map((d) => d.id), placeholder: (0, i18n_1.t)("Añadir dependencia: buscar tarea…"), onPick: (depId) => run(() => api_1.api.post(`/api/tasks/${task.id}/dependencies`, { depends_on_id: depId }), (0, i18n_1.t)("Dependencia añadida")) }), (0, jsx_runtime_1.jsx)("h4", { children: (0, i18n_1.t)("Bloquea a") }), task.blocks.length === 0 ? (0, jsx_runtime_1.jsx)("p", { className: "muted", children: (0, i18n_1.t)("Ninguna tarea depende de esta") }) :
+                                (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: task.blocks.map((d) => (0, jsx_runtime_1.jsx)("li", { className: "ref-row", children: (0, jsx_runtime_1.jsx)(TaskRefLabel, { task: d }) }, d.id)) })] }), (0, jsx_runtime_1.jsxs)(ui_1.AccItem, { id: "notas", title: (0, i18n_1.t)("Notas vinculadas"), badge: task.notes.length ? (0, jsx_runtime_1.jsxs)("span", { className: "count", children: ["(", task.notes.length, ")"] }) : null, ...acc, children: [task.notes.length === 0 && (0, jsx_runtime_1.jsx)("p", { className: "muted", children: (0, i18n_1.t)("Sin notas vinculadas") }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: task.notes.map((n) => (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.navigate(`#/notas/${n.id}`), children: n.display_title }), n.excerpt && (0, jsx_runtime_1.jsx)("blockquote", { className: "excerpt", children: n.excerpt })] }, n.id)) }), (0, jsx_runtime_1.jsx)("button", { onClick: async () => {
                                     try {
                                         const n = await api_1.api.post("/api/notes", { task_id: task.id });
                                         app.changed();
@@ -18191,28 +20081,28 @@ function TaskPanel({ id, onClose }) {
                                     catch (e) {
                                         setError(e.message);
                                     }
-                                }, children: "+ Nueva nota vinculada" })] }), (0, jsx_runtime_1.jsxs)(ui_1.AccItem, { id: "enlaces", title: "Enlaces", badge: task.links.length ? (0, jsx_runtime_1.jsxs)("span", { className: "count", children: ["(", task.links.length, ")"] }) : null, ...acc, children: [(0, jsx_runtime_1.jsx)(ui_1.LinksEditor, { value: draft.links || [], onChange: (v) => set("links", v) }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: "Solo enlaces a los archivos y recursos originales; no se almacenan adjuntos." })] }), task.estimate_hours !== null && ((0, jsx_runtime_1.jsx)(ui_1.AccItem, { id: "reparto", title: "Repartir esfuerzo entre semanas (opcional)", ...acc, children: (0, jsx_runtime_1.jsx)(Allocation, { task: task, run: run }) })), (0, jsx_runtime_1.jsx)(ui_1.AccItem, { id: "historial", title: "Historial y actualizaciones", ...acc, children: (0, jsx_runtime_1.jsx)(History, { task: task, run: run }) })] }), (0, jsx_runtime_1.jsxs)("div", { className: "panel-foot", children: [(0, jsx_runtime_1.jsx)("button", { className: "primary", disabled: !dirtyKeys.length || saving, onClick: save, children: saving ? "Guardando…" : dirtyKeys.length ? `Guardar cambios (${dirtyKeys.length})` : "Sin cambios" }), dirtyKeys.length > 0 && (0, jsx_runtime_1.jsx)("button", { onClick: () => setDraft(pick(task)), children: "Descartar" }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), task.recurrence_id && task.status !== "hecha" && task.status !== "cancelada" &&
-                        (0, jsx_runtime_1.jsx)("button", { onClick: () => run(() => api_1.api.post(`/api/tasks/${task.id}/skip`), "Ocurrencia saltada"), children: "Saltar ocurrencia" }), task.status !== "cancelada" && (0, jsx_runtime_1.jsx)("button", { onClick: () => quick({ status: "cancelada" }, "Tarea cancelada"), children: "Cancelar tarea" }), !task.archived ? (0, jsx_runtime_1.jsx)("button", { onClick: () => quick({ archived: true }, "Tarea archivada (Trabajo → Archivadas)"), children: "Archivar" }) : (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("button", { onClick: () => quick({ archived: false }, "Tarea restaurada"), children: "Restaurar" }), (0, jsx_runtime_1.jsx)("button", { className: "danger", onClick: async () => {
-                                    if (!window.confirm("¿Eliminar definitivamente esta tarea? No se puede deshacer."))
+                                }, children: (0, i18n_1.t)("+ Nueva nota vinculada") })] }), (0, jsx_runtime_1.jsxs)(ui_1.AccItem, { id: "enlaces", title: (0, i18n_1.t)("Enlaces"), badge: task.links.length ? (0, jsx_runtime_1.jsxs)("span", { className: "count", children: ["(", task.links.length, ")"] }) : null, ...acc, children: [(0, jsx_runtime_1.jsx)(ui_1.LinksEditor, { value: draft.links || [], onChange: (v) => set("links", v) }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Solo enlaces a los archivos y recursos originales; no se almacenan adjuntos.") })] }), task.estimate_hours !== null && ((0, jsx_runtime_1.jsx)(ui_1.AccItem, { id: "reparto", title: (0, i18n_1.t)("Repartir esfuerzo entre semanas (opcional)"), ...acc, children: (0, jsx_runtime_1.jsx)(Allocation, { task: task, run: run }) })), (0, jsx_runtime_1.jsx)(ui_1.AccItem, { id: "historial", title: (0, i18n_1.t)("Historial y actualizaciones"), ...acc, children: (0, jsx_runtime_1.jsx)(History, { task: task, run: run }) })] }), (0, jsx_runtime_1.jsxs)("div", { className: "panel-foot", children: [(0, jsx_runtime_1.jsx)("button", { className: "primary", disabled: !dirtyKeys.length || saving, onClick: () => void save(), children: saving ? (0, i18n_1.t)("Guardando…") : dirtyKeys.length ? (0, i18n_1.t)("Guardar cambios ({n})", { n: dirtyKeys.length }) : (0, i18n_1.t)("Sin cambios") }), dirtyKeys.length > 0 && (0, jsx_runtime_1.jsx)("button", { onClick: () => setDraft(pick(task)), children: (0, i18n_1.t)("Descartar") }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), task.recurrence_id && task.status !== "hecha" && task.status !== "cancelada" &&
+                        (0, jsx_runtime_1.jsx)("button", { onClick: () => run(() => api_1.api.post(`/api/tasks/${task.id}/skip?undo=1`), (0, i18n_1.t)("Ocurrencia saltada")), children: (0, i18n_1.t)("Saltar ocurrencia") }), task.status !== "cancelada" && (0, jsx_runtime_1.jsx)("button", { onClick: () => quick({ status: "cancelada" }, (0, i18n_1.t)("Tarea cancelada")), children: (0, i18n_1.t)("Cancelar tarea") }), !task.archived ? (0, jsx_runtime_1.jsx)("button", { onClick: () => quick({ archived: true }, (0, i18n_1.t)("Tarea archivada (Trabajo → Archivadas)")), children: (0, i18n_1.t)("Archivar") }) : (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("button", { onClick: () => quick({ archived: false }, (0, i18n_1.t)("Tarea restaurada")), children: (0, i18n_1.t)("Restaurar") }), (0, jsx_runtime_1.jsx)("button", { className: "danger", onClick: async () => {
+                                    if (!window.confirm((0, i18n_1.t)("¿Eliminar definitivamente esta tarea? No se puede deshacer.")))
                                         return;
                                     try {
                                         await api_1.api.del(`/api/tasks/${task.id}`);
                                         app.changed();
                                         onClose();
-                                        app.toast("Tarea eliminada", "ok");
+                                        app.toast((0, i18n_1.t)("Tarea eliminada"), "ok");
                                     }
                                     catch (e) {
                                         setError(e.message);
                                     }
-                                }, children: "Eliminar definitivamente" })] })] }), (0, jsx_runtime_1.jsx)("p", { className: "hint pad", children: "Ctrl+S guarda \u00B7 Esc cierra" })] }));
+                                }, children: (0, i18n_1.t)("Eliminar definitivamente") })] })] }), (0, jsx_runtime_1.jsx)("p", { className: "hint pad", children: (0, i18n_1.t)("Ctrl+S guarda · Esc cierra") })] }));
 }
-function TaskRefLabel({ t }) {
+function TaskRefLabel({ task }) {
     const app = (0, store_1.useApp)();
-    return (0, jsx_runtime_1.jsxs)("span", { className: "ref", children: [(0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.openTask(t.id), children: t.title }), (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [" \u00B7 ", [app.project(t.project_id)?.name, labels_1.STATUS[t.status], app.person(t.assignee_id)?.name].filter(Boolean).join(" · ")] })] });
+    return (0, jsx_runtime_1.jsxs)("span", { className: "ref", children: [(0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.openTask(task.id), children: task.title }), (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [" \u00B7 ", [app.project(task.project_id)?.name, labels_1.STATUS[task.status], app.person(task.assignee_id)?.name].filter(Boolean).join(" · ")] })] });
 }
 function DescriptionField({ value, onChange }) {
     const [preview, setPreview] = (0, react_1.useState)(false);
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "field", children: [(0, jsx_runtime_1.jsxs)("div", { className: "row tight", children: [(0, jsx_runtime_1.jsx)("span", { className: "field-label", children: "Descripci\u00F3n" }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => setPreview(!preview), "aria-pressed": preview, children: preview ? "Editar" : "Vista previa" })] }), preview ? (0, jsx_runtime_1.jsx)(markdown_1.Markdown, { text: value }) : (0, jsx_runtime_1.jsx)(ui_1.AutoText, { value: value, minRows: 3, maxRows: 14, onChange: onChange, "aria-label": "Descripci\u00F3n", placeholder: "Texto libre (admite Markdown)" })] }));
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "field", children: [(0, jsx_runtime_1.jsxs)("div", { className: "row tight", children: [(0, jsx_runtime_1.jsx)("span", { className: "field-label", children: (0, i18n_1.t)("Descripción") }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => setPreview(!preview), "aria-pressed": preview, children: preview ? (0, i18n_1.t)("Editar") : (0, i18n_1.t)("Vista previa") })] }), preview ? (0, jsx_runtime_1.jsx)(markdown_1.Markdown, { text: value }) : (0, jsx_runtime_1.jsx)(ui_1.AutoText, { value: value, minRows: 3, maxRows: 14, onChange: onChange, "aria-label": (0, i18n_1.t)("Descripción"), placeholder: (0, i18n_1.t)("Texto libre (admite Markdown)") })] }));
 }
 function StepsAndSubtasks({ task, run }) {
     const app = (0, store_1.useApp)();
@@ -18226,92 +20116,104 @@ function StepsAndSubtasks({ task, run }) {
             const sub = await api_1.api.post("/api/tasks", { title: text.trim(), parent_id: task.id, project_id: task.project_id, assignee_id: task.assignee_id });
             setText("");
             app.changed();
-            app.toast(`Subtarea creada: ${sub.title}`, "ok", { label: "Abrir", run: () => app.openTask(sub.id) });
+            app.toast((0, i18n_1.t)("Subtarea creada: {titulo}", { titulo: sub.title }), "ok", { label: (0, i18n_1.t)("Abrir"), run: () => app.openTask(sub.id) });
             await run(() => api_1.api.get(`/api/tasks/${task.id}`));
         }
         catch (e) {
             app.toast(e.message, "error");
         }
     };
-    return ((0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)("input", { className: "grow", "aria-label": "Nuevo paso o subtarea", placeholder: "Describe el paso o la subtarea\u2026", value: text, onChange: (e) => setText(e.target.value), onKeyDown: (e) => { if (e.key === "Enter") {
+    return ((0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)("input", { className: "grow", "aria-label": (0, i18n_1.t)("Nuevo paso o subtarea"), placeholder: (0, i18n_1.t)("Describe el paso o la subtarea…"), value: text, onChange: (e) => setText(e.target.value), onKeyDown: (e) => { if (e.key === "Enter") {
                             e.preventDefault();
                             if (e.ctrlKey || e.metaKey)
                                 void addSub();
                             else
                                 void addStep();
-                        } } }), (0, jsx_runtime_1.jsx)("button", { disabled: !text.trim(), onClick: addStep, title: "Enter", children: "A\u00F1adir paso" }), (0, jsx_runtime_1.jsx)("button", { disabled: !text.trim(), onClick: addSub, title: "Ctrl+Enter", children: "A\u00F1adir subtarea" })] }), (0, jsx_runtime_1.jsxs)("p", { className: "hint", children: [(0, jsx_runtime_1.jsx)("strong", { children: "Paso" }), ": casilla dentro de esta tarea (no aparece en tablero, lista ni calendario). ", (0, jsx_runtime_1.jsx)("strong", { children: "Subtarea" }), ": tarea completa con su responsable y fechas, visible en todas las vistas con la marca \u00AB\u21B3 Subtarea de\u2026\u00BB. Completar pasos o subtareas no completa esta tarea."] }), task.steps.length > 0 && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("h4", { children: ["Pasos (", task.steps.filter((s) => s.done).length, "/", task.steps.length, ")"] }), (0, jsx_runtime_1.jsx)("ul", { className: "plain steps", children: task.steps.map((s) => ((0, jsx_runtime_1.jsxs)("li", { className: s.done ? "done" : "", children: [(0, jsx_runtime_1.jsxs)("label", { className: "check grow", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: s.done, onChange: (e) => run(() => api_1.api.patch(`/api/steps/${s.id}`, { done: e.target.checked })) }), (0, jsx_runtime_1.jsx)("span", { className: "step-text", children: s.text })] }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => { const v = window.prompt("Editar paso:", s.text); if (v?.trim())
-                                        void run(() => api_1.api.patch(`/api/steps/${s.id}`, { text: v.trim() })); }, children: "Editar" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", title: "Convertir en subtarea completa", onClick: async () => {
+                        } } }), (0, jsx_runtime_1.jsx)("button", { disabled: !text.trim(), onClick: addStep, title: "Enter", children: (0, i18n_1.t)("Añadir paso") }), (0, jsx_runtime_1.jsx)("button", { disabled: !text.trim(), onClick: addSub, title: "Ctrl+Enter", children: (0, i18n_1.t)("Añadir subtarea") })] }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Paso: casilla dentro de esta tarea (no aparece en tablero, lista ni calendario). Subtarea: tarea completa con su responsable y fechas, visible en todas las vistas con la marca «↳ Subtarea de…». Completar pasos o subtareas no completa esta tarea.") }), task.steps.length > 0 && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("h4", { children: (0, i18n_1.t)("Pasos ({hechos}/{total})", { hechos: task.steps.filter((s) => s.done).length, total: task.steps.length }) }), (0, jsx_runtime_1.jsx)("ul", { className: "plain steps", children: task.steps.map((s) => ((0, jsx_runtime_1.jsxs)("li", { className: s.done ? "done" : "", children: [(0, jsx_runtime_1.jsxs)("label", { className: "check grow", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: s.done, onChange: (e) => run(() => api_1.api.patch(`/api/steps/${s.id}`, { done: e.target.checked })) }), (0, jsx_runtime_1.jsx)("span", { className: "step-text", children: s.text })] }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => { const v = window.prompt((0, i18n_1.t)("Editar paso:"), s.text); if (v?.trim())
+                                        void run(() => api_1.api.patch(`/api/steps/${s.id}`, { text: v.trim() })); }, children: (0, i18n_1.t)("Editar") }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", title: (0, i18n_1.t)("Convertir en subtarea completa"), onClick: async () => {
                                         try {
                                             const sub = await api_1.api.post(`/api/steps/${s.id}/promote`);
                                             app.changed();
-                                            app.toast(`Convertido en subtarea: ${sub.title}`, "ok");
+                                            app.toast((0, i18n_1.t)("Convertido en subtarea: {titulo}", { titulo: sub.title }), "ok");
                                             await run(() => api_1.api.get(`/api/tasks/${task.id}`));
                                         }
                                         catch (e) {
                                             app.toast(e.message, "error");
                                         }
-                                    }, children: "\u2192 Subtarea" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", "aria-label": `Eliminar paso ${s.text}`, onClick: () => run(() => api_1.api.del(`/api/steps/${s.id}`)), children: "\u2715" })] }, s.id))) })] }), task.subtasks.length > 0 && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("h4", { children: ["Subtareas (", task.subtasks.filter((s) => s.status === "hecha" || s.status === "cancelada").length, "/", task.subtasks.length, ")"] }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: task.subtasks.map((s) => ((0, jsx_runtime_1.jsxs)("li", { className: "ref-row", children: [(0, jsx_runtime_1.jsx)(TaskRefLabel, { t: s }), s.due_date && (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [" \u00B7 ", (0, dates_1.fmtDate)(s.due_date)] }), s.estimate_hours !== null && (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [" \u00B7 ", s.estimate_hours, " h"] })] }, s.id))) })] })] }));
+                                    }, children: (0, i18n_1.t)("→ Subtarea") }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", "aria-label": (0, i18n_1.t)("Eliminar paso {texto}", { texto: s.text }), onClick: () => run(() => api_1.api.del(`/api/steps/${s.id}`)), children: "\u2715" })] }, s.id))) })] }), task.subtasks.length > 0 && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("h4", { children: (0, i18n_1.t)("Subtareas ({cerradas}/{total})", { cerradas: task.subtasks.filter((s) => s.status === "hecha" || s.status === "cancelada").length, total: task.subtasks.length }) }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: task.subtasks.map((s) => ((0, jsx_runtime_1.jsxs)("li", { className: "ref-row", children: [(0, jsx_runtime_1.jsx)(TaskRefLabel, { task: s }), s.due_date && (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [" \u00B7 ", (0, dates_1.fmtDate)(s.due_date)] }), s.estimate_hours !== null && (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [" \u00B7 ", s.estimate_hours, " h"] })] }, s.id))) })] })] }));
 }
 function FollowUp({ task, run, quick }) {
     const app = (0, store_1.useApp)();
     const [text, setText] = (0, react_1.useState)("");
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "subtle-box", children: [(0, jsx_runtime_1.jsxs)("p", { children: ["Desde: ", (0, dates_1.fmtDateTime)(task.wait_since, app.tz), " \u00B7 \u00DAltimo seguimiento: ", task.last_follow_up_at ? (0, dates_1.fmtDateTime)(task.last_follow_up_at, app.tz) : "ninguno registrado"] }), (0, jsx_runtime_1.jsx)(ui_1.AutoText, { value: text, onChange: setText, minRows: 1, "aria-label": "Nota del seguimiento", placeholder: "Nota del seguimiento (opcional)" }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)("button", { onClick: async () => { if (await run(() => api_1.api.post(`/api/tasks/${task.id}/follow-up`, { text }), "Seguimiento registrado (la espera continúa)"))
-                            setText(""); }, children: "Seguimiento realizado" }), (0, jsx_runtime_1.jsx)("button", { onClick: () => quick({ condition: null }, "Espera/bloqueo resuelto"), children: "Marcar resuelto" })] }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: "\u00ABRecordar contactar\u00BB no env\u00EDa nada: solo te lo recuerda." })] }));
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "subtle-box", children: [(0, jsx_runtime_1.jsx)("p", { children: (0, i18n_1.t)("Desde: {fecha} · Último seguimiento: {ultimo}", { fecha: (0, dates_1.fmtDateTime)(task.wait_since, app.tz), ultimo: task.last_follow_up_at ? (0, dates_1.fmtDateTime)(task.last_follow_up_at, app.tz) : (0, i18n_1.t)("ninguno registrado") }) }), (0, jsx_runtime_1.jsx)(ui_1.AutoText, { value: text, onChange: setText, minRows: 1, "aria-label": (0, i18n_1.t)("Nota del seguimiento"), placeholder: (0, i18n_1.t)("Nota del seguimiento (opcional)") }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)("button", { onClick: async () => { if (await run(() => api_1.api.post(`/api/tasks/${task.id}/follow-up`, { text }), (0, i18n_1.t)("Seguimiento registrado (la espera continúa)")))
+                            setText(""); }, children: (0, i18n_1.t)("Seguimiento realizado") }), (0, jsx_runtime_1.jsx)("button", { onClick: () => quick({ condition: null }, (0, i18n_1.t)("Espera/bloqueo resuelto")), children: (0, i18n_1.t)("Marcar resuelto") })] }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("«Recordar contactar» no envía nada: solo te lo recuerda.") })] }));
 }
-function Repetition({ task, run }) {
+function Repetition({ task, run, saveFirst, dirty, onDeleted }) {
     const app = (0, store_1.useApp)();
     const [rule, setRule] = (0, react_1.useState)((0, Recurrences_1.emptyRule)(task.due_date || (0, dates_1.todayIn)(app.tz)));
+    const [deleting, setDeleting] = (0, react_1.useState)(false);
     if (task.recurrence) {
         const r = task.recurrence;
-        return (0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsxs)("p", { children: [(0, jsx_runtime_1.jsx)("strong", { children: (0, labels_1.describeRule)(r) }), " \u00B7 desde ", (0, dates_1.fmtDate)(r.start_date), r.end_date ? ` hasta ${(0, dates_1.fmtDate)(r.end_date)}` : "", " \u00B7 ", r.active ? "activa" : "pausada"] }), (0, jsx_runtime_1.jsxs)("p", { className: "hint", children: ["Esta tarea es una ocurrencia de la serie (fecha ", (0, dates_1.fmtDate)(task.occurrence_date), "). Lo que cambies aqu\u00ED solo afecta a esta ocurrencia."] }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)("button", { onClick: async () => { await api_1.api.patch(`/api/recurrences/${r.id}`, { active: !r.active }); await run(() => api_1.api.get(`/api/tasks/${task.id}`), r.active ? "Serie pausada: no se generarán más ocurrencias" : "Serie reactivada"); }, children: r.active ? "Pausar la serie" : "Reactivar la serie" }), (0, jsx_runtime_1.jsx)("button", { onClick: async () => {
-                                const fields = { title: task.title, assignee_id: task.assignee_id, priority: task.priority, estimate_hours: task.estimate_hours, project_id: task.project_id };
-                                if (!window.confirm("¿Aplicar título, responsable, proyecto, prioridad y estimación de esta tarea a la serie y a sus ocurrencias futuras pendientes?"))
+        return (0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsxs)("p", { children: [(0, jsx_runtime_1.jsx)("strong", { children: (0, labels_1.describeRule)(r) }), " \u00B7 ", (0, i18n_1.t)("desde {fecha}", { fecha: (0, dates_1.fmtDate)(r.start_date) }), r.end_date ? " " + (0, i18n_1.t)("hasta {fecha}", { fecha: (0, dates_1.fmtDate)(r.end_date) }) : "", " \u00B7 ", r.active ? (0, i18n_1.t)("activa") : (0, i18n_1.t)("pausada")] }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Esta tarea es una ocurrencia de la serie (fecha {fecha}). Lo que cambies aquí solo afecta a esta ocurrencia, salvo que pulses «Aplicar estos datos a la serie».", { fecha: (0, dates_1.fmtDate)(task.occurrence_date) }) }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)("button", { onClick: async () => { await api_1.api.patch(`/api/recurrences/${r.id}`, { active: !r.active }); await run(() => api_1.api.get(`/api/tasks/${task.id}`), r.active ? (0, i18n_1.t)("Serie pausada: no se generarán más ocurrencias") : (0, i18n_1.t)("Serie reactivada")); }, children: r.active ? (0, i18n_1.t)("Pausar la serie") : (0, i18n_1.t)("Reactivar la serie") }), (0, jsx_runtime_1.jsx)("button", { onClick: async () => {
+                                if (!window.confirm((0, i18n_1.t)("¿Aplicar los datos de esta tarea (título, proyecto, responsable, revisor, tipo, prioridad, estimación, descripción, agrupaciones, aprobación, revisiones, enlaces, etiquetas, pasos y recordatorios) a la serie y a sus ocurrencias futuras pendientes?")))
                                     return;
-                                await api_1.api.patch(`/api/recurrences/${r.id}`, { ...fields, apply_to_future: true });
-                                await run(() => api_1.api.get(`/api/tasks/${task.id}`), "Aplicado a esta y a las futuras");
-                            }, children: "Aplicar estos datos a las futuras" })] })] });
+                                if (dirty && !(await saveFirst()))
+                                    return;
+                                try {
+                                    const res = await api_1.api.post(`/api/tasks/${task.id}/apply-to-series`);
+                                    await run(async () => res, (0, i18n_1.t)("Aplicado a la serie y a {n} ocurrencia(s) futura(s)", { n: res.updated_occurrences }));
+                                }
+                                catch (e) {
+                                    app.toast(e.message, "error");
+                                }
+                            }, children: (0, i18n_1.t)("Aplicar estos datos a la serie") }), (0, jsx_runtime_1.jsx)("button", { className: "danger", onClick: () => setDeleting(true), children: (0, i18n_1.t)("Eliminar serie") })] }), deleting && (0, jsx_runtime_1.jsx)(Recurrences_1.DeleteSeriesDialog, { rec: { id: r.id, title: task.title }, onClose: () => setDeleting(false), onDone: () => { setDeleting(false); onDeleted(); } })] });
     }
-    return (0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsxs)("p", { className: "hint", children: ["Convierte esta tarea en la primera de una serie. Las siguientes se crean solas (hasta ", app.boot.settings.recurrence_horizon_days, " d\u00EDas vista) con el mismo t\u00EDtulo, responsable, proyecto y prioridad."] }), (0, jsx_runtime_1.jsx)(Recurrences_1.RuleEditor, { value: rule, onChange: setRule }), (0, jsx_runtime_1.jsx)("button", { className: "primary", disabled: !(0, Recurrences_1.ruleIsValid)(rule), onClick: () => run(() => api_1.api.post(`/api/tasks/${task.id}/recurrence`, {
-                    rule: rule.rule, weekdays: rule.rule === "semanal" ? rule.weekdays : [], interval_days: rule.rule === "cada_n_dias" ? rule.interval_days : null,
-                    start_date: rule.start_date, end_date: rule.end_date, non_working: rule.non_working
-                }), "La tarea ahora se repite"), children: "Hacer recurrente" })] });
+    return (0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Convierte esta tarea en la primera de una serie. Las siguientes se crean solas (hasta {n} días vista) y heredan todo: proyecto, responsable, revisor, tipo, prioridad, estimación, descripción, agrupaciones, tarea principal, aprobación, revisiones, enlaces, etiquetas, pasos (sin marcar) y recordatorios. Las fechas mantienen su relación con la fecha límite.", { n: app.boot.settings.recurrence_horizon_days }) }), dirty && (0, jsx_runtime_1.jsx)("p", { className: "warn-box", children: (0, i18n_1.t)("Hay cambios sin guardar: se guardarán antes de crear la serie.") }), (0, jsx_runtime_1.jsx)(Recurrences_1.RuleEditor, { value: rule, onChange: setRule }), (0, jsx_runtime_1.jsx)("button", { className: "primary", disabled: !(0, Recurrences_1.ruleIsValid)(rule), onClick: async () => {
+                    if (dirty && !(await saveFirst()))
+                        return;
+                    await run(() => api_1.api.post(`/api/tasks/${task.id}/recurrence`, {
+                        rule: rule.rule, weekdays: rule.rule === "semanal" ? rule.weekdays : [], interval_days: rule.rule === "cada_n_dias" ? rule.interval_days : null,
+                        start_date: rule.start_date, end_date: rule.end_date, non_working: rule.non_working
+                    }), (0, i18n_1.t)("La tarea ahora se repite"));
+                }, children: (0, i18n_1.t)("Hacer recurrente") })] });
 }
 function Allocation({ task, run }) {
     const app = (0, store_1.useApp)();
     const [week, setWeek] = (0, react_1.useState)((0, dates_1.weekStart)(task.planned_date || (0, dates_1.todayIn)(app.tz)));
     const [hours, setHours] = (0, react_1.useState)("");
     const assigned = task.allocations.reduce((a, b) => a + b.hours, 0);
-    return (0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsxs)("p", { className: "hint", children: ["Solo es \u00FAtil para tareas grandes que ocupan varias semanas. En la ", (0, jsx_runtime_1.jsx)("em", { children: "Planificaci\u00F3n semanal" }), " de Equipo, una tarea suma su estimaci\u00F3n completa (", task.estimate_hours, " h) en la semana de su fecha planificada. Si va a repartirse (p. ej. 30 h en 3 semanas), indica aqu\u00ED cu\u00E1ntas horas corresponden a cada semana y la planificaci\u00F3n usar\u00E1 esas cifras. Nada se reparte autom\u00E1ticamente."] }), task.allocations.length > 0 && (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: task.allocations.map((a) => (0, jsx_runtime_1.jsxs)("li", { children: ["Semana del ", (0, dates_1.fmtDate)(a.week_start), ": ", a.hours, " h", (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => run(() => api_1.api.put(`/api/tasks/${task.id}/allocations`, { week_start: a.week_start, hours: 0 })), children: "Quitar" })] }, a.week_start)) }), task.allocations.length > 0 && (0, jsx_runtime_1.jsxs)("p", { className: "muted small", children: ["Repartidas ", assigned, " h de ", task.estimate_hours, " h estimadas."] }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsxs)("label", { className: "inline", children: ["Semana del ", (0, jsx_runtime_1.jsx)("input", { type: "date", value: week, onChange: (e) => setWeek(e.target.value ? (0, dates_1.weekStart)(e.target.value) : "") })] }), (0, jsx_runtime_1.jsx)("input", { type: "number", min: "0", step: "0.5", "aria-label": "Horas", placeholder: "horas", value: hours, onChange: (e) => setHours(e.target.value) }), (0, jsx_runtime_1.jsx)("button", { disabled: !week || hours === "", onClick: async () => { if (await run(() => api_1.api.put(`/api/tasks/${task.id}/allocations`, { week_start: week, hours: Number(hours) })))
-                            setHours(""); }, children: "Guardar" })] })] });
+    return (0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Solo es útil para tareas grandes que ocupan varias semanas. En la Planificación semanal de Equipo, una tarea suma su estimación completa ({h} h) en la semana de su fecha planificada. Si va a repartirse (p. ej. 30 h en 3 semanas), indica aquí cuántas horas corresponden a cada semana y la planificación usará esas cifras. Nada se reparte automáticamente.", { h: task.estimate_hours }) }), task.allocations.length > 0 && (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: task.allocations.map((a) => (0, jsx_runtime_1.jsxs)("li", { children: [(0, i18n_1.t)("Semana del {fecha}: {h} h", { fecha: (0, dates_1.fmtDate)(a.week_start), h: a.hours }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => run(() => api_1.api.put(`/api/tasks/${task.id}/allocations`, { week_start: a.week_start, hours: 0 })), children: (0, i18n_1.t)("Quitar") })] }, a.week_start)) }), task.allocations.length > 0 && (0, jsx_runtime_1.jsx)("p", { className: "muted small", children: (0, i18n_1.t)("Repartidas {a} h de {e} h estimadas.", { a: assigned, e: task.estimate_hours }) }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsxs)("span", { className: "inline", children: [(0, i18n_1.t)("Semana del (lunes)"), " ", (0, jsx_runtime_1.jsx)(DateInput_1.DateInput, { label: (0, i18n_1.t)("Semana del (lunes)"), value: week, onChange: (v) => setWeek(v ? (0, dates_1.weekStart)(v) : null) })] }), (0, jsx_runtime_1.jsx)("input", { type: "number", min: "0", step: "0.5", "aria-label": (0, i18n_1.t)("Horas"), placeholder: (0, i18n_1.t)("horas"), value: hours, onChange: (e) => setHours(e.target.value) }), (0, jsx_runtime_1.jsx)("button", { disabled: !week || hours === "", onClick: async () => { if (await run(() => api_1.api.put(`/api/tasks/${task.id}/allocations`, { week_start: week, hours: Number(hours) })))
+                            setHours(""); }, children: (0, i18n_1.t)("Guardar") })] })] });
 }
 function History({ task, run }) {
     const app = (0, store_1.useApp)();
     const [text, setText] = (0, react_1.useState)("");
     const [editing, setEditing] = (0, react_1.useState)(null);
-    const add = async () => { if (text.trim() && await run(() => api_1.api.post(`/api/tasks/${task.id}/update`, { text: text.trim() }), "Actualización registrada"))
+    const add = async () => { if (text.trim() && await run(() => api_1.api.post(`/api/tasks/${task.id}/update`, { text: text.trim() }), (0, i18n_1.t)("Actualización registrada")))
         setText(""); };
-    const saveEdit = async () => { if (editing && editing.text.trim() && await run(() => api_1.api.patch(`/api/tasks/${task.id}/history/${editing.id}`, { text: editing.text.trim() }), "Actualización corregida"))
+    const saveEdit = async () => { if (editing && editing.text.trim() && await run(() => api_1.api.patch(`/api/tasks/${task.id}/history/${editing.id}`, { text: editing.text.trim() }), (0, i18n_1.t)("Actualización corregida")))
         setEditing(null); };
-    const kindLabel = (h) => h.kind === "actualizacion" ? "Nota" : h.kind === "seguimiento" ? "Seguimiento" : "Auto";
-    return (0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)(ui_1.AutoText, { value: text, onChange: setText, minRows: 3, maxRows: 12, "aria-label": "Registrar actualizaci\u00F3n", placeholder: "Qu\u00E9 se ha hecho, qu\u00E9 ha cambiado o una nota personal (cuenta como actualizaci\u00F3n significativa). Ctrl+Enter para registrar.", onKeyDown: (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+    const kindLabel = (h) => h.kind === "actualizacion" ? (0, i18n_1.t)("Nota") : h.kind === "seguimiento" ? (0, i18n_1.t)("Seguimiento") : (0, i18n_1.t)("Auto");
+    return (0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)(ui_1.AutoText, { value: text, onChange: setText, minRows: 3, maxRows: 12, "aria-label": (0, i18n_1.t)("Registrar actualización"), placeholder: (0, i18n_1.t)("Qué se ha hecho, qué ha cambiado o una nota personal (cuenta como actualización significativa). Ctrl+Enter para registrar."), onKeyDown: (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
                     e.preventDefault();
                     void add();
-                } } }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)("button", { disabled: !text.trim(), onClick: add, children: "Registrar actualizaci\u00F3n" }), (0, jsx_runtime_1.jsx)("span", { className: "hint", children: "Tus notas se pueden editar; los cambios autom\u00E1ticos no (sirven de registro)." })] }), (0, jsx_runtime_1.jsx)("ul", { className: "history", children: task.history.map((h) => ((0, jsx_runtime_1.jsxs)("li", { className: `h-${h.kind}`, children: [(0, jsx_runtime_1.jsxs)("div", { className: "h-meta", children: [(0, jsx_runtime_1.jsx)("span", { className: `h-kind h-kind-${h.kind}`, children: kindLabel(h) }), " ", (0, jsx_runtime_1.jsx)("time", { children: (0, dates_1.fmtDateTime)(h.at, app.tz) }), h.edited_at && (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [" \u00B7 editada ", (0, dates_1.fmtDateTime)(h.edited_at, app.tz)] }), h.editable && editing?.id !== h.id && (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => setEditing({ id: h.id, text: h.text }), children: "Editar" })] }), editing?.id === h.id ? (0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)(ui_1.AutoText, { value: editing.text, onChange: (v) => setEditing({ id: h.id, text: v }), minRows: 2, maxRows: 12, "aria-label": "Editar actualizaci\u00F3n", onKeyDown: (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                } } }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)("button", { disabled: !text.trim(), onClick: add, children: (0, i18n_1.t)("Registrar actualización") }), (0, jsx_runtime_1.jsx)("span", { className: "hint", children: (0, i18n_1.t)("Tus notas se pueden editar; los cambios automáticos no (sirven de registro).") })] }), (0, jsx_runtime_1.jsx)("ul", { className: "history", children: task.history.map((h) => ((0, jsx_runtime_1.jsxs)("li", { className: `h-${h.kind}`, children: [(0, jsx_runtime_1.jsxs)("div", { className: "h-meta", children: [(0, jsx_runtime_1.jsx)("span", { className: `h-kind h-kind-${h.kind}`, children: kindLabel(h) }), " ", (0, jsx_runtime_1.jsx)("time", { children: (0, dates_1.fmtDateTime)(h.at, app.tz) }), h.edited_at && (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [" \u00B7 ", (0, i18n_1.t)("editada {fecha}", { fecha: (0, dates_1.fmtDateTime)(h.edited_at, app.tz) })] }), h.editable && editing?.id !== h.id && (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => setEditing({ id: h.id, text: h.text }), children: (0, i18n_1.t)("Editar") })] }), editing?.id === h.id ? (0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)(ui_1.AutoText, { value: editing.text, onChange: (v) => setEditing({ id: h.id, text: v }), minRows: 2, maxRows: 12, "aria-label": (0, i18n_1.t)("Editar actualización"), onKeyDown: (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
                                         e.preventDefault();
                                         void saveEdit();
                                     } if (e.key === "Escape") {
                                         e.stopPropagation();
                                         setEditing(null);
-                                    } } }), (0, jsx_runtime_1.jsxs)("div", { className: "row tight", children: [(0, jsx_runtime_1.jsx)("button", { className: "small primary", onClick: saveEdit, children: "Guardar" }), (0, jsx_runtime_1.jsx)("button", { className: "small", onClick: () => setEditing(null), children: "Cancelar" })] })] }) : (0, jsx_runtime_1.jsx)("div", { className: "h-text", children: h.text })] }, h.id))) })] });
+                                    } } }), (0, jsx_runtime_1.jsxs)("div", { className: "row tight", children: [(0, jsx_runtime_1.jsx)("button", { className: "small primary", onClick: saveEdit, children: (0, i18n_1.t)("Guardar") }), (0, jsx_runtime_1.jsx)("button", { className: "small", onClick: () => setEditing(null), children: (0, i18n_1.t)("Cancelar") })] })] }) : (0, jsx_runtime_1.jsx)("div", { className: "h-text", children: h.text })] }, h.id))) })] });
 }
 
-},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":8,"../lib/labels":12,"../lib/markdown":16,"../lib/store":9,"./Recurrences":11,"./ReminderForm":17,"./ui":13}]; // build/src/components/TaskPanel.js
-defs[16]=[function(module,exports,require){
+},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":10,"../lib/i18n":8,"../lib/labels":17,"../lib/markdown":23,"../lib/store":14,"./DateInput":18,"./Recurrences":16,"./ReminderCenter":21,"./ReminderForm":24,"./ui":19}]; // build/src/components/TaskPanel.js
+defs[23]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.renderMarkdown = renderMarkdown;
 exports.Markdown = Markdown;
 const jsx_runtime_1 = require("react/jsx-runtime");
+const i18n_1 = require("./i18n");
 const links_1 = require("./links");
 let keySeq = 0;
 const k = () => "md" + keySeq++;
@@ -18327,12 +20229,12 @@ function inline(text) {
             out.push((0, jsx_runtime_1.jsx)("code", { children: m[1].slice(1, -1) }, k()));
         else if (m[2])
             out.push((0, links_1.isSafeUrl)(m[4])
-                ? (0, jsx_runtime_1.jsxs)("a", { ...(0, links_1.linkProps)(m[4]), title: m[4], children: ["[imagen: ", m[3] || "sin descripción", " \u2014 no se carga]"] }, k())
-                : (0, jsx_runtime_1.jsxs)("span", { children: ["[imagen: ", m[3], "]"] }, k()));
+                ? (0, jsx_runtime_1.jsxs)("a", { ...(0, links_1.linkProps)(m[4]), title: m[4], children: ["[", (0, i18n_1.t)("imagen: {desc} — no se carga", { desc: m[3] || (0, i18n_1.t)("sin descripción") }), "]"] }, k())
+                : (0, jsx_runtime_1.jsxs)("span", { children: ["[", (0, i18n_1.t)("imagen: {desc}", { desc: m[3] }), "]"] }, k()));
         else if (m[5])
             out.push((0, links_1.isSafeUrl)(m[7])
                 ? (0, jsx_runtime_1.jsx)("a", { ...(0, links_1.linkProps)(m[7]), title: m[7], children: inline(m[6]) }, k())
-                : (0, jsx_runtime_1.jsxs)("span", { className: "unsafe-link", title: "Enlace bloqueado: esquema no permitido", children: [m[6], " [enlace bloqueado]"] }, k()));
+                : (0, jsx_runtime_1.jsxs)("span", { className: "unsafe-link", title: (0, i18n_1.t)("Enlace bloqueado: esquema no permitido"), children: [m[6], " [", (0, i18n_1.t)("enlace bloqueado"), "]"] }, k()));
         else if (m[8])
             out.push((0, jsx_runtime_1.jsx)("a", { ...(0, links_1.linkProps)(m[9]), children: m[9] }, k()));
         else if (m[10])
@@ -18405,7 +20307,7 @@ function renderMarkdown(src) {
                 const m = LIST_RE.exec(lines[i]);
                 const task = /^\[([ xX])\]\s+(.*)$/.exec(m[3]);
                 const content = task
-                    ? (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("span", { "aria-label": task[1].trim() ? "completado" : "pendiente", children: task[1].trim() ? "☑" : "☐" }), " ", inline(task[2])] })
+                    ? (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("span", { "aria-label": task[1].trim() ? (0, i18n_1.t)("completado") : (0, i18n_1.t)("pendiente"), children: task[1].trim() ? "☑" : "☐" }), " ", inline(task[2])] })
                     : inline(m[3]);
                 items.push((0, jsx_runtime_1.jsx)("li", { style: m[1].length ? { marginLeft: `${Math.min(m[1].length, 12) * 0.6}em` } : undefined, children: content }, k()));
                 i++;
@@ -18426,8 +20328,8 @@ function Markdown({ text }) {
     return (0, jsx_runtime_1.jsx)("div", { className: "markdown", children: renderMarkdown(text) });
 }
 
-},{"react/jsx-runtime":1,"./links":14}]; // build/src/lib/markdown.js
-defs[17]=[function(module,exports,require){
+},{"react/jsx-runtime":1,"./i18n":8,"./links":20}]; // build/src/lib/markdown.js
+defs[24]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ReminderForm = ReminderForm;
@@ -18435,7 +20337,9 @@ const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const api_1 = require("../lib/api");
 const dates_1 = require("../lib/dates");
+const i18n_1 = require("../lib/i18n");
 const store_1 = require("../lib/store");
+const DateInput_1 = require("./DateInput");
 /** Recordatorio manual. «Recordar contactar» no envía nada: solo avisa dentro de la aplicación. */
 function ReminderForm({ taskId, projectId, defaultTitle = "", onCreated }) {
     const app = (0, store_1.useApp)();
@@ -18443,10 +20347,14 @@ function ReminderForm({ taskId, projectId, defaultTitle = "", onCreated }) {
     const [when, setWhen] = (0, react_1.useState)((0, dates_1.addDays)((0, dates_1.todayIn)(app.tz), 1) + "T09:00");
     const [err, setErr] = (0, react_1.useState)("");
     const submit = async () => {
+        if (!when)
+            return;
         try {
-            await api_1.api.post("/api/reminders", { title: title.trim(), due_at: (0, dates_1.zonedToUtc)(when, app.tz), task_id: taskId ?? null, project_id: projectId ?? null });
-            app.toast("Recordatorio programado", "ok");
+            const due = (0, dates_1.zonedToUtc)(when, app.tz);
+            await api_1.api.post("/api/reminders", { title: title.trim(), due_at: due, task_id: taskId ?? null, project_id: projectId ?? null });
+            app.toast((0, i18n_1.t)("Recordatorio programado para el {fecha}. Lo verás en 🔔 → Programados (y en Hoy si es esta semana).", { fecha: (0, dates_1.fmtDateTime)(due, app.tz) }), "ok", { label: (0, i18n_1.t)("Ver"), run: () => app.openReminders("programados") });
             setErr("");
+            setTitle(defaultTitle);
             onCreated?.();
             app.changed();
         }
@@ -18454,62 +20362,102 @@ function ReminderForm({ taskId, projectId, defaultTitle = "", onCreated }) {
             setErr(e.message);
         }
     };
-    return ((0, jsx_runtime_1.jsxs)("form", { className: "row", onSubmit: (e) => { e.preventDefault(); void submit(); }, children: [(0, jsx_runtime_1.jsx)("input", { className: "grow", "aria-label": "Texto del recordatorio", placeholder: "Recordarme\u2026 (p. ej. llamar a sistemas)", value: title, onChange: (e) => setTitle(e.target.value) }), (0, jsx_runtime_1.jsx)("input", { type: "datetime-local", "aria-label": `Fecha y hora (${app.tz})`, value: when, onChange: (e) => setWhen(e.target.value) }), (0, jsx_runtime_1.jsx)("button", { type: "submit", disabled: !title.trim() || !when, children: "Programar" }), err && (0, jsx_runtime_1.jsx)("span", { className: "field-error", children: err })] }));
+    return ((0, jsx_runtime_1.jsxs)("form", { className: "row", onSubmit: (e) => { e.preventDefault(); void submit(); }, children: [(0, jsx_runtime_1.jsx)("input", { className: "grow", "aria-label": (0, i18n_1.t)("Texto del recordatorio"), placeholder: (0, i18n_1.t)("Recordarme… (p. ej. llamar a sistemas)"), value: title, onChange: (e) => setTitle(e.target.value) }), (0, jsx_runtime_1.jsx)(DateInput_1.DateTimeInput, { label: (0, i18n_1.t)("Fecha y hora ({zona})", { zona: app.tz }), value: when, onChange: setWhen }), (0, jsx_runtime_1.jsx)("button", { type: "submit", disabled: !title.trim() || !when, children: (0, i18n_1.t)("Programar") }), err && (0, jsx_runtime_1.jsx)("span", { className: "field-error", children: err })] }));
 }
 
-},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":8,"../lib/store":9}]; // build/src/components/ReminderForm.js
-defs[18]=[function(module,exports,require){
+},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":10,"../lib/i18n":8,"../lib/store":14,"./DateInput":18}]; // build/src/components/ReminderForm.js
+defs[25]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.activeSavers = void 0;
+exports.notesQuery = notesQuery;
+exports.reorderTabs = reorderTabs;
 exports.NotesView = NotesView;
 const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const api_1 = require("../lib/api");
 const dates_1 = require("../lib/dates");
+const i18n_1 = require("../lib/i18n");
 const labels_1 = require("../lib/labels");
 const markdown_1 = require("../lib/markdown");
 const saver_1 = require("../lib/saver");
 const store_1 = require("../lib/store");
+const DateInput_1 = require("../components/DateInput");
 const ui_1 = require("../components/ui");
-const SCOPES = [["sin_clasificar", "Sin clasificar"], ["todas", "Todas"], ["fijadas", "Fijadas"], ["archivo", "Archivo"], ["papelera", "Papelera"]];
+const SCOPES = [["sin_clasificar", () => (0, i18n_1.t)("Sin clasificar")], ["todas", () => (0, i18n_1.t)("Todas")], ["fijadas", () => (0, i18n_1.t)("Fijadas")], ["archivo", () => (0, i18n_1.t)("Archivo")], ["papelera", () => (0, i18n_1.t)("Papelera")]];
 // Autoguardados activos, para avisar antes de cerrar la pestaña del navegador
 exports.activeSavers = new Set();
+/** Filtros de la lista de notas → parámetros de /api/notes. */
+function notesQuery(f) {
+    const p = [`scope=${f.scope}`];
+    if (f.kind)
+        p.push(`kind=${f.kind}`);
+    if (f.tag)
+        p.push(`tag=${encodeURIComponent(f.tag)}`);
+    if (f.project)
+        p.push(`project_id=${f.project}`);
+    if (f.q.trim()) {
+        p.push(`q=${encodeURIComponent(f.q.trim())}`);
+        if (f.field !== "todo")
+            p.push(`in=${f.field}`);
+    }
+    return `/api/notes?${p.join("&")}`;
+}
+/** Reordena: mueve `id` a la posición de `target` (arrastrar y soltar). */
+function reorderTabs(open, id, target) {
+    if (id === target || !open.includes(id) || !open.includes(target))
+        return open;
+    const rest = open.filter((x) => x !== id);
+    const i = rest.indexOf(target) + (open.indexOf(id) < open.indexOf(target) ? 1 : 0);
+    return [...rest.slice(0, i), id, ...rest.slice(i)];
+}
 function NotesView({ routeId }) {
     const app = (0, store_1.useApp)();
     const [scope, setScope] = (0, react_1.useState)("todas");
     const [kind, setKind] = (0, react_1.useState)("");
     const [tag, setTag] = (0, react_1.useState)("");
-    const { data: list, error, reload } = (0, store_1.useApi)(`/api/notes?scope=${scope}${kind ? `&kind=${kind}` : ""}${tag ? `&tag=${encodeURIComponent(tag)}` : ""}`);
+    const [project, setProject] = (0, react_1.useState)("");
+    const [q, setQ] = (0, react_1.useState)("");
+    const [qDebounced, setQDebounced] = (0, react_1.useState)("");
+    const [field, setField] = (0, react_1.useState)("todo");
+    (0, react_1.useEffect)(() => { const timer = setTimeout(() => setQDebounced(q), 250); return () => clearTimeout(timer); }, [q]);
+    const { data: list, error, reload } = (0, store_1.useApi)(notesQuery({ scope, kind, tag, project, q: qDebounced, field }));
     const [tabs, setTabs] = (0, react_1.useState)(null);
     const [titles, setTitles] = (0, react_1.useState)({});
     const [tabsError, setTabsError] = (0, react_1.useState)("");
+    const [dragTab, setDragTab] = (0, react_1.useState)(null);
+    const filtered = !!(kind || tag || project || q.trim());
     (0, react_1.useEffect)(() => { api_1.api.get("/api/session/note-tabs").then(setTabs, (e) => setTabsError(e.message)); }, []);
     (0, react_1.useEffect)(() => {
         if (!tabs || !routeId)
             return;
         if (!tabs.open.includes(routeId) || tabs.active !== routeId)
-            persist({ open: tabs.open.includes(routeId) ? tabs.open : [...tabs.open, routeId], active: routeId });
+            persist({ ...tabs, open: tabs.open.includes(routeId) ? tabs.open : [...tabs.open, routeId], active: routeId, split: tabs.split === routeId ? null : tabs.split });
     }, [routeId, tabs === null]);
     (0, react_1.useEffect)(() => {
         if (!tabs)
             return;
         for (const id of tabs.open.filter((x) => !(x in titles)))
-            api_1.api.get(`/api/notes/${id}`).then((n) => setTitles((t) => ({ ...t, [id]: n.display_title })), () => undefined);
+            api_1.api.get(`/api/notes/${id}`).then((n) => setTitles((m) => ({ ...m, [id]: n.display_title })), () => undefined);
     }, [tabs?.open.join(",")]);
     function persist(next) {
         setTabs(next);
-        api_1.api.put("/api/session/note-tabs", next).then(undefined, (e) => setTabsError("No se pudo guardar la sesión de pestañas: " + e.message));
+        api_1.api.put("/api/session/note-tabs", { open: next.open, active: next.active, split: next.split ?? null })
+            .then(undefined, (e) => setTabsError((0, i18n_1.t)("No se pudo guardar la sesión de pestañas: {error}", { error: e.message })));
     }
     const openNote = (id) => app.navigate(`#/notas/${id}`);
-    const closeTab = (id) => {
-        if (!tabs)
-            return;
-        const idx = tabs.open.indexOf(id);
-        const open = tabs.open.filter((x) => x !== id);
-        const active = tabs.active === id ? (open[idx] ?? open[idx - 1] ?? null) : tabs.active;
-        persist({ open, active });
-        app.navigate(active ? `#/notas/${active}` : "#/notas");
+    /** Quita una nota de las pestañas (al cerrar la pestaña o si la nota ya no existe). Nunca borra la nota. */
+    const removeTab = (id) => {
+        if (tabs) {
+            const idx = tabs.open.indexOf(id);
+            const open = tabs.open.filter((x) => x !== id);
+            const split = tabs.split === id ? null : tabs.split ?? null;
+            const left = open.filter((x) => x !== split);
+            const active = tabs.active === id || routeId === id ? (left[idx] ?? left[idx - 1] ?? left[0] ?? null) : (routeId ?? tabs.active);
+            persist({ open, active, split: split === active ? null : split });
+            app.navigate(active ? `#/notas/${active}` : "#/notas");
+        }
+        setTitles((m) => { const n = { ...m }; delete n[id]; return n; });
     };
     const moveTab = (id, dir) => {
         if (!tabs)
@@ -18522,21 +20470,27 @@ function NotesView({ routeId }) {
         persist({ ...tabs, open });
     };
     const active = routeId ?? tabs?.active ?? null;
+    const split = tabs?.split && tabs.split !== active && tabs.open.includes(tabs.split) ? tabs.split : null;
+    const setSplit = (id) => { if (tabs)
+        persist({ ...tabs, active, split: id }); };
+    const splitCandidates = (tabs?.open || []).filter((x) => x !== active);
     (0, react_1.useEffect)(() => {
         const onKey = (e) => { if (e.altKey && !e.ctrlKey && (e.key === "w" || e.key === "W") && active) {
             e.preventDefault();
-            closeTab(active);
+            removeTab(active);
         } };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
     });
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "view notes-view", children: [(0, jsx_runtime_1.jsxs)("aside", { className: "notes-side", "aria-label": "Lista de notas", children: [(0, jsx_runtime_1.jsx)("button", { className: "primary block", onClick: () => app.newNote(), children: "Nueva nota (Alt+N)" }), (0, jsx_runtime_1.jsx)("div", { className: "scope-tabs", role: "tablist", "aria-label": "Bandejas", children: SCOPES.map(([k, label]) => (0, jsx_runtime_1.jsx)("button", { role: "tab", "aria-selected": scope === k, className: scope === k ? "active" : "", onClick: () => setScope(k), children: label }, k)) }), (0, jsx_runtime_1.jsxs)("div", { className: "row tight", children: [(0, jsx_runtime_1.jsxs)("select", { "aria-label": "Tipo de nota", value: kind, onChange: (e) => setKind(e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: "Todos los tipos" }), Object.entries(labels_1.NOTE_KIND).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k))] }), (0, jsx_runtime_1.jsxs)("select", { "aria-label": "Etiqueta", value: tag, onChange: (e) => setTag(e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: "Todas las etiquetas" }), app.boot.tags.map((t) => (0, jsx_runtime_1.jsxs)("option", { value: t, children: ["#", t] }, t))] })] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error, onRetry: reload }), list && !list.length && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: scope === "papelera" ? "La papelera está vacía." : scope === "sin_clasificar" ? "No hay notas sin clasificar." : "Sin notas aquí. Crea una con Alt+N: no necesita título ni proyecto." }), (0, jsx_runtime_1.jsx)("ul", { className: "plain note-items", children: list?.map((n) => ((0, jsx_runtime_1.jsx)("li", { children: (0, jsx_runtime_1.jsxs)("button", { className: "note-item" + (n.id === active ? " active" : ""), onClick: () => openNote(n.id), children: [(0, jsx_runtime_1.jsxs)("span", { className: "note-item-title", children: [n.pinned ? "📌 " : "", n.display_title] }), (0, jsx_runtime_1.jsxs)("span", { className: "note-item-meta", children: [(0, dates_1.fmtDate)(n.updated_at.slice(0, 10)), n.kind ? ` · ${labels_1.NOTE_KIND[n.kind]}` : "", n.project_id ? ` · ${app.project(n.project_id)?.name ?? ""}` : "", n.linked_tasks ? ` · ${n.linked_tasks} tarea(s)` : ""] }), (0, jsx_runtime_1.jsx)("span", { className: "note-item-excerpt", children: n.excerpt })] }) }, n.id))) })] }), (0, jsx_runtime_1.jsxs)("section", { className: "notes-main", children: [(0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: tabsError }), (0, jsx_runtime_1.jsx)("div", { className: "note-tabs", role: "tablist", "aria-label": "Notas abiertas", children: tabs?.open.map((id) => ((0, jsx_runtime_1.jsxs)("div", { className: "note-tab" + (id === active ? " active" : ""), role: "presentation", children: [(0, jsx_runtime_1.jsx)("button", { role: "tab", "aria-selected": id === active, onClick: () => openNote(id), title: `${titles[id] || ""} — Alt+←/→ para reordenar`, onKeyDown: (e) => { if (e.altKey && e.key === "ArrowLeft")
-                                        moveTab(id, -1); if (e.altKey && e.key === "ArrowRight")
-                                        moveTab(id, 1); }, children: titles[id] || "Nota" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", "aria-label": `Cerrar pestaña ${titles[id] || ""} (no borra la nota)`, title: "Cerrar pesta\u00F1a (Alt+W). La nota no se borra.", onClick: () => closeTab(id), children: "\u00D7" })] }, id))) }), active ? (0, jsx_runtime_1.jsx)(NoteEditor, { id: active, onTitle: (t) => setTitles((x) => ({ ...x, [active]: t })), onListChange: reload }, active)
-                        : (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: "Abre una nota de la lista o crea una nueva. Cerrar una pesta\u00F1a nunca borra ni archiva la nota." })] })] }));
+    const editor = (id, pane) => (0, jsx_runtime_1.jsx)(NoteEditor, { id: id, pane: pane, onTitle: (title) => setTitles((m) => ({ ...m, [id]: title })), onListChange: reload, onGone: () => { removeTab(id); reload(); } }, pane + id);
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "view notes-view", children: [(0, jsx_runtime_1.jsxs)("aside", { className: "notes-side", "aria-label": (0, i18n_1.t)("Lista de notas"), children: [(0, jsx_runtime_1.jsx)("button", { className: "primary block", onClick: () => app.newNote(), children: (0, i18n_1.t)("Nueva nota (Alt+N)") }), (0, jsx_runtime_1.jsx)("div", { className: "scope-tabs", role: "tablist", "aria-label": (0, i18n_1.t)("Bandejas"), children: SCOPES.map(([k, label]) => (0, jsx_runtime_1.jsx)("button", { role: "tab", "aria-selected": scope === k, className: scope === k ? "active" : "", onClick: () => setScope(k), children: label() }, k)) }), (0, jsx_runtime_1.jsxs)("div", { className: "note-filters", role: "group", "aria-label": (0, i18n_1.t)("Filtros de notas"), children: [(0, jsx_runtime_1.jsx)("input", { type: "search", "aria-label": (0, i18n_1.t)("Buscar en las notas"), placeholder: (0, i18n_1.t)("Buscar texto…"), value: q, onChange: (e) => setQ(e.target.value) }), (0, jsx_runtime_1.jsxs)("select", { "aria-label": (0, i18n_1.t)("Buscar en"), value: field, onChange: (e) => setField(e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "todo", children: (0, i18n_1.t)("Título y contenido") }), (0, jsx_runtime_1.jsx)("option", { value: "titulo", children: (0, i18n_1.t)("Solo título") }), (0, jsx_runtime_1.jsx)("option", { value: "contenido", children: (0, i18n_1.t)("Solo contenido") })] }), (0, jsx_runtime_1.jsxs)("select", { "aria-label": (0, i18n_1.t)("Proyecto"), value: project, onChange: (e) => setProject(e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: (0, i18n_1.t)("Todos los proyectos") }), (0, jsx_runtime_1.jsx)("option", { value: "none", children: (0, i18n_1.t)("Sin proyecto") }), app.boot.projects.map((p) => (0, jsx_runtime_1.jsxs)("option", { value: p.id, children: [p.name, p.status !== "activo" ? ` (${p.status})` : ""] }, p.id))] }), (0, jsx_runtime_1.jsxs)("select", { "aria-label": (0, i18n_1.t)("Tipo de nota"), value: kind, onChange: (e) => setKind(e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: (0, i18n_1.t)("Todos los tipos") }), Object.entries(labels_1.NOTE_KIND).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k))] }), (0, jsx_runtime_1.jsxs)("select", { "aria-label": (0, i18n_1.t)("Etiqueta"), value: tag, onChange: (e) => setTag(e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: (0, i18n_1.t)("Todas las etiquetas") }), app.boot.tags.map((x) => (0, jsx_runtime_1.jsxs)("option", { value: x, children: ["#", x] }, x))] }), filtered && (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => { setKind(""); setTag(""); setProject(""); setQ(""); setField("todo"); }, children: (0, i18n_1.t)("Quitar filtros") })] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error, onRetry: reload }), list && !list.length && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: filtered ? (0, i18n_1.t)("Ninguna nota coincide con los filtros.") : scope === "papelera" ? (0, i18n_1.t)("La papelera está vacía.") : scope === "sin_clasificar" ? (0, i18n_1.t)("No hay notas sin clasificar.") : (0, i18n_1.t)("Sin notas aquí. Crea una con Alt+N: no necesita título ni proyecto.") }), list && list.length > 0 && filtered && (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("{n} nota(s)", { n: list.length }) }), (0, jsx_runtime_1.jsx)("ul", { className: "plain note-items", children: list?.map((n) => ((0, jsx_runtime_1.jsx)("li", { children: (0, jsx_runtime_1.jsxs)("button", { className: "note-item" + (n.id === active ? " active" : "") + (n.id === split ? " split" : ""), onClick: () => openNote(n.id), children: [(0, jsx_runtime_1.jsxs)("span", { className: "note-item-title", children: [n.pinned ? "📌 " : "", n.display_title] }), (0, jsx_runtime_1.jsxs)("span", { className: "note-item-meta", children: [(0, dates_1.fmtDate)(n.updated_at.slice(0, 10)), n.kind ? ` · ${labels_1.NOTE_KIND[n.kind]}` : "", n.project_id ? ` · ${app.project(n.project_id)?.name ?? ""}` : "", n.linked_tasks ? " · " + (0, i18n_1.t)("{n} tarea(s)", { n: n.linked_tasks }) : ""] }), (0, jsx_runtime_1.jsx)("span", { className: "note-item-excerpt", children: n.excerpt })] }) }, n.id))) })] }), (0, jsx_runtime_1.jsxs)("section", { className: "notes-main", children: [(0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: tabsError }), (0, jsx_runtime_1.jsxs)("div", { className: "note-tabs-bar", children: [(0, jsx_runtime_1.jsx)("div", { className: "note-tabs", role: "tablist", "aria-label": (0, i18n_1.t)("Notas abiertas (arrastra para reordenar)"), children: tabs?.open.map((id) => ((0, jsx_runtime_1.jsxs)("div", { role: "presentation", draggable: true, className: "note-tab" + (id === active ? " active" : "") + (id === split ? " split" : "") + (dragTab === id ? " dragging" : ""), onDragStart: (e) => { setDragTab(id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(id)); }, onDragOver: (e) => { if (dragTab !== null)
+                                        e.preventDefault(); }, onDrop: (e) => { e.preventDefault(); if (dragTab !== null && tabs)
+                                        persist({ ...tabs, open: reorderTabs(tabs.open, dragTab, id) }); setDragTab(null); }, onDragEnd: () => setDragTab(null), children: [(0, jsx_runtime_1.jsxs)("button", { role: "tab", "aria-selected": id === active, onClick: () => openNote(id), title: (0, i18n_1.t)("{titulo} — arrastra o usa Alt+←/→ para reordenar", { titulo: titles[id] || "" }), onKeyDown: (e) => { if (e.altKey && e.key === "ArrowLeft")
+                                                moveTab(id, -1); if (e.altKey && e.key === "ArrowRight")
+                                                moveTab(id, 1); }, children: [id === split ? "◨ " : "", titles[id] || (0, i18n_1.t)("Nota")] }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", "aria-label": (0, i18n_1.t)("Cerrar pestaña {titulo} (no borra la nota)", { titulo: titles[id] || "" }), title: (0, i18n_1.t)("Cerrar pestaña (Alt+W). La nota no se borra."), onClick: () => removeTab(id), children: "\u00D7" })] }, id))) }), (0, jsx_runtime_1.jsx)("div", { className: "split-control row tight", children: split ? (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("label", { className: "small", children: [(0, i18n_1.t)("Derecha"), " ", (0, jsx_runtime_1.jsx)("select", { "aria-label": (0, i18n_1.t)("Nota del panel derecho"), value: split, onChange: (e) => setSplit(Number(e.target.value)), children: splitCandidates.map((id) => (0, jsx_runtime_1.jsx)("option", { value: id, children: titles[id] || (0, i18n_1.t)("Nota") }, id)) })] }), (0, jsx_runtime_1.jsx)("button", { className: "small", onClick: () => setSplit(null), title: (0, i18n_1.t)("Volver a una sola nota"), children: (0, i18n_1.t)("Cerrar división") })] }) : (0, jsx_runtime_1.jsxs)("button", { className: "small", disabled: !active || !splitCandidates.length, onClick: () => setSplit(splitCandidates[0]), title: splitCandidates.length ? (0, i18n_1.t)("Ver y editar dos notas a la vez") : (0, i18n_1.t)("Abre al menos dos notas para dividir la pantalla"), children: ["\u25EB ", (0, i18n_1.t)("Pantalla dividida")] }) })] }), active ? (0, jsx_runtime_1.jsxs)("div", { className: "note-panes" + (split ? " two" : ""), children: [editor(active, "izquierda"), split && editor(split, "derecha")] }) : (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: (0, i18n_1.t)("Abre una nota de la lista o crea una nueva. Cerrar una pestaña nunca borra ni archiva la nota.") })] })] }));
 }
 const EMERGENCY = (id) => `kaosnt-nota-pendiente-${id}`;
-function NoteEditor({ id, onTitle, onListChange }) {
+function NoteEditor({ id, pane, onTitle, onListChange, onGone }) {
     const app = (0, store_1.useApp)();
     const [note, setNote] = (0, react_1.useState)(null);
     const [text, setText] = (0, react_1.useState)("");
@@ -18588,6 +20542,10 @@ function NoteEditor({ id, onTitle, onListChange }) {
             catch { /* */ }
         }
         catch (e) {
+            if (e?.status === 404) {
+                onGone();
+                return;
+            } // la nota ya no existe: se quita de las pestañas
             setLoadErr(e.message);
         }
     };
@@ -18600,18 +20558,22 @@ function NoteEditor({ id, onTitle, onListChange }) {
         } };
     }, [id]);
     if (loadErr)
-        return (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: loadErr, onRetry: load });
+        return (0, jsx_runtime_1.jsx)("div", { className: "note-editor", children: (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: loadErr, onRetry: load }) });
     if (!note)
-        return (0, jsx_runtime_1.jsx)("p", { className: "muted pad", children: "Cargando\u2026" });
-    const meta = async (body, msg) => {
+        return (0, jsx_runtime_1.jsx)("div", { className: "note-editor", children: (0, jsx_runtime_1.jsx)("p", { className: "muted pad", children: (0, i18n_1.t)("Cargando…") }) });
+    const meta = async (body, msg, undoable = false) => {
         try {
-            const r = await api_1.api.patch(`/api/notes/${id}`, body);
+            const r = await api_1.api.patch(`/api/notes/${id}${undoable ? "?undo=1" : ""}`, body);
             setNote({ ...r, content: note.content });
             onTitle(r.display_title);
             onListChange();
             app.changed();
-            if (msg)
-                app.toast(msg, "ok");
+            if (msg) {
+                if (undoable)
+                    app.undoable(msg, r.undo_id);
+                else
+                    app.toast(msg, "ok");
+            }
             return true;
         }
         catch (e) {
@@ -18634,7 +20596,7 @@ function NoteEditor({ id, onTitle, onListChange }) {
         setToTask({ title: first.slice(0, 200), excerpt: sel.trim() });
     }
     const indicator = state === "guardado" && saver.current?.hasUnsaved ? "pendiente" : state;
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "note-editor", onKeyDown: (e) => {
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "note-editor pane-" + pane, onKeyDown: (e) => {
             if (e.altKey && !e.ctrlKey && e.shiftKey && (e.key === "T" || e.key === "t")) {
                 e.preventDefault();
                 startToTask();
@@ -18643,52 +20605,62 @@ function NoteEditor({ id, onTitle, onListChange }) {
                 e.preventDefault();
                 void saver.current?.flush();
             }
-        }, children: [recovered !== null && (0, jsx_runtime_1.jsxs)("div", { className: "warn-box", role: "alert", children: ["Hay texto de esta nota que no lleg\u00F3 a guardarse en una sesi\u00F3n anterior.", (0, jsx_runtime_1.jsx)("button", { onClick: () => { setText(recovered); saver.current?.edit(recovered); setRecovered(null); }, children: "Recuperar ese texto" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost", onClick: () => { try {
+        }, children: [recovered !== null && (0, jsx_runtime_1.jsxs)("div", { className: "warn-box", role: "alert", children: [(0, i18n_1.t)("Hay texto de esta nota que no llegó a guardarse en una sesión anterior."), (0, jsx_runtime_1.jsx)("button", { onClick: () => { setText(recovered); saver.current?.edit(recovered); setRecovered(null); }, children: (0, i18n_1.t)("Recuperar ese texto") }), (0, jsx_runtime_1.jsx)("button", { className: "ghost", onClick: () => { try {
                             localStorage.removeItem(EMERGENCY(id));
                         }
-                        catch { /* */ } setRecovered(null); }, children: "Descartarlo" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "note-head", children: [(0, jsx_runtime_1.jsx)("input", { className: "title-input grow", "aria-label": "T\u00EDtulo manual (opcional)", placeholder: `${note.display_title} (título sugerido)`, defaultValue: note.title_manual || "", onBlur: (e) => { if ((e.target.value || null) !== (note.title_manual || null))
-                            void meta({ title_manual: e.target.value }); } }, "t" + (note.title_manual || "")), (0, jsx_runtime_1.jsx)("span", { className: `save-state save-${indicator}`, role: "status", "aria-live": "polite", children: saver_1.SAVE_LABEL[indicator] }), (state === "error" || state === "conflicto") && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("button", { onClick: () => saver.current?.retry(), children: "Reintentar" }), state === "conflicto" && (0, jsx_runtime_1.jsx)("button", { onClick: () => saver.current?.overwrite(), children: "Sobrescribir con mi texto" }), state === "conflicto" && (0, jsx_runtime_1.jsx)("button", { className: "ghost", onClick: () => { navigator.clipboard?.writeText(text).catch(() => undefined); app.toast("Tu texto se ha copiado al portapapeles", "info"); void load(); }, children: "Copiar mi texto y recargar" })] })] }), saveErr && (0, jsx_runtime_1.jsxs)("p", { className: "field-error", role: "alert", children: [saveErr, ". El texto sigue en el editor y en una copia de emergencia local."] }), (0, jsx_runtime_1.jsxs)("div", { className: "note-toolbar row", children: [(0, jsx_runtime_1.jsxs)("label", { children: ["Tipo ", (0, jsx_runtime_1.jsxs)("select", { value: note.kind || "", onChange: (e) => meta({ kind: e.target.value || null }), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: "Nota" }), Object.entries(labels_1.NOTE_KIND).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k))] })] }), (0, jsx_runtime_1.jsxs)("label", { children: ["Proyecto ", (0, jsx_runtime_1.jsx)(ui_1.ProjectSelect, { value: note.project_id, onChange: (v) => meta({ project_id: v }, v ? "Nota vinculada al proyecto" : "Nota sin proyecto") })] }), (0, jsx_runtime_1.jsx)("button", { "aria-pressed": note.pinned, onClick: () => meta({ pinned: !note.pinned }), children: note.pinned ? "📌 Fijada" : "Fijar" }), (0, jsx_runtime_1.jsx)("button", { "aria-pressed": preview, onClick: () => setPreview(!preview), children: preview ? "Editar" : "Vista previa" }), (0, jsx_runtime_1.jsx)("button", { onClick: startToTask, title: "Alt+Shift+T", children: "Crear tarea desde selecci\u00F3n" }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), note.state === "activa" && (0, jsx_runtime_1.jsx)("button", { onClick: () => meta({ state: "archivada" }, "Nota archivada"), children: "Archivar" }), note.state !== "activa" && (0, jsx_runtime_1.jsx)("button", { onClick: () => meta({ state: "activa" }, "Nota restaurada"), children: "Restaurar" }), note.state !== "papelera" && (0, jsx_runtime_1.jsx)("button", { onClick: () => meta({ state: "papelera" }, "Nota enviada a la papelera (recuperable)"), children: "A la papelera" }), note.state === "papelera" && (0, jsx_runtime_1.jsx)("button", { className: "danger", onClick: async () => {
-                            if (!window.confirm("¿Eliminar definitivamente esta nota? No se puede deshacer."))
+                        catch { /* */ } setRecovered(null); }, children: (0, i18n_1.t)("Descartarlo") })] }), (0, jsx_runtime_1.jsxs)("div", { className: "note-head", children: [(0, jsx_runtime_1.jsx)("input", { className: "title-input grow", "aria-label": (0, i18n_1.t)("Título manual (opcional)"), placeholder: (0, i18n_1.t)("{titulo} (título sugerido)", { titulo: note.display_title }), defaultValue: note.title_manual || "", onBlur: (e) => { if ((e.target.value || null) !== (note.title_manual || null))
+                            void meta({ title_manual: e.target.value }); } }, "t" + (note.title_manual || "")), (0, jsx_runtime_1.jsx)("span", { className: `save-state save-${indicator}`, role: "status", "aria-live": "polite", children: saver_1.SAVE_LABEL[indicator] }), (state === "error" || state === "conflicto") && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("button", { onClick: () => saver.current?.retry(), children: (0, i18n_1.t)("Reintentar") }), state === "conflicto" && (0, jsx_runtime_1.jsx)("button", { onClick: () => saver.current?.overwrite(), children: (0, i18n_1.t)("Sobrescribir con mi texto") }), state === "conflicto" && (0, jsx_runtime_1.jsx)("button", { className: "ghost", onClick: () => { navigator.clipboard?.writeText(text).catch(() => undefined); app.toast((0, i18n_1.t)("Tu texto se ha copiado al portapapeles"), "info"); void load(); }, children: (0, i18n_1.t)("Copiar mi texto y recargar") })] })] }), saveErr && (0, jsx_runtime_1.jsx)("p", { className: "field-error", role: "alert", children: (0, i18n_1.t)("{error}. El texto sigue en el editor y en una copia de emergencia local.", { error: saveErr }) }), (0, jsx_runtime_1.jsxs)("div", { className: "note-toolbar row", children: [(0, jsx_runtime_1.jsxs)("label", { children: [(0, i18n_1.t)("Tipo"), " ", (0, jsx_runtime_1.jsxs)("select", { value: note.kind || "", onChange: (e) => meta({ kind: e.target.value || null }), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: (0, i18n_1.t)("Nota") }), Object.entries(labels_1.NOTE_KIND).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k))] })] }), (0, jsx_runtime_1.jsxs)("label", { children: [(0, i18n_1.t)("Proyecto"), " ", (0, jsx_runtime_1.jsx)(ui_1.ProjectSelect, { value: note.project_id, onChange: (v) => meta({ project_id: v }, v ? (0, i18n_1.t)("Nota vinculada al proyecto") : (0, i18n_1.t)("Nota sin proyecto")) })] }), (0, jsx_runtime_1.jsx)("button", { "aria-pressed": note.pinned, onClick: () => meta({ pinned: !note.pinned }), children: note.pinned ? "📌 " + (0, i18n_1.t)("Fijada") : (0, i18n_1.t)("Fijar") }), (0, jsx_runtime_1.jsx)("button", { "aria-pressed": preview, onClick: () => setPreview(!preview), children: preview ? (0, i18n_1.t)("Editar") : (0, i18n_1.t)("Vista previa") }), (0, jsx_runtime_1.jsx)("button", { onClick: startToTask, title: "Alt+Shift+T", children: (0, i18n_1.t)("Crear tarea desde selección") }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), note.state === "activa" && (0, jsx_runtime_1.jsx)("button", { onClick: () => meta({ state: "archivada" }, (0, i18n_1.t)("Nota archivada"), true), children: (0, i18n_1.t)("Archivar") }), note.state !== "activa" && (0, jsx_runtime_1.jsx)("button", { onClick: () => meta({ state: "activa" }, (0, i18n_1.t)("Nota restaurada")), children: (0, i18n_1.t)("Restaurar") }), note.state !== "papelera" && (0, jsx_runtime_1.jsx)("button", { onClick: () => meta({ state: "papelera" }, (0, i18n_1.t)("Nota enviada a la papelera (recuperable)"), true), children: (0, i18n_1.t)("A la papelera") }), note.state === "papelera" && (0, jsx_runtime_1.jsx)("button", { className: "danger", onClick: async () => {
+                            if (!window.confirm((0, i18n_1.t)("¿Eliminar definitivamente esta nota? No se puede deshacer.")))
                                 return;
                             try {
+                                const s = saver.current;
+                                if (s) {
+                                    s.dispose();
+                                    exports.activeSavers.delete(s);
+                                    saver.current = null;
+                                }
                                 await api_1.api.del(`/api/notes/${id}`);
-                                app.toast("Nota eliminada", "ok");
-                                onListChange();
-                                app.navigate("#/notas");
+                                try {
+                                    localStorage.removeItem(EMERGENCY(id));
+                                }
+                                catch { /* */ }
+                                app.toast((0, i18n_1.t)("Nota eliminada"), "ok");
+                                onGone();
                             }
                             catch (e) {
                                 app.toast(e.message, "error");
                             }
-                        }, children: "Eliminar definitivamente" })] }), note.state !== "activa" && (0, jsx_runtime_1.jsxs)("p", { className: "hint", children: ["Esta nota est\u00E1 ", note.state === "archivada" ? "archivada" : "en la papelera", "."] }), preview ? (0, jsx_runtime_1.jsx)("div", { className: "note-preview", children: (0, jsx_runtime_1.jsx)(markdown_1.Markdown, { text: text }) }) :
-                (0, jsx_runtime_1.jsx)("textarea", { ref: area, className: "note-text", "aria-label": "Contenido de la nota", value: text, spellCheck: true, placeholder: "Escribe libremente. Se guarda solo. Admite Markdown (# t\u00EDtulos, - listas, ``` c\u00F3digo, | tablas |), pero no es necesario.", onChange: (e) => { setText(e.target.value); saver.current?.edit(e.target.value); }, onBlur: () => void saver.current?.flush() }), (0, jsx_runtime_1.jsxs)("div", { className: "note-foot", children: [(0, jsx_runtime_1.jsxs)("span", { className: "muted", children: ["Creada ", (0, dates_1.fmtDateTime)(note.created_at, app.tz), " \u00B7 Actualizada ", (0, dates_1.fmtDateTime)(note.updated_at, app.tz)] }), (0, jsx_runtime_1.jsxs)("div", { className: "note-tags", children: [(0, jsx_runtime_1.jsx)("span", { className: "field-label", children: "Etiquetas" }), (0, jsx_runtime_1.jsx)(ui_1.TagPicker, { value: note.tags, onChange: async (v) => { if (await meta({ tags: v }))
-                                    await app.reloadBoot(); } })] })] }), (0, jsx_runtime_1.jsxs)("div", { className: "note-links", children: [(0, jsx_runtime_1.jsx)("h3", { children: "Tareas vinculadas" }), note.tasks.length === 0 && (0, jsx_runtime_1.jsx)("p", { className: "muted", children: "Ninguna. Selecciona texto y usa \u00ABCrear tarea desde selecci\u00F3n\u00BB, o vincula una existente." }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: note.tasks.map((t) => ((0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.openTask(t.id), children: t.title }), " ", (0, jsx_runtime_1.jsx)(ui_1.Chip, { children: labels_1.STATUS[t.status] }), (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [" ", app.project(t.project_id)?.name || ""] }), t.excerpt && (0, jsx_runtime_1.jsx)("blockquote", { className: "excerpt", children: t.excerpt }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: async () => { await api_1.api.del(`/api/notes/${id}/links/${t.id}`); void load(); app.changed(); }, children: "Desvincular" })] }, t.id))) }), (0, jsx_runtime_1.jsx)(ui_1.TaskPicker, { tasks: tasks, exclude: note.tasks.map((t) => t.id), placeholder: "Vincular tarea existente: buscar por t\u00EDtulo\u2026", onPick: async (tid) => { await api_1.api.post(`/api/notes/${id}/links`, { task_id: tid }); void load(); app.changed(); } })] }), toTask && (0, jsx_runtime_1.jsx)(ToTaskDialog, { noteId: id, projectId: note.project_id, initial: toTask, onClose: () => setToTask(null), onDone: () => { setToTask(null); void load(); } })] }));
+                        }, children: (0, i18n_1.t)("Eliminar definitivamente") })] }), note.state !== "activa" && (0, jsx_runtime_1.jsx)("p", { className: "hint", children: note.state === "archivada" ? (0, i18n_1.t)("Esta nota está archivada.") : (0, i18n_1.t)("Esta nota está en la papelera.") }), preview ? (0, jsx_runtime_1.jsx)("div", { className: "note-preview", children: (0, jsx_runtime_1.jsx)(markdown_1.Markdown, { text: text }) }) :
+                (0, jsx_runtime_1.jsx)("textarea", { ref: area, className: "note-text", "aria-label": (0, i18n_1.t)("Contenido de la nota"), value: text, spellCheck: true, placeholder: (0, i18n_1.t)("Escribe libremente. Se guarda solo. Admite Markdown (# títulos, - listas, ``` código, | tablas |), pero no es necesario."), onChange: (e) => { setText(e.target.value); saver.current?.edit(e.target.value); }, onBlur: () => void saver.current?.flush() }), (0, jsx_runtime_1.jsxs)("div", { className: "note-foot", children: [(0, jsx_runtime_1.jsx)("span", { className: "muted", children: (0, i18n_1.t)("Creada {creada} · Actualizada {actualizada}", { creada: (0, dates_1.fmtDateTime)(note.created_at, app.tz), actualizada: (0, dates_1.fmtDateTime)(note.updated_at, app.tz) }) }), (0, jsx_runtime_1.jsxs)("div", { className: "note-tags", children: [(0, jsx_runtime_1.jsx)("span", { className: "field-label", children: (0, i18n_1.t)("Etiquetas") }), (0, jsx_runtime_1.jsx)(ui_1.TagPicker, { value: note.tags, onChange: async (v) => { if (await meta({ tags: v }))
+                                    await app.reloadBoot(); } })] })] }), (0, jsx_runtime_1.jsxs)("div", { className: "note-links", children: [(0, jsx_runtime_1.jsx)("h3", { children: (0, i18n_1.t)("Tareas vinculadas") }), note.tasks.length === 0 && (0, jsx_runtime_1.jsx)("p", { className: "muted", children: (0, i18n_1.t)("Ninguna. Selecciona texto y usa «Crear tarea desde selección», o vincula una existente.") }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: note.tasks.map((x) => ((0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.openTask(x.id), children: x.title }), " ", (0, jsx_runtime_1.jsx)(ui_1.Chip, { children: labels_1.STATUS[x.status] }), (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [" ", app.project(x.project_id)?.name || ""] }), x.excerpt && (0, jsx_runtime_1.jsx)("blockquote", { className: "excerpt", children: x.excerpt }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: async () => { await api_1.api.del(`/api/notes/${id}/links/${x.id}`); void load(); app.changed(); }, children: (0, i18n_1.t)("Desvincular") })] }, x.id))) }), (0, jsx_runtime_1.jsx)(ui_1.TaskPicker, { tasks: tasks, exclude: note.tasks.map((x) => x.id), placeholder: (0, i18n_1.t)("Vincular tarea existente: buscar por título…"), onPick: async (tid) => { await api_1.api.post(`/api/notes/${id}/links`, { task_id: tid }); void load(); app.changed(); } })] }), toTask && (0, jsx_runtime_1.jsx)(ToTaskDialog, { noteId: id, projectId: note.project_id, initial: toTask, onClose: () => setToTask(null), onDone: () => { setToTask(null); void load(); } })] }));
 }
 function ToTaskDialog({ noteId, projectId, initial, onClose, onDone }) {
     const app = (0, store_1.useApp)();
     const [title, setTitle] = (0, react_1.useState)(initial.title);
     const [project, setProject] = (0, react_1.useState)(projectId);
     const [assignee, setAssignee] = (0, react_1.useState)(null);
-    const [due, setDue] = (0, react_1.useState)("");
+    const [due, setDue] = (0, react_1.useState)(null);
     const [error, setError] = (0, react_1.useState)("");
     const submit = async () => {
         try {
-            const t = await api_1.api.post(`/api/notes/${noteId}/to-task`, { title: title.trim(), excerpt: initial.excerpt, project_id: project, assignee_id: assignee, due_date: due || null });
+            const task = await api_1.api.post(`/api/notes/${noteId}/to-task`, { title: title.trim(), excerpt: initial.excerpt, project_id: project, assignee_id: assignee, due_date: due || null });
             app.changed();
-            app.toast(`Tarea creada y vinculada: ${t.title}`, "ok", { label: "Abrir", run: () => app.openTask(t.id) });
+            app.toast((0, i18n_1.t)("Tarea creada y vinculada: {titulo}", { titulo: task.title }), "ok", { label: (0, i18n_1.t)("Abrir"), run: () => app.openTask(task.id) });
             onDone();
         }
         catch (e) {
             setError(e.message);
         }
     };
-    return ((0, jsx_runtime_1.jsx)(ui_1.Modal, { title: "Crear tarea desde la nota", onClose: onClose, children: (0, jsx_runtime_1.jsxs)("form", { onSubmit: (e) => { e.preventDefault(); void submit(); }, children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: "T\u00EDtulo de la tarea", children: (0, jsx_runtime_1.jsx)("input", { value: title, onChange: (e) => setTitle(e.target.value), required: true }) }), initial.excerpt && (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Fragmento de referencia (la nota no se modifica)", children: (0, jsx_runtime_1.jsx)("blockquote", { className: "excerpt", children: initial.excerpt }) }), (0, jsx_runtime_1.jsxs)("div", { className: "grid2", children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Proyecto", children: (0, jsx_runtime_1.jsx)(ui_1.ProjectSelect, { value: project, onChange: setProject }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Responsable", children: (0, jsx_runtime_1.jsx)(ui_1.PersonSelect, { value: assignee, onChange: setAssignee }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Fecha l\u00EDmite", children: (0, jsx_runtime_1.jsx)("input", { type: "date", value: due, onChange: (e) => setDue(e.target.value) }) })] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error }), (0, jsx_runtime_1.jsxs)("div", { className: "modal-foot", children: [(0, jsx_runtime_1.jsx)("button", { className: "primary", type: "submit", disabled: !title.trim(), children: "Crear tarea" }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, children: "Cancelar" })] })] }) }));
+    return ((0, jsx_runtime_1.jsx)(ui_1.Modal, { title: (0, i18n_1.t)("Crear tarea desde la nota"), onClose: onClose, children: (0, jsx_runtime_1.jsxs)("form", { onSubmit: (e) => { e.preventDefault(); void submit(); }, children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Título de la tarea"), children: (0, jsx_runtime_1.jsx)("input", { value: title, onChange: (e) => setTitle(e.target.value), required: true }) }), initial.excerpt && (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Fragmento de referencia (la nota no se modifica)"), children: (0, jsx_runtime_1.jsx)("blockquote", { className: "excerpt", children: initial.excerpt }) }), (0, jsx_runtime_1.jsxs)("div", { className: "grid2", children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Proyecto"), children: (0, jsx_runtime_1.jsx)(ui_1.ProjectSelect, { value: project, onChange: setProject }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Responsable"), children: (0, jsx_runtime_1.jsx)(ui_1.PersonSelect, { value: assignee, onChange: setAssignee }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Fecha límite"), children: (0, jsx_runtime_1.jsx)(DateInput_1.DateInput, { label: (0, i18n_1.t)("Fecha límite"), value: due, onChange: setDue }) })] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error }), (0, jsx_runtime_1.jsxs)("div", { className: "modal-foot", children: [(0, jsx_runtime_1.jsx)("button", { className: "primary", type: "submit", disabled: !title.trim(), children: (0, i18n_1.t)("Crear tarea") }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, children: (0, i18n_1.t)("Cancelar") })] })] }) }));
 }
 
-},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":8,"../lib/labels":12,"../lib/markdown":16,"../lib/saver":19,"../lib/store":9,"../components/ui":13}]; // build/src/views/Notes.js
-defs[19]=[function(module,exports,require){
+},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":10,"../lib/i18n":8,"../lib/labels":17,"../lib/markdown":23,"../lib/saver":26,"../lib/store":14,"../components/DateInput":18,"../components/ui":19}]; // build/src/views/Notes.js
+defs[26]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SAVE_LABEL = exports.NoteSaver = void 0;
+const i18n_1 = require("./i18n");
 class NoteSaver {
     constructor(initial, version, o) {
         this.version = version;
@@ -18712,7 +20684,7 @@ class NoteSaver {
     }
     schedule() {
         const st = this.o.setTimer ?? ((f, ms) => setTimeout(f, ms));
-        const ct = this.o.clearTimer ?? ((t) => clearTimeout(t));
+        const ct = this.o.clearTimer ?? ((h) => clearTimeout(h));
         if (this.timer)
             ct(this.timer);
         this.timer = st(() => { this.timer = null; void this.flush(); }, this.o.delay ?? 700);
@@ -18752,7 +20724,7 @@ class NoteSaver {
                 const conflict = e?.code === "conflicto_version";
                 if (conflict && typeof e?.extra?.server_version === "number")
                     this.serverVersion = e.extra.server_version;
-                this.set(conflict ? "conflicto" : "error", e?.message || "Error al guardar");
+                this.set(conflict ? "conflicto" : "error", e?.message || (0, i18n_1.t)("Error al guardar"));
             }
         })();
         try {
@@ -18771,17 +20743,17 @@ class NoteSaver {
         this.set("pendiente");
         return this.flush(true);
     }
-    dispose() { const ct = this.o.clearTimer ?? ((t) => clearTimeout(t)); if (this.timer)
+    dispose() { const ct = this.o.clearTimer ?? ((h) => clearTimeout(h)); if (this.timer)
         ct(this.timer); }
 }
 exports.NoteSaver = NoteSaver;
-exports.SAVE_LABEL = {
+exports.SAVE_LABEL = (0, i18n_1.tr)({
     guardado: "Guardado", pendiente: "Cambios sin guardar…", guardando: "Guardando…",
     error: "Error al guardar — el texto se conserva", conflicto: "Conflicto: modificada en otra ventana",
-};
+});
 
-},{}]; // build/src/lib/saver.js
-defs[20]=[function(module,exports,require){
+},{"./i18n":8}]; // build/src/lib/saver.js
+defs[27]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProjectsView = ProjectsView;
@@ -18790,17 +20762,20 @@ const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const api_1 = require("../lib/api");
 const dates_1 = require("../lib/dates");
+const i18n_1 = require("../lib/i18n");
 const labels_1 = require("../lib/labels");
 const store_1 = require("../lib/store");
+const DateInput_1 = require("../components/DateInput");
 const TaskViews_1 = require("../components/TaskViews");
 const ui_1 = require("../components/ui");
+const MILESTONE_STATUS = (0, i18n_1.tr)({ pendiente: "pendiente", cumplido: "cumplido", cancelado: "cancelado" });
 function ProjectsView() {
     const app = (0, store_1.useApp)();
     const [tab, setTab] = (0, react_1.useState)("proyectos");
     const [showAll, setShowAll] = (0, react_1.useState)(false);
     const [creating, setCreating] = (0, react_1.useState)(false);
     const { data, error, reload } = (0, store_1.useApi)(`/api/projects${showAll ? "?include_archived=true" : ""}`);
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "view", children: [(0, jsx_runtime_1.jsxs)("header", { className: "view-head row", children: [(0, jsx_runtime_1.jsx)("h1", { children: "Proyectos" }), (0, jsx_runtime_1.jsxs)("div", { role: "tablist", className: "tabs-inline", "aria-label": "Proyectos o clientes", children: [(0, jsx_runtime_1.jsx)("button", { role: "tab", "aria-selected": tab === "proyectos", className: tab === "proyectos" ? "active" : "", onClick: () => setTab("proyectos"), children: "Proyectos" }), (0, jsx_runtime_1.jsx)("button", { role: "tab", "aria-selected": tab === "clientes", className: tab === "clientes" ? "active" : "", onClick: () => setTab("clientes"), children: "Clientes" })] }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), tab === "proyectos" && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: showAll, onChange: (e) => setShowAll(e.target.checked) }), " Incluir archivados"] }), (0, jsx_runtime_1.jsx)("button", { className: "primary", onClick: () => setCreating(true), children: "Nuevo proyecto" })] })] }), tab === "clientes" ? (0, jsx_runtime_1.jsx)(ClientsPanel, {}) : (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error, onRetry: reload }), data && !data.length && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: "A\u00FAn no hay proyectos. No son obligatorios: puedes capturar tareas y notas sin proyecto y vincularlas despu\u00E9s." }), (0, jsx_runtime_1.jsx)("div", { className: "project-grid", children: data?.map((p) => ((0, jsx_runtime_1.jsxs)("article", { className: `project-card status-${p.status}`, children: [(0, jsx_runtime_1.jsx)("button", { className: "linklike project-name", onClick: () => app.navigate(`#/proyectos/${p.id}`), children: p.name }), (0, jsx_runtime_1.jsxs)("div", { className: "card-meta", children: [(0, jsx_runtime_1.jsx)(ui_1.Chip, { children: (0, labels_1.projectTypeLabel)(p.type) }), p.status !== "activo" && (0, jsx_runtime_1.jsx)(ui_1.Chip, { children: labels_1.PROJECT_STATUS[p.status] }), p.health && (0, jsx_runtime_1.jsx)(ui_1.Chip, { tone: p.health === "bloqueado" ? "danger" : p.health === "atencion" ? "warn" : "neutral", children: labels_1.HEALTH[p.health] }), p.client_name && (0, jsx_runtime_1.jsx)("span", { className: "muted", children: p.client_name })] }), p.health_note && (0, jsx_runtime_1.jsx)("p", { className: "health-note", children: p.health_note }), (0, jsx_runtime_1.jsx)("p", { className: "clamp", children: p.summary || (0, jsx_runtime_1.jsx)("span", { className: "muted", children: "Sin resumen \u00ABD\u00F3nde lo dejamos\u00BB" }) }), p.next_action && (0, jsx_runtime_1.jsxs)("p", { className: "clamp", children: [(0, jsx_runtime_1.jsx)("strong", { children: "Siguiente:" }), " ", p.next_action] }), (0, jsx_runtime_1.jsxs)("p", { className: "muted small", children: [p.open_tasks ?? 0, " tareas operativas \u00B7 ", p.conditioned_tasks ?? 0, " con espera/bloqueo \u00B7 resumen ", p.summary_updated_at ? (0, dates_1.sinceLabel)(p.summary_updated_at) : "no informado"] })] }, p.id))) })] }), creating && (0, jsx_runtime_1.jsx)(ProjectForm, { onClose: () => setCreating(false), onSaved: (id) => { setCreating(false); app.navigate(`#/proyectos/${id}`); } })] }));
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "view", children: [(0, jsx_runtime_1.jsxs)("header", { className: "view-head row", children: [(0, jsx_runtime_1.jsx)("h1", { children: (0, i18n_1.t)("Proyectos") }), (0, jsx_runtime_1.jsxs)("div", { role: "tablist", className: "tabs-inline", "aria-label": (0, i18n_1.t)("Proyectos o clientes"), children: [(0, jsx_runtime_1.jsx)("button", { role: "tab", "aria-selected": tab === "proyectos", className: tab === "proyectos" ? "active" : "", onClick: () => setTab("proyectos"), children: (0, i18n_1.t)("Proyectos") }), (0, jsx_runtime_1.jsx)("button", { role: "tab", "aria-selected": tab === "clientes", className: tab === "clientes" ? "active" : "", onClick: () => setTab("clientes"), children: (0, i18n_1.t)("Clientes") })] }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), tab === "proyectos" && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: showAll, onChange: (e) => setShowAll(e.target.checked) }), " ", (0, i18n_1.t)("Incluir archivados")] }), (0, jsx_runtime_1.jsx)("button", { className: "primary", onClick: () => setCreating(true), children: (0, i18n_1.t)("Nuevo proyecto") })] })] }), tab === "clientes" ? (0, jsx_runtime_1.jsx)(ClientsPanel, {}) : (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error, onRetry: reload }), data && !data.length && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: (0, i18n_1.t)("Aún no hay proyectos. No son obligatorios: puedes capturar tareas y notas sin proyecto y vincularlas después.") }), (0, jsx_runtime_1.jsx)("div", { className: "project-grid", children: data?.map((p) => ((0, jsx_runtime_1.jsxs)("article", { className: `project-card status-${p.status}`, children: [(0, jsx_runtime_1.jsx)("button", { className: "linklike project-name", onClick: () => app.navigate(`#/proyectos/${p.id}`), children: p.name }), (0, jsx_runtime_1.jsxs)("div", { className: "card-meta", children: [(0, jsx_runtime_1.jsx)(ui_1.Chip, { children: (0, labels_1.projectTypeLabel)(p.type) }), p.status !== "activo" && (0, jsx_runtime_1.jsx)(ui_1.Chip, { children: labels_1.PROJECT_STATUS[p.status] }), p.health && (0, jsx_runtime_1.jsx)(ui_1.Chip, { tone: p.health === "bloqueado" ? "danger" : p.health === "atencion" ? "warn" : "neutral", children: labels_1.HEALTH[p.health] }), p.client_name && (0, jsx_runtime_1.jsx)("span", { className: "muted", children: p.client_name })] }), p.health_note && (0, jsx_runtime_1.jsx)("p", { className: "health-note", children: p.health_note }), (0, jsx_runtime_1.jsx)("p", { className: "clamp", children: p.summary || (0, jsx_runtime_1.jsx)("span", { className: "muted", children: (0, i18n_1.t)("Sin resumen «Dónde lo dejamos»") }) }), p.next_action && (0, jsx_runtime_1.jsxs)("p", { className: "clamp", children: [(0, jsx_runtime_1.jsxs)("strong", { children: [(0, i18n_1.t)("Siguiente"), ":"] }), " ", p.next_action] }), (0, jsx_runtime_1.jsx)("p", { className: "muted small", children: (0, i18n_1.t)("{n} tareas operativas · {c} con espera/bloqueo · resumen {cuando}", { n: p.open_tasks ?? 0, c: p.conditioned_tasks ?? 0, cuando: p.summary_updated_at ? (0, dates_1.sinceLabel)(p.summary_updated_at) : (0, i18n_1.t)("no informado") }) })] }, p.id))) })] }), creating && (0, jsx_runtime_1.jsx)(ProjectForm, { onClose: () => setCreating(false), onSaved: (id) => { setCreating(false); app.navigate(`#/proyectos/${id}`); } })] }));
 }
 /** Gestión de clientes: crear, renombrar y eliminar (los proyectos se conservan sin cliente). */
 function ClientsPanel() {
@@ -18821,14 +20796,14 @@ function ClientsPanel() {
         setErr(e.message);
         return false;
     } };
-    return ((0, jsx_runtime_1.jsxs)(ui_1.Section, { title: "Clientes", count: data?.length, children: [(0, jsx_runtime_1.jsx)("p", { className: "hint", children: "Opcionales: un proyecto puede no tener cliente. Cambia el cliente de un proyecto desde su pantalla." }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error || err, onRetry: reload }), (0, jsx_runtime_1.jsxs)("form", { className: "row", onSubmit: async (e) => { e.preventDefault(); if (await call(() => api_1.api.post("/api/clients", { name: name.trim() })))
-                    setName(""); }, children: [(0, jsx_runtime_1.jsx)("input", { className: "grow", "aria-label": "Nombre del nuevo cliente", placeholder: "Nombre del nuevo cliente", value: name, onChange: (e) => setName(e.target.value) }), (0, jsx_runtime_1.jsx)("button", { type: "submit", disabled: !name.trim(), children: "A\u00F1adir cliente" })] }), data && !data.length && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: "Sin clientes registrados." }), (0, jsx_runtime_1.jsx)("ul", { className: "plain clients", children: data?.map((c) => ((0, jsx_runtime_1.jsx)("li", { className: "row", children: edit?.id === c.id ? (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("input", { className: "grow", "aria-label": "Nuevo nombre", value: edit.name, onChange: (e) => setEdit({ id: c.id, name: e.target.value }), onKeyDown: async (e) => { if (e.key === "Enter" && edit.name.trim()) {
+    return ((0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("Clientes"), count: data?.length, children: [(0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Opcionales: un proyecto puede no tener cliente. Cambia el cliente de un proyecto desde su pantalla.") }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error || err, onRetry: reload }), (0, jsx_runtime_1.jsxs)("form", { className: "row", onSubmit: async (e) => { e.preventDefault(); if (await call(() => api_1.api.post("/api/clients", { name: name.trim() })))
+                    setName(""); }, children: [(0, jsx_runtime_1.jsx)("input", { className: "grow", "aria-label": (0, i18n_1.t)("Nombre del nuevo cliente"), placeholder: (0, i18n_1.t)("Nombre del nuevo cliente"), value: name, onChange: (e) => setName(e.target.value) }), (0, jsx_runtime_1.jsx)("button", { type: "submit", disabled: !name.trim(), children: (0, i18n_1.t)("Añadir cliente") })] }), data && !data.length && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: (0, i18n_1.t)("Sin clientes registrados.") }), (0, jsx_runtime_1.jsx)("ul", { className: "plain clients", children: data?.map((c) => ((0, jsx_runtime_1.jsx)("li", { className: "row", children: edit?.id === c.id ? (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("input", { className: "grow", "aria-label": (0, i18n_1.t)("Nuevo nombre"), value: edit.name, onChange: (e) => setEdit({ id: c.id, name: e.target.value }), onKeyDown: async (e) => { if (e.key === "Enter" && edit.name.trim()) {
                                     if (await call(() => api_1.api.patch(`/api/clients/${c.id}`, { name: edit.name.trim() })))
                                         setEdit(null);
                                 } if (e.key === "Escape")
                                     setEdit(null); } }), (0, jsx_runtime_1.jsx)("button", { className: "small primary", disabled: !edit.name.trim(), onClick: async () => { if (await call(() => api_1.api.patch(`/api/clients/${c.id}`, { name: edit.name.trim() })))
-                                    setEdit(null); }, children: "Guardar" }), (0, jsx_runtime_1.jsx)("button", { className: "small", onClick: () => setEdit(null), children: "Cancelar" })] }) : (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("strong", { className: "grow", children: c.name }), (0, jsx_runtime_1.jsx)("span", { className: "muted small", children: c.projects ? `${c.projects} proyecto(s)` : "sin proyectos" }), (0, jsx_runtime_1.jsx)("button", { className: "small", onClick: () => setEdit({ id: c.id, name: c.name }), children: "Renombrar" }), (0, jsx_runtime_1.jsx)("button", { className: "small ghost", onClick: () => { if (window.confirm(`¿Eliminar el cliente «${c.name}»?${c.projects ? ` Sus ${c.projects} proyecto(s) se conservan, sin cliente.` : ""}`))
-                                    void call(() => api_1.api.del(`/api/clients/${c.id}`)); }, children: "Eliminar" })] }) }, c.id))) })] }));
+                                    setEdit(null); }, children: (0, i18n_1.t)("Guardar") }), (0, jsx_runtime_1.jsx)("button", { className: "small", onClick: () => setEdit(null), children: (0, i18n_1.t)("Cancelar") })] }) : (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("strong", { className: "grow", children: c.name }), (0, jsx_runtime_1.jsx)("span", { className: "muted small", children: c.projects ? (0, i18n_1.t)("{n} proyecto(s)", { n: c.projects }) : (0, i18n_1.t)("sin proyectos") }), (0, jsx_runtime_1.jsx)("button", { className: "small", onClick: () => setEdit({ id: c.id, name: c.name }), children: (0, i18n_1.t)("Renombrar") }), (0, jsx_runtime_1.jsx)("button", { className: "small ghost", onClick: () => { if (window.confirm((0, i18n_1.t)("¿Eliminar el cliente «{nombre}»?", { nombre: c.name }) + (c.projects ? " " + (0, i18n_1.t)("Sus {n} proyecto(s) se conservan, sin cliente.", { n: c.projects }) : "")))
+                                    void call(() => api_1.api.del(`/api/clients/${c.id}`)); }, children: (0, i18n_1.t)("Eliminar") })] }) }, c.id))) })] }));
 }
 /** Selector de cliente con opción de crear uno nuevo en línea. */
 function ClientPicker({ value, onChange }) {
@@ -18836,7 +20811,7 @@ function ClientPicker({ value, onChange }) {
     const [creating, setCreating] = (0, react_1.useState)(false);
     const [name, setName] = (0, react_1.useState)("");
     if (creating)
-        return (0, jsx_runtime_1.jsxs)("span", { className: "row tight", children: [(0, jsx_runtime_1.jsx)("input", { "aria-label": "Nombre del nuevo cliente", placeholder: "Nombre del cliente", value: name, autoFocus: true, onChange: (e) => setName(e.target.value), onKeyDown: (e) => { if (e.key === "Escape")
+        return (0, jsx_runtime_1.jsxs)("span", { className: "row tight", children: [(0, jsx_runtime_1.jsx)("input", { "aria-label": (0, i18n_1.t)("Nombre del nuevo cliente"), placeholder: (0, i18n_1.t)("Nombre del cliente"), value: name, autoFocus: true, onChange: (e) => setName(e.target.value), onKeyDown: (e) => { if (e.key === "Escape")
                         setCreating(false); } }), (0, jsx_runtime_1.jsx)("button", { type: "button", className: "small primary", disabled: !name.trim(), onClick: async () => {
                         try {
                             const c = await api_1.api.post("/api/clients", { name: name.trim() });
@@ -18848,8 +20823,8 @@ function ClientPicker({ value, onChange }) {
                         catch (e) {
                             app.toast(e.message, "error");
                         }
-                    }, children: "Crear" }), (0, jsx_runtime_1.jsx)("button", { type: "button", className: "small", onClick: () => setCreating(false), children: "Cancelar" })] });
-    return (0, jsx_runtime_1.jsxs)("select", { "aria-label": "Cliente", value: value ?? "", onChange: (e) => e.target.value === "nuevo" ? setCreating(true) : onChange(e.target.value ? Number(e.target.value) : null), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: "Sin cliente" }), app.boot.clients.map((c) => (0, jsx_runtime_1.jsx)("option", { value: c.id, children: c.name }, c.id)), (0, jsx_runtime_1.jsx)("option", { value: "nuevo", children: "+ Nuevo cliente\u2026" })] });
+                    }, children: (0, i18n_1.t)("Crear") }), (0, jsx_runtime_1.jsx)("button", { type: "button", className: "small", onClick: () => setCreating(false), children: (0, i18n_1.t)("Cancelar") })] });
+    return (0, jsx_runtime_1.jsxs)("select", { "aria-label": (0, i18n_1.t)("Cliente"), value: value ?? "", onChange: (e) => e.target.value === "nuevo" ? setCreating(true) : onChange(e.target.value ? Number(e.target.value) : null), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: (0, i18n_1.t)("Sin cliente") }), app.boot.clients.map((c) => (0, jsx_runtime_1.jsx)("option", { value: c.id, children: c.name }, c.id)), (0, jsx_runtime_1.jsx)("option", { value: "nuevo", children: (0, i18n_1.t)("+ Nuevo cliente…") })] });
 }
 function ProjectForm({ onClose, onSaved }) {
     const app = (0, store_1.useApp)();
@@ -18868,7 +20843,7 @@ function ProjectForm({ onClose, onSaved }) {
             setError(e.message);
         }
     };
-    return ((0, jsx_runtime_1.jsx)(ui_1.Modal, { title: "Nuevo proyecto", onClose: onClose, children: (0, jsx_runtime_1.jsxs)("form", { onSubmit: (e) => { e.preventDefault(); void submit(); }, children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Nombre", children: (0, jsx_runtime_1.jsx)("input", { value: name, onChange: (e) => setName(e.target.value), required: true }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Tipo", children: (0, jsx_runtime_1.jsx)("select", { value: type, onChange: (e) => setType(e.target.value), children: app.boot.settings.project_types.map((t) => (0, jsx_runtime_1.jsx)("option", { value: t, children: (0, labels_1.projectTypeLabel)(t) }, t)) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Cliente (opcional)", children: (0, jsx_runtime_1.jsx)(ClientPicker, { value: clientId, onChange: setClientId }) }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error }), (0, jsx_runtime_1.jsxs)("div", { className: "modal-foot", children: [(0, jsx_runtime_1.jsx)("button", { className: "primary", type: "submit", disabled: !name.trim(), children: "Crear" }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, children: "Cancelar" })] })] }) }));
+    return ((0, jsx_runtime_1.jsx)(ui_1.Modal, { title: (0, i18n_1.t)("Nuevo proyecto"), onClose: onClose, children: (0, jsx_runtime_1.jsxs)("form", { onSubmit: (e) => { e.preventDefault(); void submit(); }, children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Nombre"), children: (0, jsx_runtime_1.jsx)("input", { value: name, onChange: (e) => setName(e.target.value), required: true }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Tipo"), children: (0, jsx_runtime_1.jsx)("select", { value: type, onChange: (e) => setType(e.target.value), children: app.boot.settings.project_types.map((x) => (0, jsx_runtime_1.jsx)("option", { value: x, children: (0, labels_1.projectTypeLabel)(x) }, x)) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Cliente (opcional)"), children: (0, jsx_runtime_1.jsx)(ClientPicker, { value: clientId, onChange: setClientId }) }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error }), (0, jsx_runtime_1.jsxs)("div", { className: "modal-foot", children: [(0, jsx_runtime_1.jsx)("button", { className: "primary", type: "submit", disabled: !name.trim(), children: (0, i18n_1.t)("Crear") }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, children: (0, i18n_1.t)("Cancelar") })] })] }) }));
 }
 function ProjectDetail({ id }) {
     const app = (0, store_1.useApp)();
@@ -18880,14 +20855,15 @@ function ProjectDetail({ id }) {
     const [summary, setSummary] = (0, react_1.useState)("");
     const [groupBy, setGroupBy] = (0, react_1.useState)("linea");
     const [err, setErr] = (0, react_1.useState)("");
-    const [ms, setMs] = (0, react_1.useState)({ kind: "hito", title: "", date: "" });
+    const [ms, setMs] = (0, react_1.useState)({ kind: "hito", title: "", date: null });
+    const [deleting, setDeleting] = (0, react_1.useState)(false);
     const [grp, setGrp] = (0, react_1.useState)({ kind: "linea", name: "" });
     const [personToAdd, setPersonToAdd] = (0, react_1.useState)(null);
     (0, react_1.useEffect)(() => { if (p)
         setSummary(p.summary); }, [p?.id, p?.summary]);
     if (!p)
-        return (0, jsx_runtime_1.jsxs)("div", { className: "view", children: [(0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error, onRetry: reload }), !error && (0, jsx_runtime_1.jsx)("p", { className: "muted", children: "Cargando\u2026" })] });
-    const patch = async (body, msg = "Proyecto actualizado") => {
+        return (0, jsx_runtime_1.jsxs)("div", { className: "view", children: [(0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error, onRetry: reload }), !error && (0, jsx_runtime_1.jsx)("p", { className: "muted", children: (0, i18n_1.t)("Cargando…") })] });
+    const patch = async (body, msg = (0, i18n_1.t)("Proyecto actualizado")) => {
         try {
             await api_1.api.patch(`/api/projects/${id}`, body);
             reload();
@@ -18911,21 +20887,55 @@ function ProjectDetail({ id }) {
     } };
     const sig = p.signals;
     const pendingDecisions = p.milestones.filter((m) => m.kind === "decision" && m.status === "pendiente");
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "view project", children: [(0, jsx_runtime_1.jsxs)("header", { className: "view-head", children: [(0, jsx_runtime_1.jsx)("p", { children: (0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.navigate("#/proyectos"), children: "\u2190 Proyectos" }) }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)("h1", { className: "wrap", children: p.name }), (0, jsx_runtime_1.jsx)(ui_1.Chip, { children: (0, labels_1.projectTypeLabel)(p.type) }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), (0, jsx_runtime_1.jsx)("button", { onClick: () => { const n = window.prompt("Nuevo nombre del proyecto:", p.name); if (n?.trim())
-                                    void patch({ name: n.trim() }); }, children: "Renombrar" }), (0, jsx_runtime_1.jsx)("a", { className: "button", href: `/api/export/project/${p.id}`, download: true, children: "Exportar proyecto" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsxs)("label", { children: ["Cliente ", (0, jsx_runtime_1.jsx)(ClientPicker, { value: p.client_id, onChange: (v) => patch({ client_id: v }, "Cliente actualizado") })] }), (0, jsx_runtime_1.jsxs)("label", { children: ["Actividad ", (0, jsx_runtime_1.jsx)("select", { value: p.status, onChange: (e) => patch({ status: e.target.value }), children: Object.entries(labels_1.PROJECT_STATUS).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k)) })] }), (0, jsx_runtime_1.jsxs)("label", { children: ["Estado general (manual) ", (0, jsx_runtime_1.jsxs)("select", { value: p.health || "", onChange: (e) => patch({ health: e.target.value || null }), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: "No informado" }), Object.entries(labels_1.HEALTH).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k))] })] })] }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Por qu\u00E9 (explicaci\u00F3n breve del estado general; se muestra en la lista de proyectos)", wide: true, children: (0, jsx_runtime_1.jsx)(ui_1.CommitText, { label: "Explicaci\u00F3n del estado general", value: p.health_note, placeholder: "p. ej. Pendiente de accesos del cliente para continuar las pruebas", maxRows: 4, onCommit: (v) => patch({ health_note: v }, "Explicación guardada") }) })] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: err }), (0, jsx_runtime_1.jsxs)("div", { className: "project-top", children: [(0, jsx_runtime_1.jsxs)(ui_1.Section, { title: "D\u00F3nde lo dejamos", id: "p-donde", children: [(0, jsx_runtime_1.jsx)(ui_1.AutoText, { value: summary, minRows: 4, maxRows: 14, onChange: setSummary, "aria-label": "Resumen d\u00F3nde lo dejamos", placeholder: "Estado actual en pocas l\u00EDneas" }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)("button", { className: "primary", disabled: summary === p.summary, onClick: () => patch({ summary }, "Resumen actualizado"), children: "Guardar resumen" }), (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: ["Fecha del resumen: ", p.summary_updated_at ? `${(0, dates_1.fmtDateTime)(p.summary_updated_at, app.tz)} (${(0, dates_1.sinceLabel)(p.summary_updated_at)})` : "no informado"] })] }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Siguiente acci\u00F3n", hint: "Se guarda al salir del campo o con Ctrl+Enter", wide: true, children: (0, jsx_runtime_1.jsx)(ui_1.CommitText, { label: "Siguiente acci\u00F3n", value: p.next_action, placeholder: "La pr\u00F3xima cosa concreta que hay que hacer", onCommit: (v) => patch({ next_action: v }, "Siguiente acción guardada") }) }), (0, jsx_runtime_1.jsxs)("details", { className: "mini", children: [(0, jsx_runtime_1.jsx)("summary", { children: "Objetivo y fase actual (opcional)" }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Objetivo", wide: true, children: (0, jsx_runtime_1.jsx)(ui_1.CommitText, { label: "Objetivo", value: p.objective, onCommit: (v) => patch({ objective: v }) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Fase actual", wide: true, children: (0, jsx_runtime_1.jsx)(ui_1.CommitText, { label: "Fase actual", value: p.phase, maxRows: 2, onCommit: (v) => patch({ phase: v }) }) })] })] }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: "Se\u00F1ales objetivas", id: "p-sig", children: [(0, jsx_runtime_1.jsxs)("ul", { className: "signals", children: [(0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("strong", { children: sig.overdue }), " vencidas"] }), (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("strong", { children: sig.due_14d }), " vencen en 14 d\u00EDas"] }), (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("strong", { children: sig.blocked }), " bloqueadas \u00B7 ", (0, jsx_runtime_1.jsx)("strong", { children: sig.waiting }), " en espera"] }), (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("strong", { children: sig.milestones_14d }), " hitos/compromisos en 14 d\u00EDas"] }), (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("strong", { children: sig.decisions_pending }), " decisiones pendientes"] }), (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("strong", { children: sig.approvals_pending }), " aprobaciones pendientes"] })] }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: "Calculadas a partir de los datos registrados. Que no haya se\u00F1ales no significa que el proyecto vaya bien." }), pendingDecisions.length > 0 && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("h3", { children: "Decisiones pendientes" }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: pendingDecisions.map((m) => (0, jsx_runtime_1.jsxs)("li", { children: [m.title, " ", m.date && (0, jsx_runtime_1.jsxs)("span", { className: "muted", children: ["\u00B7 ", (0, dates_1.fmtDate)(m.date)] })] }, m.id)) })] }), (0, jsx_runtime_1.jsx)("h3", { children: "Pr\u00F3ximos compromisos (14 d\u00EDas)" }), p.commitments.length ? (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: p.commitments.map((c) => ((0, jsx_runtime_1.jsxs)("li", { children: [(0, dates_1.fmtDate)(c.date), " \u00B7 ", c.type === "tarea" ? (0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.openTask(c.id), children: c.title }) : (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [labels_1.MILESTONE_KIND[c.type], ": ", c.title] })] }, c.type + c.id))) })
-                                : (0, jsx_runtime_1.jsx)("p", { className: "muted", children: "Ninguno registrado." })] })] }), (0, jsx_runtime_1.jsx)(ui_1.Section, { title: "Tareas", count: tasks?.length, id: "p-tareas", actions: (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsxs)("label", { children: ["Agrupar por ", (0, jsx_runtime_1.jsxs)("select", { value: groupBy, onChange: (e) => setGroupBy(e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "linea", children: "L\u00EDnea de trabajo" }), (0, jsx_runtime_1.jsx)("option", { value: "fase", children: "Fase" }), (0, jsx_runtime_1.jsx)("option", { value: "entregable", children: "Entregable" }), (0, jsx_runtime_1.jsx)("option", { value: "persona", children: "Persona" }), (0, jsx_runtime_1.jsx)("option", { value: "ninguna", children: "Sin agrupar" })] })] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: showBacklog, onChange: (e) => setShowBacklog(e.target.checked) }), " Backlog"] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: showDone, onChange: (e) => setShowDone(e.target.checked) }), " Terminadas"] }), (0, jsx_runtime_1.jsx)("button", { className: "primary", onClick: () => app.quickTask({ project_id: p.id }), children: "Nueva tarea" })] }), children: tasks ? (0, jsx_runtime_1.jsx)(TaskViews_1.Board, { tasks: tasks, showBacklog: showBacklog, showDone: showDone, groupBy: groupBy, showProject: false }) : (0, jsx_runtime_1.jsx)("p", { className: "muted", children: "Cargando\u2026" }) }), (0, jsx_runtime_1.jsxs)("div", { className: "project-bottom", children: [(0, jsx_runtime_1.jsxs)(ui_1.Section, { title: "Notas", count: notes?.length, id: "p-notas", actions: (0, jsx_runtime_1.jsx)("button", { onClick: () => app.newNote({ project_id: p.id }), children: "Nueva nota" }), children: [notes && !notes.length && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: "Sin notas vinculadas a este proyecto o a sus tareas." }), (0, jsx_runtime_1.jsx)("ul", { className: "plain note-list", children: notes?.map((n) => ((0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsxs)("button", { className: "linklike", onClick: () => app.navigate(`#/notas/${n.id}`), children: [n.pinned ? "📌 " : "", n.display_title] }), (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [" \u00B7 ", n.kind || "nota", " \u00B7 ", (0, dates_1.fmtDate)(n.updated_at.slice(0, 10))] })] }, n.id))) })] }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: "Personas y dedicaci\u00F3n", count: p.people.length, id: "p-personas", children: [(0, jsx_runtime_1.jsx)("p", { className: "hint", children: "Dedicaci\u00F3n opcional: % de la capacidad semanal de la persona destinada a este proyecto. Se usa en la Planificaci\u00F3n semanal para comparar con el esfuerzo estimado registrado." }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: p.people.map((x) => ((0, jsx_runtime_1.jsxs)("li", { className: "row", children: [(0, jsx_runtime_1.jsx)("button", { className: "linklike grow", onClick: () => app.navigate(`#/equipo/${x.id}`), children: x.name }), (0, jsx_runtime_1.jsxs)("label", { className: "inline small", children: ["Dedicaci\u00F3n ", (0, jsx_runtime_1.jsx)("input", { type: "number", min: "0", max: "100", step: "5", className: "num", "aria-label": `Dedicación de ${x.name} (%)`, defaultValue: x.dedication_pct ?? "", onBlur: (e) => { const v = e.target.value === "" ? null : Number(e.target.value); if (v !== x.dedication_pct)
-                                                        void call(() => api_1.api.post(`/api/projects/${id}/people`, { person_id: x.id, dedication_pct: v })); } }, String(x.dedication_pct)), " %"] }), (0, jsx_runtime_1.jsx)("span", { className: "muted small", children: x.dedication_hours !== null ? `≈ ${x.dedication_hours} h/sem` : x.dedication_pct !== null ? "capacidad no informada" : "no informada" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => call(() => api_1.api.del(`/api/projects/${id}/people/${x.id}`)), children: "Desvincular" })] }, x.id))) }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)(ui_1.PersonSelect, { value: personToAdd, onChange: setPersonToAdd, emptyLabel: "Elegir persona\u2026" }), (0, jsx_runtime_1.jsx)("button", { disabled: !personToAdd, onClick: () => call(() => api_1.api.post(`/api/projects/${id}/people`, { person_id: personToAdd })).then(() => setPersonToAdd(null)), children: "Vincular" })] })] }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: "Hitos, decisiones y compromisos", id: "p-hitos", children: [(0, jsx_runtime_1.jsx)("ul", { className: "plain", children: p.milestones.map((m) => ((0, jsx_runtime_1.jsxs)("li", { className: m.status !== "pendiente" ? "done" : "", children: [(0, jsx_runtime_1.jsx)(ui_1.Chip, { children: labels_1.MILESTONE_KIND[m.kind] }), " ", m.title, " ", (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [m.date ? (0, dates_1.fmtDate)(m.date) : "sin fecha", " \u00B7 ", m.status] }), m.status === "pendiente" && (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => call(() => api_1.api.patch(`/api/milestones/${m.id}`, { status: "cumplido" })), children: m.kind === "decision" ? "Decidida" : "Cumplido" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => { if (window.confirm("¿Eliminar este elemento?"))
-                                                void call(() => api_1.api.del(`/api/milestones/${m.id}`)); }, children: "Eliminar" })] }, m.id))) }), (0, jsx_runtime_1.jsxs)("form", { className: "row", onSubmit: (e) => { e.preventDefault(); void call(() => api_1.api.post(`/api/projects/${id}/milestones`, { kind: ms.kind, title: ms.title, date: ms.date || null })).then(() => setMs({ ...ms, title: "", date: "" })); }, children: [(0, jsx_runtime_1.jsx)("select", { "aria-label": "Tipo", value: ms.kind, onChange: (e) => setMs({ ...ms, kind: e.target.value }), children: Object.entries(labels_1.MILESTONE_KIND).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k)) }), (0, jsx_runtime_1.jsx)("input", { className: "grow", "aria-label": "T\u00EDtulo", placeholder: "T\u00EDtulo", value: ms.title, onChange: (e) => setMs({ ...ms, title: e.target.value }) }), (0, jsx_runtime_1.jsx)("input", { "aria-label": "Fecha", type: "date", value: ms.date, onChange: (e) => setMs({ ...ms, date: e.target.value }) }), (0, jsx_runtime_1.jsx)("button", { type: "submit", disabled: !ms.title.trim(), children: "A\u00F1adir" })] })] }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: "Agrupaciones", id: "p-grupos", children: [["linea", "fase", "entregable"].map((k) => {
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "view project", children: [(0, jsx_runtime_1.jsxs)("header", { className: "view-head", children: [(0, jsx_runtime_1.jsx)("p", { children: (0, jsx_runtime_1.jsxs)("button", { className: "linklike", onClick: () => app.navigate("#/proyectos"), children: ["\u2190 ", (0, i18n_1.t)("Proyectos")] }) }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)("h1", { className: "wrap", children: p.name }), (0, jsx_runtime_1.jsx)(ui_1.Chip, { children: (0, labels_1.projectTypeLabel)(p.type) }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), (0, jsx_runtime_1.jsx)("button", { onClick: () => { const n = window.prompt((0, i18n_1.t)("Nuevo nombre del proyecto:"), p.name); if (n?.trim())
+                                    void patch({ name: n.trim() }); }, children: (0, i18n_1.t)("Renombrar") }), (0, jsx_runtime_1.jsx)("a", { className: "button", href: `/api/export/project/${p.id}`, download: true, children: (0, i18n_1.t)("Exportar proyecto") }), (0, jsx_runtime_1.jsx)("button", { className: "danger", onClick: () => setDeleting(true), children: (0, i18n_1.t)("Eliminar proyecto") })] }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsxs)("label", { children: [(0, i18n_1.t)("Cliente"), " ", (0, jsx_runtime_1.jsx)(ClientPicker, { value: p.client_id, onChange: (v) => patch({ client_id: v }, (0, i18n_1.t)("Cliente actualizado")) })] }), (0, jsx_runtime_1.jsxs)("label", { children: [(0, i18n_1.t)("Actividad"), " ", (0, jsx_runtime_1.jsx)("select", { value: p.status, onChange: (e) => patch({ status: e.target.value }), children: Object.entries(labels_1.PROJECT_STATUS).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k)) })] }), (0, jsx_runtime_1.jsxs)("label", { children: [(0, i18n_1.t)("Estado general (manual)"), " ", (0, jsx_runtime_1.jsxs)("select", { value: p.health || "", onChange: (e) => patch({ health: e.target.value || null }), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: (0, i18n_1.t)("No informado") }), Object.entries(labels_1.HEALTH).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k))] })] })] }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Por qué (explicación breve del estado general; se muestra en la lista de proyectos)"), wide: true, children: (0, jsx_runtime_1.jsx)(ui_1.CommitText, { label: (0, i18n_1.t)("Explicación del estado general"), value: p.health_note, placeholder: (0, i18n_1.t)("p. ej. Pendiente de accesos del cliente para continuar las pruebas"), maxRows: 4, onCommit: (v) => patch({ health_note: v }, (0, i18n_1.t)("Explicación guardada")) }) })] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: err }), (0, jsx_runtime_1.jsxs)("div", { className: "project-top", children: [(0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("Dónde lo dejamos"), id: "p-donde", children: [(0, jsx_runtime_1.jsx)(ui_1.AutoText, { value: summary, minRows: 4, maxRows: 14, onChange: setSummary, "aria-label": (0, i18n_1.t)("Resumen dónde lo dejamos"), placeholder: (0, i18n_1.t)("Estado actual en pocas líneas") }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)("button", { className: "primary", disabled: summary === p.summary, onClick: () => patch({ summary }, (0, i18n_1.t)("Resumen actualizado")), children: (0, i18n_1.t)("Guardar resumen") }), (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [(0, i18n_1.t)("Fecha del resumen"), ": ", p.summary_updated_at ? `${(0, dates_1.fmtDateTime)(p.summary_updated_at, app.tz)} (${(0, dates_1.sinceLabel)(p.summary_updated_at)})` : (0, i18n_1.t)("no informado")] })] }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Siguiente acción"), hint: (0, i18n_1.t)("Se guarda al salir del campo o con Ctrl+Enter"), wide: true, children: (0, jsx_runtime_1.jsx)(ui_1.CommitText, { label: (0, i18n_1.t)("Siguiente acción"), value: p.next_action, placeholder: (0, i18n_1.t)("La próxima cosa concreta que hay que hacer"), onCommit: (v) => patch({ next_action: v }, (0, i18n_1.t)("Siguiente acción guardada")) }) }), (0, jsx_runtime_1.jsxs)("details", { className: "mini", children: [(0, jsx_runtime_1.jsx)("summary", { children: (0, i18n_1.t)("Objetivo y fase actual (opcional)") }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Objetivo"), wide: true, children: (0, jsx_runtime_1.jsx)(ui_1.CommitText, { label: (0, i18n_1.t)("Objetivo"), value: p.objective, onCommit: (v) => patch({ objective: v }) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Fase actual"), wide: true, children: (0, jsx_runtime_1.jsx)(ui_1.CommitText, { label: (0, i18n_1.t)("Fase actual"), value: p.phase, maxRows: 2, onCommit: (v) => patch({ phase: v }) }) })] })] }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("Señales objetivas"), id: "p-sig", children: [(0, jsx_runtime_1.jsxs)("ul", { className: "signals", children: [(0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("strong", { children: sig.overdue }), " ", (0, i18n_1.t)("vencidas")] }), (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("strong", { children: sig.due_14d }), " ", (0, i18n_1.t)("vencen en 14 días")] }), (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("strong", { children: sig.blocked }), " ", (0, i18n_1.t)("bloqueadas"), " \u00B7 ", (0, jsx_runtime_1.jsx)("strong", { children: sig.waiting }), " ", (0, i18n_1.t)("en espera")] }), (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("strong", { children: sig.milestones_14d }), " ", (0, i18n_1.t)("hitos/compromisos en 14 días")] }), (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("strong", { children: sig.decisions_pending }), " ", (0, i18n_1.t)("decisiones pendientes")] }), (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("strong", { children: sig.approvals_pending }), " ", (0, i18n_1.t)("aprobaciones pendientes")] })] }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Calculadas a partir de los datos registrados. Que no haya señales no significa que el proyecto vaya bien.") }), pendingDecisions.length > 0 && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("h3", { children: (0, i18n_1.t)("Decisiones pendientes") }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: pendingDecisions.map((m) => (0, jsx_runtime_1.jsxs)("li", { children: [m.title, " ", m.date && (0, jsx_runtime_1.jsxs)("span", { className: "muted", children: ["\u00B7 ", (0, dates_1.fmtDate)(m.date)] })] }, m.id)) })] }), (0, jsx_runtime_1.jsx)("h3", { children: (0, i18n_1.t)("Próximos compromisos (14 días)") }), p.commitments.length ? (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: p.commitments.map((c) => ((0, jsx_runtime_1.jsxs)("li", { children: [(0, dates_1.fmtDate)(c.date), " \u00B7 ", c.type === "tarea" ? (0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.openTask(c.id), children: c.title }) : (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [labels_1.MILESTONE_KIND[c.type], ": ", c.title] })] }, c.type + c.id))) })
+                                : (0, jsx_runtime_1.jsx)("p", { className: "muted", children: (0, i18n_1.t)("Ninguno registrado.") })] })] }), (0, jsx_runtime_1.jsx)(ui_1.Section, { title: (0, i18n_1.t)("Tareas"), count: tasks?.length, id: "p-tareas", actions: (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsxs)("label", { children: [(0, i18n_1.t)("Agrupar por"), " ", (0, jsx_runtime_1.jsxs)("select", { value: groupBy, onChange: (e) => setGroupBy(e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "linea", children: (0, i18n_1.t)("Línea de trabajo") }), (0, jsx_runtime_1.jsx)("option", { value: "fase", children: (0, i18n_1.t)("Fase") }), (0, jsx_runtime_1.jsx)("option", { value: "entregable", children: (0, i18n_1.t)("Entregable") }), (0, jsx_runtime_1.jsx)("option", { value: "persona", children: (0, i18n_1.t)("Persona") }), (0, jsx_runtime_1.jsx)("option", { value: "ninguna", children: (0, i18n_1.t)("Sin agrupar") })] })] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: showBacklog, onChange: (e) => setShowBacklog(e.target.checked) }), " ", (0, i18n_1.t)("Backlog")] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: showDone, onChange: (e) => setShowDone(e.target.checked) }), " ", (0, i18n_1.t)("Terminadas")] }), (0, jsx_runtime_1.jsx)("button", { className: "primary", onClick: () => app.quickTask({ project_id: p.id }), children: (0, i18n_1.t)("Nueva tarea") })] }), children: tasks ? (0, jsx_runtime_1.jsx)(TaskViews_1.Board, { tasks: tasks, showBacklog: showBacklog, showDone: showDone, groupBy: groupBy, showProject: false }) : (0, jsx_runtime_1.jsx)("p", { className: "muted", children: (0, i18n_1.t)("Cargando…") }) }), (0, jsx_runtime_1.jsxs)("div", { className: "project-bottom", children: [(0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("Notas"), count: notes?.length, id: "p-notas", actions: (0, jsx_runtime_1.jsx)("button", { onClick: () => app.newNote({ project_id: p.id }), children: (0, i18n_1.t)("Nueva nota") }), children: [notes && !notes.length && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: (0, i18n_1.t)("Sin notas vinculadas a este proyecto o a sus tareas.") }), (0, jsx_runtime_1.jsx)("ul", { className: "plain note-list", children: notes?.map((n) => ((0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsxs)("button", { className: "linklike", onClick: () => app.navigate(`#/notas/${n.id}`), children: [n.pinned ? "📌 " : "", n.display_title] }), (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [" \u00B7 ", n.kind ? labels_1.NOTE_KIND[n.kind] : (0, i18n_1.t)("nota"), " \u00B7 ", (0, dates_1.fmtDate)(n.updated_at.slice(0, 10))] })] }, n.id))) })] }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("Personas y dedicación"), count: p.people.length, id: "p-personas", children: [(0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Dedicación opcional: % de la capacidad semanal de la persona destinada a este proyecto. Se usa en la Planificación semanal para comparar con el esfuerzo estimado registrado.") }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: p.people.map((x) => ((0, jsx_runtime_1.jsxs)("li", { className: "row", children: [(0, jsx_runtime_1.jsx)("button", { className: "linklike grow", onClick: () => app.navigate(`#/equipo/${x.id}`), children: x.name }), (0, jsx_runtime_1.jsxs)("label", { className: "inline small", children: [(0, i18n_1.t)("Dedicación"), " ", (0, jsx_runtime_1.jsx)("input", { type: "number", min: "0", max: "100", step: "5", className: "num", "aria-label": (0, i18n_1.t)("Dedicación de {nombre} (%)", { nombre: x.name }), defaultValue: x.dedication_pct ?? "", onBlur: (e) => { const v = e.target.value === "" ? null : Number(e.target.value); if (v !== x.dedication_pct)
+                                                        void call(() => api_1.api.post(`/api/projects/${id}/people`, { person_id: x.id, dedication_pct: v })); } }, String(x.dedication_pct)), " %"] }), (0, jsx_runtime_1.jsx)("span", { className: "muted small", children: x.dedication_hours !== null ? `≈ ${x.dedication_hours} h/sem` : x.dedication_pct !== null ? (0, i18n_1.t)("capacidad no informada") : (0, i18n_1.t)("no informada") }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => call(() => api_1.api.del(`/api/projects/${id}/people/${x.id}`)), children: (0, i18n_1.t)("Desvincular") })] }, x.id))) }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)(ui_1.PersonSelect, { value: personToAdd, onChange: setPersonToAdd, emptyLabel: (0, i18n_1.t)("Elegir persona…") }), (0, jsx_runtime_1.jsx)("button", { disabled: !personToAdd, onClick: () => call(() => api_1.api.post(`/api/projects/${id}/people`, { person_id: personToAdd })).then(() => setPersonToAdd(null)), children: (0, i18n_1.t)("Vincular") })] })] }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("Hitos, decisiones y compromisos"), id: "p-hitos", children: [(0, jsx_runtime_1.jsx)("ul", { className: "plain", children: p.milestones.map((m) => ((0, jsx_runtime_1.jsxs)("li", { className: m.status !== "pendiente" ? "done" : "", children: [(0, jsx_runtime_1.jsx)(ui_1.Chip, { children: labels_1.MILESTONE_KIND[m.kind] }), " ", m.title, " ", (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [m.date ? (0, dates_1.fmtDate)(m.date) : (0, i18n_1.t)("sin fecha"), " \u00B7 ", MILESTONE_STATUS[m.status]] }), m.status === "pendiente" && (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: async () => {
+                                                try {
+                                                    const r = await api_1.api.patch(`/api/milestones/${m.id}?undo=1`, { status: "cumplido" });
+                                                    reload();
+                                                    app.changed();
+                                                    app.undoable(m.kind === "decision" ? (0, i18n_1.t)("Decisión marcada como tomada") : (0, i18n_1.t)("Marcado como cumplido"), r.undo_id);
+                                                }
+                                                catch (e) {
+                                                    setErr(e.message);
+                                                }
+                                            }, children: m.kind === "decision" ? (0, i18n_1.t)("Decidida") : (0, i18n_1.t)("Cumplido") }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => { if (window.confirm((0, i18n_1.t)("¿Eliminar este elemento?")))
+                                                void call(() => api_1.api.del(`/api/milestones/${m.id}`)); }, children: (0, i18n_1.t)("Eliminar") })] }, m.id))) }), (0, jsx_runtime_1.jsxs)("form", { className: "row", onSubmit: (e) => { e.preventDefault(); void call(() => api_1.api.post(`/api/projects/${id}/milestones`, { kind: ms.kind, title: ms.title, date: ms.date || null })).then(() => setMs({ ...ms, title: "", date: null })); }, children: [(0, jsx_runtime_1.jsx)("select", { "aria-label": (0, i18n_1.t)("Tipo"), value: ms.kind, onChange: (e) => setMs({ ...ms, kind: e.target.value }), children: Object.entries(labels_1.MILESTONE_KIND).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k)) }), (0, jsx_runtime_1.jsx)("input", { className: "grow", "aria-label": (0, i18n_1.t)("Título"), placeholder: (0, i18n_1.t)("Título"), value: ms.title, onChange: (e) => setMs({ ...ms, title: e.target.value }) }), (0, jsx_runtime_1.jsx)(DateInput_1.DateInput, { label: (0, i18n_1.t)("Fecha"), value: ms.date, onChange: (v) => setMs({ ...ms, date: v }) }), (0, jsx_runtime_1.jsx)("button", { type: "submit", disabled: !ms.title.trim(), children: (0, i18n_1.t)("Añadir") })] })] }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("Agrupaciones"), id: "p-grupos", children: [["linea", "fase", "entregable"].map((k) => {
                                 const gs = p.groupings.filter((g) => g.kind === k);
-                                return (0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("h3", { children: labels_1.GROUPING_KIND[k] }), gs.length ? (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: gs.map((g) => (0, jsx_runtime_1.jsxs)("li", { children: [g.name, (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => { const n = window.prompt("Nuevo nombre:", g.name); if (n?.trim())
-                                                            void call(() => api_1.api.patch(`/api/groupings/${g.id}`, { name: n.trim() })); }, children: "Renombrar" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => { if (window.confirm("¿Eliminar la agrupación? Las tareas se conservan sin ella."))
-                                                            void call(() => api_1.api.del(`/api/groupings/${g.id}`)); }, children: "Eliminar" })] }, g.id)) })
+                                return (0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("h3", { children: labels_1.GROUPING_KIND[k] }), gs.length ? (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: gs.map((g) => (0, jsx_runtime_1.jsxs)("li", { children: [g.name, (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => { const n = window.prompt((0, i18n_1.t)("Nuevo nombre:"), g.name); if (n?.trim())
+                                                            void call(() => api_1.api.patch(`/api/groupings/${g.id}`, { name: n.trim() })); }, children: (0, i18n_1.t)("Renombrar") }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => { if (window.confirm((0, i18n_1.t)("¿Eliminar la agrupación? Las tareas se conservan sin ella.")))
+                                                            void call(() => api_1.api.del(`/api/groupings/${g.id}`)); }, children: (0, i18n_1.t)("Eliminar") })] }, g.id)) })
                                             : (0, jsx_runtime_1.jsx)("p", { className: "muted", children: "\u2014" })] }, k);
-                            }), (0, jsx_runtime_1.jsxs)("form", { className: "row", onSubmit: (e) => { e.preventDefault(); void call(() => api_1.api.post(`/api/projects/${id}/groupings`, grp)).then(() => setGrp({ ...grp, name: "" })); }, children: [(0, jsx_runtime_1.jsx)("select", { "aria-label": "Dimensi\u00F3n", value: grp.kind, onChange: (e) => setGrp({ ...grp, kind: e.target.value }), children: Object.entries(labels_1.GROUPING_KIND).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k)) }), (0, jsx_runtime_1.jsx)("input", { className: "grow", "aria-label": "Nombre", placeholder: "Nombre", value: grp.name, onChange: (e) => setGrp({ ...grp, name: e.target.value }) }), (0, jsx_runtime_1.jsx)("button", { type: "submit", disabled: !grp.name.trim(), children: "A\u00F1adir" })] })] }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: "Enlaces", id: "p-enlaces", children: [(0, jsx_runtime_1.jsx)("ul", { className: "plain", children: p.links.map((l, i) => (0, jsx_runtime_1.jsx)("li", { children: (0, jsx_runtime_1.jsx)(ui_1.SafeLink, { link: l }) }, i)) }), (0, jsx_runtime_1.jsxs)("details", { className: "mini", children: [(0, jsx_runtime_1.jsx)("summary", { children: "Editar enlaces" }), (0, jsx_runtime_1.jsx)(ui_1.LinksEditor, { value: p.links, onChange: (v) => patch({ links: v }, "Enlaces actualizados") })] })] })] })] }));
+                            }), (0, jsx_runtime_1.jsxs)("form", { className: "row", onSubmit: (e) => { e.preventDefault(); void call(() => api_1.api.post(`/api/projects/${id}/groupings`, grp)).then(() => setGrp({ ...grp, name: "" })); }, children: [(0, jsx_runtime_1.jsx)("select", { "aria-label": (0, i18n_1.t)("Dimensión"), value: grp.kind, onChange: (e) => setGrp({ ...grp, kind: e.target.value }), children: Object.entries(labels_1.GROUPING_KIND).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k)) }), (0, jsx_runtime_1.jsx)("input", { className: "grow", "aria-label": (0, i18n_1.t)("Nombre"), placeholder: (0, i18n_1.t)("Nombre"), value: grp.name, onChange: (e) => setGrp({ ...grp, name: e.target.value }) }), (0, jsx_runtime_1.jsx)("button", { type: "submit", disabled: !grp.name.trim(), children: (0, i18n_1.t)("Añadir") })] })] }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("Enlaces"), id: "p-enlaces", children: [(0, jsx_runtime_1.jsx)("ul", { className: "plain", children: p.links.map((l, i) => (0, jsx_runtime_1.jsx)("li", { children: (0, jsx_runtime_1.jsx)(ui_1.SafeLink, { link: l }) }, i)) }), (0, jsx_runtime_1.jsxs)("details", { className: "mini", children: [(0, jsx_runtime_1.jsx)("summary", { children: (0, i18n_1.t)("Editar enlaces") }), (0, jsx_runtime_1.jsx)(ui_1.LinksEditor, { value: p.links, onChange: (v) => patch({ links: v }, (0, i18n_1.t)("Enlaces actualizados")) })] })] })] }), deleting && (0, jsx_runtime_1.jsx)(DeleteProjectDialog, { project: p, onClose: () => setDeleting(false) })] }));
+}
+/** Eliminar un proyecto (además de archivar). Copia previa automática y dos opciones para su contenido. */
+function DeleteProjectDialog({ project, onClose }) {
+    const app = (0, store_1.useApp)();
+    const [mode, setMode] = (0, react_1.useState)("desvincular");
+    const [err, setErr] = (0, react_1.useState)("");
+    const run = async () => {
+        const q = mode === "desvincular"
+            ? (0, i18n_1.t)("¿Eliminar el proyecto «{nombre}»? Sus tareas, notas y recurrencias se conservan sin proyecto. Antes se creará una copia de seguridad.", { nombre: project.name })
+            : (0, i18n_1.t)("¿Eliminar el proyecto «{nombre}» junto con sus tareas y recurrencias? Sus notas irán a la papelera. Antes se creará una copia de seguridad. No se puede deshacer.", { nombre: project.name });
+        if (!window.confirm(q))
+            return;
+        try {
+            const r = await api_1.api.post(`/api/projects/${project.id}/delete`, { mode, confirm: true });
+            await app.reloadBoot();
+            app.changed();
+            app.toast((0, i18n_1.t)("Proyecto eliminado. Copia previa: {copia}", { copia: r.previous_backup }), "ok");
+            app.navigate("#/proyectos");
+        }
+        catch (e) {
+            setErr(e.message);
+        }
+    };
+    return ((0, jsx_runtime_1.jsxs)(ui_1.Modal, { title: (0, i18n_1.t)("Eliminar proyecto"), onClose: onClose, children: [(0, jsx_runtime_1.jsx)("p", { children: (0, jsx_runtime_1.jsx)("strong", { children: project.name }) }), (0, jsx_runtime_1.jsxs)("fieldset", { className: "plain-fieldset", children: [(0, jsx_runtime_1.jsx)("legend", { children: (0, i18n_1.t)("¿Qué hacer con su contenido?") }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "radio", name: "pdel", checked: mode === "desvincular", onChange: () => setMode("desvincular") }), " ", (0, i18n_1.t)("Desvincular: tareas, notas y recurrencias se conservan sin proyecto")] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "radio", name: "pdel", checked: mode === "eliminar", onChange: () => setMode("eliminar") }), " ", (0, i18n_1.t)("Eliminar sus tareas y recurrencias; sus notas van a la papelera (recuperables)")] })] }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("En ambos casos se eliminan sus hitos, agrupaciones y la dedicación de las personas, y se crea antes una copia de seguridad. Si solo quieres ocultarlo, cambia su actividad a «Archivado».") }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: err }), (0, jsx_runtime_1.jsxs)("div", { className: "modal-foot", children: [(0, jsx_runtime_1.jsx)("button", { className: "danger", onClick: run, children: (0, i18n_1.t)("Eliminar proyecto") }), (0, jsx_runtime_1.jsx)("button", { onClick: onClose, children: (0, i18n_1.t)("Cancelar") })] })] }));
 }
 
-},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":8,"../lib/labels":12,"../lib/store":9,"../components/TaskViews":21,"../components/ui":13}]; // build/src/views/Projects.js
-defs[21]=[function(module,exports,require){
+},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":10,"../lib/i18n":8,"../lib/labels":17,"../lib/store":14,"../components/DateInput":18,"../components/TaskViews":28,"../components/ui":19}]; // build/src/views/Projects.js
+defs[28]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.moveTask = moveTask;
@@ -18940,38 +20950,59 @@ const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const api_1 = require("../lib/api");
 const dates_1 = require("../lib/dates");
+const i18n_1 = require("../lib/i18n");
+const series_1 = require("../lib/series");
 const labels_1 = require("../lib/labels");
 const store_1 = require("../lib/store");
 const TaskCard_1 = require("./TaskCard");
 const ui_1 = require("./ui");
-/** Mueve/reordena una tarea; si la aprobación está pendiente pide confirmación explícita. */
+/** Mueve/reordena una tarea; si la aprobación está pendiente pide confirmación explícita.
+ * Con cambio de columna devuelve el identificador para «Deshacer». */
 async function moveTask(id, body) {
+    const url = `/api/tasks/${id}/reorder${body.status ? "?undo=1" : ""}`;
     try {
-        await api_1.api.post(`/api/tasks/${id}/reorder`, body);
-        return true;
+        return await api_1.api.post(url, body);
     }
     catch (e) {
         if (e instanceof api_1.ApiError && e.code === "aprobacion_pendiente") {
             if (!window.confirm(e.message))
                 return false;
-            await api_1.api.post(`/api/tasks/${id}/reorder`, { ...body, force: true });
-            return true;
+            return await api_1.api.post(url, { ...body, force: true });
         }
         throw e;
     }
 }
-function Board({ tasks, showBacklog, showDone, groupBy = "ninguna", showProject = true }) {
+function Board({ tasks: allTasks, showBacklog, showDone, groupBy = "ninguna", showProject = true, groupRecurring = true }) {
     const app = (0, store_1.useApp)();
     const [dragId, setDragId] = (0, react_1.useState)(null);
+    const [expanded, setExpanded] = (0, react_1.useState)(new Set());
+    const tasks = (0, react_1.useMemo)(() => (groupRecurring ? (0, series_1.groupSeries)(allTasks, expanded) : allTasks), [allTasks, groupRecurring, expanded]);
+    const toggleSeries = (rid) => setExpanded((prev) => { const n = new Set(prev); if (n.has(rid))
+        n.delete(rid);
+    else
+        n.add(rid); return n; });
+    const doneIds = allTasks.filter((x) => x.status === "hecha").map((x) => x.id);
+    const archiveAll = async () => {
+        if (!window.confirm((0, i18n_1.t)("¿Archivar las {n} tareas de la columna Hecha? Podrás deshacerlo durante unos segundos y verlas en Trabajo → Archivadas.", { n: doneIds.length })))
+            return;
+        try {
+            const r = await api_1.api.post("/api/tasks/archive-bulk", { ids: doneIds });
+            app.changed();
+            app.undoable((0, i18n_1.t)("{n} tareas archivadas", { n: r.archived }), r.undo_id);
+        }
+        catch (e) {
+            app.toast(e.message, "error");
+        }
+    };
     const columns = [...(showBacklog ? ["backlog"] : []), ...labels_1.BOARD_COLUMNS.filter((c) => c !== "hecha" || showDone)];
     const lanes = (0, react_1.useMemo)(() => {
         if (groupBy === "ninguna")
             return [{ key: "all", label: "", tasks }];
-        const keyOf = (t) => groupBy === "linea" ? t.workstream_id : groupBy === "fase" ? t.phase_id
-            : groupBy === "entregable" ? t.deliverable_id : groupBy === "proyecto" ? t.project_id : t.assignee_id;
+        const keyOf = (x) => groupBy === "linea" ? x.workstream_id : groupBy === "fase" ? x.phase_id
+            : groupBy === "entregable" ? x.deliverable_id : groupBy === "proyecto" ? x.project_id : x.assignee_id;
         const labelOf = (k) => {
             if (k === null)
-                return groupBy === "persona" ? "Sin asignar" : groupBy === "proyecto" ? "Sin proyecto" : `Sin ${labels_1.GROUPING_KIND[groupBy].toLowerCase()}`;
+                return groupBy === "persona" ? (0, i18n_1.t)("Sin asignar") : groupBy === "proyecto" ? (0, i18n_1.t)("Sin proyecto") : (0, i18n_1.t)("Sin {agrupacion}", { agrupacion: labels_1.GROUPING_KIND[groupBy].toLowerCase() });
             if (groupBy === "proyecto")
                 return app.project(k)?.name || "—";
             if (groupBy === "persona")
@@ -18979,49 +21010,55 @@ function Board({ tasks, showBacklog, showDone, groupBy = "ninguna", showProject 
             return app.boot.groupings.find((g) => g.id === k)?.name || "—";
         };
         const map = new Map();
-        for (const t of tasks) {
-            const k = keyOf(t);
-            map.set(k, [...(map.get(k) || []), t]);
+        for (const x of tasks) {
+            const k = keyOf(x);
+            map.set(k, [...(map.get(k) || []), x]);
         }
         return [...map.entries()].sort((a, b) => (a[0] === null ? 1 : b[0] === null ? -1 : labelOf(a[0]).localeCompare(labelOf(b[0]))))
             .map(([k, ts]) => ({ key: String(k), label: labelOf(k), tasks: ts }));
     }, [tasks, groupBy, app.boot]);
     const act = async (id, body) => {
         try {
-            if (await moveTask(id, body))
-                app.changed();
+            const r = await moveTask(id, body);
+            if (!r)
+                return;
+            app.changed();
+            if (body.status && r.undo_id)
+                app.undoable((0, i18n_1.t)("Movida a «{columna}»", { columna: labels_1.STATUS[body.status] }), r.undo_id);
         }
         catch (e) {
             app.toast(e.message, "error");
         }
     };
     if (!tasks.length)
-        return (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: "No hay tareas con estos filtros. Crea una con \u00AB+ Tarea\u00BB (Alt+T) o revisa los filtros." });
+        return (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: (0, i18n_1.t)("No hay tareas con estos filtros. Crea una con «+ Tarea» (Alt+T) o revisa los filtros.") });
     return ((0, jsx_runtime_1.jsx)("div", { className: "board-wrap", children: lanes.map((lane) => ((0, jsx_runtime_1.jsxs)("div", { className: "lane", children: [lane.label && (0, jsx_runtime_1.jsxs)("h3", { className: "lane-title", children: [lane.label, " ", (0, jsx_runtime_1.jsxs)("span", { className: "count", children: ["(", lane.tasks.length, ")"] })] }), (0, jsx_runtime_1.jsx)("div", { className: "board", style: { gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }, children: columns.map((col, ci) => {
-                        const items = lane.tasks.filter((t) => t.status === col).sort((a, b) => a.position - b.position);
-                        return ((0, jsx_runtime_1.jsxs)("div", { className: "column", "aria-label": `Columna ${labels_1.STATUS[col]}`, onDragOver: (e) => e.preventDefault(), onDrop: (e) => {
+                        const items = lane.tasks.filter((x) => x.status === col).sort((a, b) => a.position - b.position);
+                        return ((0, jsx_runtime_1.jsxs)("div", { className: "column", "aria-label": (0, i18n_1.t)("Columna {nombre}", { nombre: labels_1.STATUS[col] }), onDragOver: (e) => e.preventDefault(), onDrop: (e) => {
                                 e.preventDefault();
                                 if (dragId === null)
                                     return;
-                                const last = items.filter((t) => t.id !== dragId).slice(-1)[0];
+                                const last = items.filter((x) => x.id !== dragId).slice(-1)[0];
                                 void act(dragId, { status: col, ...(last ? { after_id: last.id } : {}) });
                                 setDragId(null);
-                            }, children: [(0, jsx_runtime_1.jsxs)("h4", { className: "column-title", children: [labels_1.STATUS[col], " ", (0, jsx_runtime_1.jsx)("span", { className: "count", children: items.length })] }), items.map((t, i) => ((0, jsx_runtime_1.jsx)("div", { onDragOver: (e) => e.preventDefault(), onDrop: (e) => {
+                            }, children: [(0, jsx_runtime_1.jsxs)("h4", { className: "column-title", children: [labels_1.STATUS[col], " ", (0, jsx_runtime_1.jsx)("span", { className: "count", children: items.length }), col === "hecha" && doneIds.length > 0 && lane === lanes[0] && (0, jsx_runtime_1.jsx)("button", { className: "ghost small archive-all", onClick: archiveAll, title: (0, i18n_1.t)("Archivar todas las tareas hechas (con deshacer)"), children: (0, i18n_1.t)("Archivar todas") })] }), items.map((x, i) => ((0, jsx_runtime_1.jsx)("div", { onDragOver: (e) => e.preventDefault(), onDrop: (e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
-                                        if (dragId === null || dragId === t.id)
+                                        if (dragId === null || dragId === x.id)
                                             return;
-                                        const prev = items.slice(0, i).filter((x) => x.id !== dragId).slice(-1)[0];
-                                        void act(dragId, { status: col, before_id: t.id, ...(prev ? { after_id: prev.id } : {}) });
+                                        const prev = items.slice(0, i).filter((y) => y.id !== dragId).slice(-1)[0];
+                                        void act(dragId, { status: col, before_id: x.id, ...(prev ? { after_id: prev.id } : {}) });
                                         setDragId(null);
-                                    }, children: (0, jsx_runtime_1.jsx)(TaskCard_1.TaskCard, { task: t, showProject: showProject, draggable: true, onDragStart: (e) => { setDragId(t.id); e.dataTransfer.setData("text/plain", String(t.id)); }, actions: (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("button", { className: "ghost small", disabled: ci === 0, onClick: () => act(t.id, { status: columns[ci - 1] }), "aria-label": `Mover «${t.title}» a la columna anterior`, title: "Columna anterior", children: "\u25C0" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", disabled: i === 0, onClick: () => act(t.id, { before_id: items[i - 1].id, ...(i > 1 ? { after_id: items[i - 2].id } : {}) }), "aria-label": `Subir «${t.title}»`, title: "Subir", children: "\u25B2" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", disabled: i === items.length - 1, onClick: () => act(t.id, { after_id: items[i + 1].id, ...(i + 2 < items.length ? { before_id: items[i + 2].id } : {}) }), "aria-label": `Bajar «${t.title}»`, title: "Bajar", children: "\u25BC" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", disabled: ci === columns.length - 1, onClick: () => act(t.id, { status: columns[ci + 1] }), "aria-label": `Mover «${t.title}» a la columna siguiente`, title: "Columna siguiente", children: "\u25B6" })] }) }) }, t.id)))] }, col));
+                                    }, children: (0, jsx_runtime_1.jsx)(TaskCard_1.TaskCard, { task: x, showProject: showProject, draggable: true, onDragStart: (e) => { setDragId(x.id); e.dataTransfer.setData("text/plain", String(x.id)); }, onExpandSeries: x.recurrence_id !== null ? () => toggleSeries(x.recurrence_id) : undefined, actions: (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [x.recurrence_id !== null && expanded.has(x.recurrence_id) && (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => toggleSeries(x.recurrence_id), title: (0, i18n_1.t)("Agrupar de nuevo la serie"), children: "\u21BB \u2212" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", disabled: ci === 0, onClick: () => act(x.id, { status: columns[ci - 1] }), "aria-label": (0, i18n_1.t)("Mover «{titulo}» a la columna anterior", { titulo: x.title }), title: (0, i18n_1.t)("Columna anterior"), children: "\u25C0" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", disabled: i === 0, onClick: () => act(x.id, { before_id: items[i - 1].id, ...(i > 1 ? { after_id: items[i - 2].id } : {}) }), "aria-label": (0, i18n_1.t)("Subir «{titulo}»", { titulo: x.title }), title: (0, i18n_1.t)("Subir"), children: "\u25B2" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", disabled: i === items.length - 1, onClick: () => act(x.id, { after_id: items[i + 1].id, ...(i + 2 < items.length ? { before_id: items[i + 2].id } : {}) }), "aria-label": (0, i18n_1.t)("Bajar «{titulo}»", { titulo: x.title }), title: (0, i18n_1.t)("Bajar"), children: "\u25BC" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", disabled: ci === columns.length - 1, onClick: () => act(x.id, { status: columns[ci + 1] }), "aria-label": (0, i18n_1.t)("Mover «{titulo}» a la columna siguiente", { titulo: x.title }), title: (0, i18n_1.t)("Columna siguiente"), children: "\u25B6" })] }) }) }, x.id)))] }, col));
                     }) })] }, lane.key))) }));
 }
-function TaskTable({ tasks, archived }) {
+function TaskTable({ tasks: allTasks, archived, groupRecurring = false }) {
     const app = (0, store_1.useApp)();
     const today = (0, dates_1.todayIn)(app.tz);
+    const [expanded, setExpanded] = (0, react_1.useState)(new Set());
+    const tasks = (0, react_1.useMemo)(() => (groupRecurring && !archived ? (0, series_1.groupSeries)(allTasks, expanded) : allTasks), [allTasks, groupRecurring, archived, expanded]);
     if (!tasks.length)
-        return (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: archived ? "No hay tareas archivadas." : "No hay tareas con estos filtros." });
+        return (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: archived ? (0, i18n_1.t)("No hay tareas archivadas.") : (0, i18n_1.t)("No hay tareas con estos filtros.") });
     const act = async (fn, msg) => { try {
         await fn();
         app.changed();
@@ -19030,40 +21067,45 @@ function TaskTable({ tasks, archived }) {
     catch (e) {
         app.toast(e.message, "error");
     } };
-    return ((0, jsx_runtime_1.jsx)("div", { className: "table-wrap", children: (0, jsx_runtime_1.jsxs)("table", { className: "list", children: [(0, jsx_runtime_1.jsx)("thead", { children: (0, jsx_runtime_1.jsxs)("tr", { children: [(0, jsx_runtime_1.jsx)("th", { children: "Tarea" }), (0, jsx_runtime_1.jsx)("th", { children: "Proyecto" }), (0, jsx_runtime_1.jsx)("th", { children: "Responsable" }), (0, jsx_runtime_1.jsx)("th", { children: "Estado" }), !archived && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("th", { children: "Condici\u00F3n" }), (0, jsx_runtime_1.jsx)("th", { children: "Prioridad" }), (0, jsx_runtime_1.jsx)("th", { children: "L\u00EDmite" }), (0, jsx_runtime_1.jsx)("th", { children: "Planificada" }), (0, jsx_runtime_1.jsx)("th", { children: "Estimaci\u00F3n" })] }), archived && (0, jsx_runtime_1.jsx)("th", { children: "Acciones" })] }) }), (0, jsx_runtime_1.jsx)("tbody", { children: tasks.map((t) => ((0, jsx_runtime_1.jsxs)("tr", { children: [(0, jsx_runtime_1.jsxs)("td", { className: "wrap", children: [t.parent_id && (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: ["\u21B3 ", t.parent_title, " \u00B7 "] }), (0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.openTask(t.id), children: t.title }), t.open_blockers > 0 && (0, jsx_runtime_1.jsxs)("span", { className: "muted", title: "Depende de otras tareas", children: [" \u26D3", t.open_blockers] }), t.open_dependents > 0 && (0, jsx_runtime_1.jsxs)("span", { className: "muted", title: "Bloquea otras tareas", children: [" \u279C", t.open_dependents] }), t.steps_total > 0 && (0, jsx_runtime_1.jsxs)("span", { className: "muted", title: "Pasos", children: [" \u2611", t.steps_done, "/", t.steps_total] })] }), (0, jsx_runtime_1.jsx)("td", { children: app.project(t.project_id)?.name || "—" }), (0, jsx_runtime_1.jsx)("td", { children: app.person(t.assignee_id)?.name || "Sin asignar" }), (0, jsx_runtime_1.jsx)("td", { children: labels_1.STATUS[t.status] }), !archived && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("td", { children: t.condition ? labels_1.CONDITION[t.condition] : "—" }), (0, jsx_runtime_1.jsxs)("td", { children: [labels_1.PRIORITY_MARK[t.priority], " ", labels_1.PRIORITY[t.priority]] }), (0, jsx_runtime_1.jsx)("td", { className: t.due_date && t.due_date < today ? "overdue" : "", children: t.due_date ? (0, dates_1.fmtDate)(t.due_date) + (t.due_date < today ? " (vencida)" : "") : "—" }), (0, jsx_runtime_1.jsx)("td", { children: t.planned_date ? (0, dates_1.fmtDate)(t.planned_date) : "—" }), (0, jsx_runtime_1.jsx)("td", { children: t.estimate_hours !== null ? `${t.estimate_hours} h` : "no informado" })] }), archived && (0, jsx_runtime_1.jsxs)("td", { className: "nowrap", children: [(0, jsx_runtime_1.jsx)("button", { className: "small", onClick: () => act(() => api_1.api.patch(`/api/tasks/${t.id}`, { archived: false }), "Tarea restaurada"), children: "Restaurar" }), (0, jsx_runtime_1.jsx)("button", { className: "small danger", onClick: () => { if (window.confirm(`¿Eliminar definitivamente «${t.title}»? No se puede deshacer.`))
-                                            void act(() => api_1.api.del(`/api/tasks/${t.id}`), "Tarea eliminada"); }, children: "Eliminar" })] })] }, t.id))) })] }) }));
+    const toggle = (rid) => setExpanded((prev) => { const n = new Set(prev); if (n.has(rid))
+        n.delete(rid);
+    else
+        n.add(rid); return n; });
+    return ((0, jsx_runtime_1.jsx)("div", { className: "table-wrap", children: (0, jsx_runtime_1.jsxs)("table", { className: "list", children: [(0, jsx_runtime_1.jsx)("thead", { children: (0, jsx_runtime_1.jsxs)("tr", { children: [(0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Tarea") }), (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Proyecto") }), (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Responsable") }), (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Estado") }), !archived && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Condición") }), (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Prioridad") }), (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Límite") }), (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Planificada") }), (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Estimación") })] }), archived && (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Acciones") })] }) }), (0, jsx_runtime_1.jsx)("tbody", { children: tasks.map((x) => ((0, jsx_runtime_1.jsxs)("tr", { children: [(0, jsx_runtime_1.jsxs)("td", { className: "wrap", children: [x.parent_id && (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: ["\u21B3 ", x.parent_title, " \u00B7 "] }), (0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.openTask(x.id), children: x.title }), x.recurrence_id !== null && x.series_more ? (0, jsx_runtime_1.jsxs)("button", { className: "chip chip-info series-more", onClick: () => toggle(x.recurrence_id), title: (0, i18n_1.t)("Desplegar la serie"), children: ["\u21BB +", x.series_more] })
+                                        : x.recurrence_id !== null && (0, jsx_runtime_1.jsxs)("span", { className: "muted", title: (0, i18n_1.t)("Tarea recurrente"), children: [" \u21BB", expanded.has(x.recurrence_id) && (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => toggle(x.recurrence_id), title: (0, i18n_1.t)("Agrupar de nuevo la serie"), children: "\u2212" })] }), x.open_blockers > 0 && (0, jsx_runtime_1.jsxs)("span", { className: "muted", title: (0, i18n_1.t)("Depende de otras tareas"), children: [" \u26D3", x.open_blockers] }), x.open_dependents > 0 && (0, jsx_runtime_1.jsxs)("span", { className: "muted", title: (0, i18n_1.t)("Bloquea otras tareas"), children: [" \u279C", x.open_dependents] }), x.steps_total > 0 && (0, jsx_runtime_1.jsxs)("span", { className: "muted", title: (0, i18n_1.t)("Pasos"), children: [" \u2611", x.steps_done, "/", x.steps_total] })] }), (0, jsx_runtime_1.jsx)("td", { children: app.project(x.project_id)?.name || "—" }), (0, jsx_runtime_1.jsx)("td", { children: app.person(x.assignee_id)?.name || (0, i18n_1.t)("Sin asignar") }), (0, jsx_runtime_1.jsx)("td", { children: labels_1.STATUS[x.status] }), !archived && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("td", { children: x.condition ? labels_1.CONDITION[x.condition] : "—" }), (0, jsx_runtime_1.jsxs)("td", { children: [labels_1.PRIORITY_MARK[x.priority], " ", labels_1.PRIORITY[x.priority]] }), (0, jsx_runtime_1.jsx)("td", { className: x.due_date && x.due_date < today ? "overdue" : "", children: x.due_date ? (0, dates_1.fmtDate)(x.due_date) + (x.due_date < today ? " " + (0, i18n_1.t)("(vencida)") : "") : "—" }), (0, jsx_runtime_1.jsx)("td", { children: x.planned_date ? (0, dates_1.fmtDate)(x.planned_date) : "—" }), (0, jsx_runtime_1.jsx)("td", { children: x.estimate_hours !== null ? `${x.estimate_hours} h` : (0, i18n_1.t)("no informado") })] }), archived && (0, jsx_runtime_1.jsxs)("td", { className: "nowrap", children: [(0, jsx_runtime_1.jsx)("button", { className: "small", onClick: () => act(() => api_1.api.patch(`/api/tasks/${x.id}`, { archived: false }), (0, i18n_1.t)("Tarea restaurada")), children: (0, i18n_1.t)("Restaurar") }), (0, jsx_runtime_1.jsx)("button", { className: "small danger", onClick: () => { if (window.confirm((0, i18n_1.t)("¿Eliminar definitivamente «{titulo}»? No se puede deshacer.", { titulo: x.title })))
+                                            void act(() => api_1.api.del(`/api/tasks/${x.id}`), (0, i18n_1.t)("Tarea eliminada")); }, children: (0, i18n_1.t)("Eliminar") })] })] }, x.id))) })] }) }));
 }
 /** Texto compacto para festivos y ausencias registrados de un día. */
 function dayContextText(c) {
     if (!c)
         return { holiday: "", absent: "", title: "" };
-    const holiday = c.holidays.map((h) => h.location ? `Festivo ${h.location}` : "Festivo").join(" · ");
-    const absent = c.absences.length ? `Ausente: ${c.absences.map((a) => a.name.split(" ")[0]).join(", ")}` : "";
-    const title = [...c.holidays.map((h) => `${h.name || "Festivo"}${h.location ? ` (${h.location})` : " (todas las oficinas)"}: ${h.people.join(", ") || "nadie asignado"}`),
-        ...(c.absences.length ? [`Ausencias registradas: ${c.absences.map((a) => a.name).join(", ")}`] : [])].join("\n");
+    const holiday = c.holidays.map((h) => h.location ? (0, i18n_1.t)("Festivo {oficina}", { oficina: h.location }) : (0, i18n_1.t)("Festivo")).join(" · ");
+    const absent = c.absences.length ? (0, i18n_1.t)("Ausente: {nombres}", { nombres: c.absences.map((a) => a.name.split(" ")[0]).join(", ") }) : "";
+    const title = [...c.holidays.map((h) => `${h.name || (0, i18n_1.t)("Festivo")}${h.location ? ` (${h.location})` : " " + (0, i18n_1.t)("(todas las oficinas)")}: ${h.people.join(", ") || (0, i18n_1.t)("nadie asignado")}`),
+        ...(c.absences.length ? [(0, i18n_1.t)("Ausencias registradas: {nombres}", { nombres: c.absences.map((a) => a.name).join(", ") })] : [])].join("\n");
     return { holiday, absent, title };
 }
 const CAL_LABEL = { vence: "📅", plan: "🗓", revision: "🔎" };
-const CAL_TEXT = { vence: "Vence", plan: "Planificada", revision: "Revisión" };
+const CAL_TEXT = { vence: () => (0, i18n_1.t)("Vence"), plan: () => (0, i18n_1.t)("Planificada"), revision: () => (0, i18n_1.t)("Revisión") };
 function Calendar({ tasks, mode, anchor, setAnchor, setMode }) {
     const app = (0, store_1.useApp)();
     const today = (0, dates_1.todayIn)(app.tz);
-    const days = mode === "semana" ? Array.from({ length: 7 }, (_, i) => (0, dates_1.addDays)((0, dates_1.weekStart)(anchor), i)) : (0, dates_1.monthGrid)(anchor);
+    const days = mode === "semana" ? Array.from({ length: 7 }, (_, i) => (0, dates_1.addDays)((0, dates_1.viewWeekStart)(anchor), i)) : (0, dates_1.monthGrid)(anchor);
     const { data: ctx } = (0, store_1.useApi)(`/api/calendar-context?start=${days[0]}&end=${days[days.length - 1]}`);
     const byDay = (0, react_1.useMemo)(() => {
         const m = new Map();
         const put = (d, it) => { if (d)
             m.set(d, [...(m.get(d) || []), it]); };
-        for (const t of tasks) {
-            put(t.due_date, { task: t, kind: "vence" });
-            if (t.planned_date && t.planned_date !== t.due_date)
-                put(t.planned_date, { task: t, kind: "plan" });
-            if (t.next_review_at)
-                put((0, dates_1.utcToZonedInput)(t.next_review_at, app.tz).slice(0, 10), { task: t, kind: "revision" });
+        for (const x of tasks) {
+            put(x.due_date, { task: x, kind: "vence" });
+            if (x.planned_date && x.planned_date !== x.due_date)
+                put(x.planned_date, { task: x, kind: "plan" });
+            if (x.next_review_at)
+                put((0, dates_1.utcToZonedInput)(x.next_review_at, app.tz).slice(0, 10), { task: x, kind: "revision" });
         }
         return m;
     }, [tasks]);
-    const undated = tasks.filter((t) => !t.due_date && !t.planned_date && !t.next_review_at).length;
+    const undated = tasks.filter((x) => !x.due_date && !x.planned_date && !x.next_review_at).length;
     const shift = (dir) => {
         if (mode === "semana")
             setAnchor((0, dates_1.addDays)(anchor, dir * 7));
@@ -19074,11 +21116,12 @@ function Calendar({ tasks, mode, anchor, setAnchor, setMode }) {
         }
     };
     const month = anchor.slice(0, 7);
-    return ((0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsxs)("div", { className: "row cal-bar", children: [(0, jsx_runtime_1.jsx)("button", { onClick: () => shift(-1), "aria-label": "Anterior", children: "\u25C0" }), (0, jsx_runtime_1.jsx)("button", { onClick: () => setAnchor(today), children: "Hoy" }), (0, jsx_runtime_1.jsx)("button", { onClick: () => shift(1), "aria-label": "Siguiente", children: "\u25B6" }), (0, jsx_runtime_1.jsx)("strong", { children: mode === "semana" ? `Semana del ${(0, dates_1.fmtDate)(days[0])} al ${(0, dates_1.fmtDate)(days[6])}` : new Date(anchor.slice(0, 8) + "15T12:00:00Z").toLocaleDateString("es-ES", { month: "long", year: "numeric", timeZone: "UTC" }) }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), (0, jsx_runtime_1.jsxs)("div", { role: "group", "aria-label": "Escala del calendario", className: "tabs-inline", children: [(0, jsx_runtime_1.jsx)("button", { "aria-pressed": mode === "semana", className: mode === "semana" ? "active" : "", onClick: () => setMode("semana"), children: "Semana" }), (0, jsx_runtime_1.jsx)("button", { "aria-pressed": mode === "mes", className: mode === "mes" ? "active" : "", onClick: () => setMode("mes"), children: "Mes" })] })] }), (0, jsx_runtime_1.jsxs)("p", { className: "hint", children: ["\uD83D\uDCC5 Vence \u00B7 \uD83D\uDDD3 Planificada \u00B7 \uD83D\uDD0E Revisi\u00F3n \u00B7 en gris, festivos y ausencias registrados (pasa el rat\u00F3n para ver a qui\u00E9n afectan). ", undated > 0 && `${undated} tarea(s) sin fecha no se muestran.`] }), (0, jsx_runtime_1.jsxs)("div", { className: `calendar cal-${mode}`, children: [["lun", "mar", "mié", "jue", "vie", "sáb", "dom"].map((d) => (0, jsx_runtime_1.jsx)("div", { className: "cal-dow", children: d }, d)), days.map((d) => {
+    const md = new Date(anchor.slice(0, 8) + "15T12:00:00Z");
+    return ((0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsxs)("div", { className: "row cal-bar", children: [(0, jsx_runtime_1.jsx)("button", { onClick: () => shift(-1), "aria-label": (0, i18n_1.t)("Anterior"), children: "\u25C0" }), (0, jsx_runtime_1.jsx)("button", { onClick: () => setAnchor(today), children: (0, i18n_1.t)("Hoy") }), (0, jsx_runtime_1.jsx)("button", { onClick: () => shift(1), "aria-label": (0, i18n_1.t)("Siguiente"), children: "\u25B6" }), (0, jsx_runtime_1.jsx)("strong", { children: mode === "semana" ? (0, i18n_1.t)("Semana del {desde} al {hasta}", { desde: (0, dates_1.fmtDate)(days[0]), hasta: (0, dates_1.fmtDate)(days[6]) }) : `${(0, dates_1.monthName)(md.getUTCMonth())} ${md.getUTCFullYear()}` }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), (0, jsx_runtime_1.jsxs)("div", { role: "group", "aria-label": (0, i18n_1.t)("Escala del calendario"), className: "tabs-inline", children: [(0, jsx_runtime_1.jsx)("button", { "aria-pressed": mode === "semana", className: mode === "semana" ? "active" : "", onClick: () => setMode("semana"), children: (0, i18n_1.t)("Semana") }), (0, jsx_runtime_1.jsx)("button", { "aria-pressed": mode === "mes", className: mode === "mes" ? "active" : "", onClick: () => setMode("mes"), children: (0, i18n_1.t)("Mes") })] })] }), (0, jsx_runtime_1.jsxs)("p", { className: "hint", children: [(0, i18n_1.t)("📅 Vence · 🗓 Planificada · 🔎 Revisión · ↻ en cursiva, ocurrencias de series recurrentes · en gris, festivos y ausencias registrados (pasa el ratón para ver a quién afectan)."), " ", undated > 0 && (0, i18n_1.t)("{n} tarea(s) sin fecha no se muestran.", { n: undated })] }), (0, jsx_runtime_1.jsxs)("div", { className: `calendar cal-${mode}`, children: [(0, dates_1.weekHeaders)().map((d) => (0, jsx_runtime_1.jsx)("div", { className: "cal-dow", children: d }, d)), days.map((d) => {
                         const items = byDay.get(d) || [];
                         const c = dayContextText(ctx?.days[d]);
                         const globalHoliday = ctx?.days[d]?.holidays.some((h) => !h.location);
-                        return ((0, jsx_runtime_1.jsxs)("div", { className: `cal-day${d === today ? " today" : ""}${mode === "mes" && d.slice(0, 7) !== month ? " out" : ""}${(0, dates_1.isoDow)(d) >= 6 || globalHoliday ? " weekend" : ""}`, children: [(0, jsx_runtime_1.jsxs)("div", { className: "cal-date", children: [Number(d.slice(8)), d === today && (0, jsx_runtime_1.jsx)("span", { className: "sr", children: " (hoy)" })] }), (c.holiday || c.absent) && (0, jsx_runtime_1.jsxs)("div", { className: "cal-ctx", title: c.title, children: [c.holiday && (0, jsx_runtime_1.jsx)("span", { children: c.holiday }), c.absent && (0, jsx_runtime_1.jsx)("span", { children: c.absent })] }), items.map((it) => ((0, jsx_runtime_1.jsxs)("button", { className: `cal-item cal-${it.kind}`, onClick: () => app.openTask(it.task.id), title: `${CAL_TEXT[it.kind]}: ${it.task.title}`, children: [(0, jsx_runtime_1.jsx)("span", { "aria-label": CAL_TEXT[it.kind], children: CAL_LABEL[it.kind] }), " ", it.task.title] }, it.kind + it.task.id)))] }, d));
+                        return ((0, jsx_runtime_1.jsxs)("div", { className: `cal-day${d === today ? " today" : ""}${mode === "mes" && d.slice(0, 7) !== month ? " out" : ""}${(0, dates_1.isoDow)(d) >= 6 || globalHoliday ? " weekend" : ""}`, children: [(0, jsx_runtime_1.jsxs)("div", { className: "cal-date", children: [Number(d.slice(8)), d === today && (0, jsx_runtime_1.jsxs)("span", { className: "sr", children: [" ", (0, i18n_1.t)("(hoy)")] })] }), (c.holiday || c.absent) && (0, jsx_runtime_1.jsxs)("div", { className: "cal-ctx", title: c.title, children: [c.holiday && (0, jsx_runtime_1.jsx)("span", { children: c.holiday }), c.absent && (0, jsx_runtime_1.jsx)("span", { children: c.absent })] }), items.map((it) => ((0, jsx_runtime_1.jsxs)("button", { className: `cal-item cal-${it.kind}${it.task.recurrence_id !== null ? " cal-rec" : ""}`, onClick: () => app.openTask(it.task.id), title: `${CAL_TEXT[it.kind]()}: ${it.task.title}${it.task.recurrence_id !== null ? " · " + (0, i18n_1.t)("serie recurrente") : ""}`, children: [(0, jsx_runtime_1.jsx)("span", { "aria-label": CAL_TEXT[it.kind](), children: CAL_LABEL[it.kind] }), it.task.recurrence_id !== null && (0, jsx_runtime_1.jsx)("span", { "aria-label": (0, i18n_1.t)("recurrente"), children: "\u21BB" }), " ", it.task.title] }, it.kind + it.task.id)))] }, d));
                     })] })] }));
 }
 /** Línea discreta con festivos y ausencias registrados en la semana actual. */
@@ -19097,17 +21140,17 @@ function WeekAvailabilityStrip() {
         const names = [...new Set([...c.holidays.flatMap((h) => h.people), ...c.absences.map((a) => a.name)])];
         if (!names.length)
             continue;
-        const t = dayContextText(c);
-        parts.push({ text: `${(0, dates_1.fmtDate)(d)}: ${names.map((n) => n.split(" ")[0]).join(", ")}`, title: t.title });
+        const info = dayContextText(c);
+        parts.push({ text: `${(0, dates_1.fmtDate)(d)}: ${names.map((n) => n.split(" ")[0]).join(", ")}`, title: info.title });
     }
     if (!parts.length)
         return null;
-    return (0, jsx_runtime_1.jsxs)("p", { className: "availability-strip", "aria-label": "Festivos y ausencias registrados esta semana", children: [(0, jsx_runtime_1.jsx)("span", { className: "muted", children: "No disponibles esta semana (festivos/ausencias registrados):" }), " ", parts.map((p, i) => (0, jsx_runtime_1.jsx)("span", { className: "avail-item", title: p.title, children: p.text }, i))] });
+    return (0, jsx_runtime_1.jsxs)("p", { className: "availability-strip", "aria-label": (0, i18n_1.t)("Festivos y ausencias registrados esta semana"), children: [(0, jsx_runtime_1.jsx)("span", { className: "muted", children: (0, i18n_1.t)("No disponibles esta semana (festivos/ausencias registrados):") }), " ", parts.map((p, i) => (0, jsx_runtime_1.jsx)("span", { className: "avail-item", title: p.title, children: p.text }, i))] });
 }
 function FilterBar({ filters, setFilters, hideProject }) {
     const app = (0, store_1.useApp)();
     const set = (k, v) => setFilters({ ...filters, [k]: v });
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "filters", role: "group", "aria-label": "Filtros", children: [!hideProject && (0, jsx_runtime_1.jsxs)("label", { children: ["Proyecto ", (0, jsx_runtime_1.jsx)(ui_1.ProjectSelect, { value: filters.project_id ? Number(filters.project_id) : null, emptyLabel: "Todos", onChange: (v) => set("project_id", v ? String(v) : "") })] }), (0, jsx_runtime_1.jsxs)("label", { children: ["Persona ", (0, jsx_runtime_1.jsx)(ui_1.PersonSelect, { value: filters.person_id ? Number(filters.person_id) : null, emptyLabel: "Todas", onChange: (v) => set("person_id", v ? String(v) : "") })] }), (0, jsx_runtime_1.jsxs)("label", { children: ["Estado ", (0, jsx_runtime_1.jsxs)("select", { value: filters.status || "", onChange: (e) => set("status", e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: "Operativas" }), Object.keys(labels_1.STATUS).map((s) => (0, jsx_runtime_1.jsx)("option", { value: s, children: labels_1.STATUS[s] }, s))] })] }), (0, jsx_runtime_1.jsxs)("label", { children: ["Condici\u00F3n ", (0, jsx_runtime_1.jsxs)("select", { value: filters.condition || "", onChange: (e) => set("condition", e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: "Cualquiera" }), (0, jsx_runtime_1.jsx)("option", { value: "cualquiera", children: "En espera o bloqueadas" }), (0, jsx_runtime_1.jsx)("option", { value: "espera", children: "En espera" }), (0, jsx_runtime_1.jsx)("option", { value: "bloqueada", children: "Bloqueadas" })] })] }), (0, jsx_runtime_1.jsxs)("label", { children: ["Prioridad ", (0, jsx_runtime_1.jsxs)("select", { value: filters.priority || "", onChange: (e) => set("priority", e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: "Todas" }), Object.entries(labels_1.PRIORITY).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k))] })] }), (0, jsx_runtime_1.jsxs)("label", { children: ["Etiqueta ", (0, jsx_runtime_1.jsxs)("select", { value: filters.tag || "", onChange: (e) => set("tag", e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: "Todas" }), app.boot.tags.map((t) => (0, jsx_runtime_1.jsx)("option", { value: t, children: t }, t))] })] }), (0, jsx_runtime_1.jsxs)("label", { children: ["Orden ", (0, jsx_runtime_1.jsxs)("select", { value: filters.sort || "", onChange: (e) => set("sort", e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: "Manual" }), (0, jsx_runtime_1.jsx)("option", { value: "fecha", children: "Fecha l\u00EDmite" }), (0, jsx_runtime_1.jsx)("option", { value: "prioridad", children: "Prioridad" })] })] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: !!filters.include_backlog, onChange: (e) => set("include_backlog", e.target.checked) }), " Backlog"] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: !!filters.include_closed, onChange: (e) => set("include_closed", e.target.checked) }), " Terminadas"] })] }));
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "filters", role: "group", "aria-label": (0, i18n_1.t)("Filtros"), children: [!hideProject && (0, jsx_runtime_1.jsxs)("label", { children: [(0, i18n_1.t)("Proyecto"), " ", (0, jsx_runtime_1.jsx)(ui_1.ProjectSelect, { value: filters.project_id ? Number(filters.project_id) : null, emptyLabel: (0, i18n_1.t)("Todos"), onChange: (v) => set("project_id", v ? String(v) : "") })] }), (0, jsx_runtime_1.jsxs)("label", { children: [(0, i18n_1.t)("Persona"), " ", (0, jsx_runtime_1.jsx)(ui_1.PersonSelect, { value: filters.person_id ? Number(filters.person_id) : null, emptyLabel: (0, i18n_1.t)("Todas"), onChange: (v) => set("person_id", v ? String(v) : "") })] }), (0, jsx_runtime_1.jsxs)("label", { children: [(0, i18n_1.t)("Estado"), " ", (0, jsx_runtime_1.jsxs)("select", { value: filters.status || "", onChange: (e) => set("status", e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: (0, i18n_1.t)("Operativas") }), Object.keys(labels_1.STATUS).map((s) => (0, jsx_runtime_1.jsx)("option", { value: s, children: labels_1.STATUS[s] }, s))] })] }), (0, jsx_runtime_1.jsxs)("label", { children: [(0, i18n_1.t)("Condición"), " ", (0, jsx_runtime_1.jsxs)("select", { value: filters.condition || "", onChange: (e) => set("condition", e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: (0, i18n_1.t)("Cualquiera") }), (0, jsx_runtime_1.jsx)("option", { value: "cualquiera", children: (0, i18n_1.t)("En espera o bloqueadas") }), (0, jsx_runtime_1.jsx)("option", { value: "espera", children: (0, i18n_1.t)("En espera") }), (0, jsx_runtime_1.jsx)("option", { value: "bloqueada", children: (0, i18n_1.t)("Bloqueadas") })] })] }), (0, jsx_runtime_1.jsxs)("label", { children: [(0, i18n_1.t)("Prioridad"), " ", (0, jsx_runtime_1.jsxs)("select", { value: filters.priority || "", onChange: (e) => set("priority", e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: (0, i18n_1.t)("Todas") }), Object.entries(labels_1.PRIORITY).map(([k, v]) => (0, jsx_runtime_1.jsx)("option", { value: k, children: v }, k))] })] }), (0, jsx_runtime_1.jsxs)("label", { children: [(0, i18n_1.t)("Etiqueta"), " ", (0, jsx_runtime_1.jsxs)("select", { value: filters.tag || "", onChange: (e) => set("tag", e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: (0, i18n_1.t)("Todas") }), app.boot.tags.map((tag) => (0, jsx_runtime_1.jsx)("option", { value: tag, children: tag }, tag))] })] }), (0, jsx_runtime_1.jsxs)("label", { children: [(0, i18n_1.t)("Orden"), " ", (0, jsx_runtime_1.jsxs)("select", { value: filters.sort || "", onChange: (e) => set("sort", e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: (0, i18n_1.t)("Manual") }), (0, jsx_runtime_1.jsx)("option", { value: "fecha", children: (0, i18n_1.t)("Fecha límite") }), (0, jsx_runtime_1.jsx)("option", { value: "prioridad", children: (0, i18n_1.t)("Prioridad") })] })] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: !!filters.include_backlog, onChange: (e) => set("include_backlog", e.target.checked) }), " ", (0, i18n_1.t)("Backlog")] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: !!filters.include_closed, onChange: (e) => set("include_closed", e.target.checked) }), " ", (0, i18n_1.t)("Terminadas")] })] }));
 }
 function filtersToQuery(f) {
     const p = [];
@@ -19125,28 +21168,62 @@ function filtersToQuery(f) {
     return p.length ? "?" + p.join("&") : "";
 }
 
-},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":8,"../lib/labels":12,"../lib/store":9,"./TaskCard":22,"./ui":13}]; // build/src/components/TaskViews.js
-defs[22]=[function(module,exports,require){
+},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":10,"../lib/i18n":8,"../lib/series":29,"../lib/labels":17,"../lib/store":14,"./TaskCard":30,"./ui":19}]; // build/src/components/TaskViews.js
+defs[29]=[function(module,exports,require){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.groupSeries = groupSeries;
+function groupSeries(tasks, expanded = new Set()) {
+    const groups = new Map();
+    for (const x of tasks) {
+        if (x.recurrence_id === null || expanded.has(x.recurrence_id))
+            continue;
+        const key = `${x.recurrence_id}:${x.status}`;
+        groups.set(key, [...(groups.get(key) || []), x]);
+    }
+    const rep = new Map();
+    for (const [key, items] of groups) {
+        const closed = items[0].status === "hecha" || items[0].status === "cancelada";
+        const sorted = [...items].sort((a, b) => (a.occurrence_date || "").localeCompare(b.occurrence_date || "") || a.id - b.id);
+        const pick = closed ? sorted[sorted.length - 1] : sorted[0];
+        rep.set(pick.id, { ...pick, series_more: items.length - 1, series_key: key });
+    }
+    const out = [];
+    for (const x of tasks) {
+        if (x.recurrence_id === null || expanded.has(x.recurrence_id))
+            out.push(x);
+        else if (rep.has(x.id))
+            out.push(rep.get(x.id));
+    }
+    return out;
+}
+
+},{}]; // build/src/lib/series.js
+defs[30]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TaskCard = TaskCard;
 const jsx_runtime_1 = require("react/jsx-runtime");
 const dates_1 = require("../lib/dates");
+const i18n_1 = require("../lib/i18n");
 const labels_1 = require("../lib/labels");
 const store_1 = require("../lib/store");
 const ui_1 = require("./ui");
-function TaskCard({ task, showStatus, showProject = true, actions, draggable, onDragStart }) {
+function TaskCard({ task, showStatus, showProject = true, actions, draggable, onDragStart, onExpandSeries, seriesLabel }) {
     const app = (0, store_1.useApp)();
     const today = (0, dates_1.todayIn)(app.tz);
     const project = app.project(task.project_id);
     const assignee = app.person(task.assignee_id);
     const overdue = task.due_date && task.due_date < today;
     const approvals = (task.signals || []).filter((s) => s.startsWith("aprobacion"));
-    return ((0, jsx_runtime_1.jsxs)("article", { className: `card prio-${task.priority}${task.condition ? " has-condition" : ""}${task.parent_id ? " is-sub" : ""}`, draggable: draggable, onDragStart: onDragStart, "data-task-id": task.id, children: [task.parent_id && ((0, jsx_runtime_1.jsxs)("button", { className: "card-parent linklike", onClick: () => app.openTask(task.parent_id), title: "Abrir la tarea principal", children: ["\u21B3 Subtarea de \u00AB", task.parent_title, "\u00BB"] })), (0, jsx_runtime_1.jsxs)("button", { className: "card-title linklike", onClick: () => app.openTask(task.id), title: "Abrir detalle", children: [labels_1.PRIORITY_MARK[task.priority] && (0, jsx_runtime_1.jsxs)("span", { className: "prio-mark", "aria-label": `Prioridad ${labels_1.PRIORITY[task.priority]}`, children: [labels_1.PRIORITY_MARK[task.priority], " "] }), task.title] }), (0, jsx_runtime_1.jsxs)("div", { className: "card-meta", children: [showStatus && (0, jsx_runtime_1.jsx)(ui_1.Chip, { children: labels_1.STATUS[task.status] }), task.condition && (0, jsx_runtime_1.jsxs)(ui_1.Chip, { tone: task.condition === "bloqueada" ? "danger" : "warn", title: task.wait_on || undefined, children: [task.condition === "bloqueada" ? "⛔" : "⏸", " ", labels_1.CONDITION[task.condition], task.wait_on ? `: ${task.wait_on}` : ""] }), task.due_date && (0, jsx_runtime_1.jsxs)(ui_1.Chip, { tone: overdue ? "danger" : task.due_date === today ? "warn" : "neutral", children: ["\uD83D\uDCC5 ", (0, dates_1.dueLabel)(task.due_date, today)] }), task.status === "backlog" && !showStatus && (0, jsx_runtime_1.jsx)(ui_1.Chip, { children: "Backlog" }), task.open_blockers > 0 && (0, jsx_runtime_1.jsxs)(ui_1.Chip, { tone: "warn", title: "Depende de tareas no terminadas", children: ["\u26D3 espera ", task.open_blockers] }), task.open_dependents > 0 && (0, jsx_runtime_1.jsxs)(ui_1.Chip, { tone: "info", title: "Otras tareas dependen de esta", children: ["\u279C bloquea ", task.open_dependents] }), approvals.map((s) => (0, jsx_runtime_1.jsx)(ui_1.Chip, { tone: "warn", children: labels_1.SIGNAL[s] }, s)), task.steps_total > 0 && (0, jsx_runtime_1.jsxs)(ui_1.Chip, { title: "Pasos completados", children: ["\u2611 ", task.steps_done, "/", task.steps_total, " pasos"] }), task.subtasks_total > 0 && (0, jsx_runtime_1.jsxs)(ui_1.Chip, { title: "Subtareas cerradas", children: ["\u229E ", task.subtasks_closed, "/", task.subtasks_total, " subtareas"] }), task.recurrence_id && (0, jsx_runtime_1.jsx)(ui_1.Chip, { title: "Tarea recurrente", children: "\u21BB" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "card-foot", children: [showProject && project && (0, jsx_runtime_1.jsx)("span", { className: "muted", children: project.name }), (0, jsx_runtime_1.jsx)("span", { className: "muted", children: assignee ? assignee.name : "Sin asignar" }), task.tags.map((t) => (0, jsx_runtime_1.jsxs)("span", { className: "tag", children: ["#", t] }, t))] }), actions && (0, jsx_runtime_1.jsx)("div", { className: "card-actions", children: actions })] }));
+    return ((0, jsx_runtime_1.jsxs)("article", { className: `card prio-${task.priority}${task.condition ? " has-condition" : ""}${task.parent_id ? " is-sub" : ""}`, draggable: draggable, onDragStart: onDragStart, "data-task-id": task.id, children: [task.parent_id && ((0, jsx_runtime_1.jsxs)("button", { className: "card-parent linklike", onClick: () => app.openTask(task.parent_id), title: (0, i18n_1.t)("Abrir la tarea principal"), children: ["\u21B3 ", (0, i18n_1.t)("Subtarea de «{titulo}»", { titulo: task.parent_title || "" })] })), (0, jsx_runtime_1.jsxs)("button", { className: "card-title linklike", onClick: () => app.openTask(task.id), title: (0, i18n_1.t)("Abrir detalle"), children: [labels_1.PRIORITY_MARK[task.priority] && (0, jsx_runtime_1.jsxs)("span", { className: "prio-mark", "aria-label": (0, i18n_1.t)("Prioridad {p}", { p: labels_1.PRIORITY[task.priority] }), children: [labels_1.PRIORITY_MARK[task.priority], " "] }), task.title] }), (0, jsx_runtime_1.jsxs)("div", { className: "card-meta", children: [showStatus && (0, jsx_runtime_1.jsx)(ui_1.Chip, { children: labels_1.STATUS[task.status] }), task.condition && (0, jsx_runtime_1.jsxs)(ui_1.Chip, { tone: task.condition === "bloqueada" ? "danger" : "warn", title: task.wait_on || undefined, children: [task.condition === "bloqueada" ? "⛔" : "⏸", " ", labels_1.CONDITION[task.condition], task.wait_on ? `: ${task.wait_on}` : ""] }), task.due_date && (0, jsx_runtime_1.jsxs)(ui_1.Chip, { tone: overdue ? "danger" : task.due_date === today ? "warn" : "neutral", children: ["\uD83D\uDCC5 ", (0, dates_1.dueLabel)(task.due_date, today)] }), task.status === "backlog" && !showStatus && (0, jsx_runtime_1.jsx)(ui_1.Chip, { children: labels_1.STATUS.backlog }), task.open_blockers > 0 && (0, jsx_runtime_1.jsxs)(ui_1.Chip, { tone: "warn", title: (0, i18n_1.t)("Depende de tareas no terminadas"), children: ["\u26D3 ", (0, i18n_1.t)("espera {n}", { n: task.open_blockers })] }), task.open_dependents > 0 && (0, jsx_runtime_1.jsxs)(ui_1.Chip, { tone: "info", title: (0, i18n_1.t)("Otras tareas dependen de esta"), children: ["\u279C ", (0, i18n_1.t)("bloquea {n}", { n: task.open_dependents })] }), approvals.map((s) => (0, jsx_runtime_1.jsx)(ui_1.Chip, { tone: "warn", children: labels_1.SIGNAL[s] }, s)), task.steps_total > 0 && (0, jsx_runtime_1.jsxs)(ui_1.Chip, { title: (0, i18n_1.t)("Pasos completados"), children: ["\u2611 ", (0, i18n_1.t)("{hechos}/{total} pasos", { hechos: task.steps_done, total: task.steps_total })] }), task.subtasks_total > 0 && (0, jsx_runtime_1.jsxs)(ui_1.Chip, { title: (0, i18n_1.t)("Subtareas cerradas"), children: ["\u229E ", (0, i18n_1.t)("{cerradas}/{total} subtareas", { cerradas: task.subtasks_closed, total: task.subtasks_total })] }), task.recurrence_id && (task.series_more ? (onExpandSeries
+                        ? (0, jsx_runtime_1.jsxs)("button", { className: "chip chip-info series-more", onClick: onExpandSeries, title: (0, i18n_1.t)("Desplegar la serie"), "aria-label": (0, i18n_1.t)("Serie recurrente: {n} ocurrencias más. Desplegar", { n: task.series_more }), children: ["\u21BB +", task.series_more, seriesLabel ? ` ${seriesLabel}` : ""] })
+                        : (0, jsx_runtime_1.jsxs)(ui_1.Chip, { tone: "info", title: (0, i18n_1.t)("Tarea recurrente"), children: ["\u21BB +", task.series_more, seriesLabel ? ` ${seriesLabel}` : ""] }))
+                        : (0, jsx_runtime_1.jsx)(ui_1.Chip, { title: (0, i18n_1.t)("Tarea recurrente"), children: "\u21BB" }))] }), (0, jsx_runtime_1.jsxs)("div", { className: "card-foot", children: [showProject && project && (0, jsx_runtime_1.jsx)("span", { className: "muted", children: project.name }), (0, jsx_runtime_1.jsx)("span", { className: "muted", children: assignee ? assignee.name : (0, i18n_1.t)("Sin asignar") }), task.tags.map((x) => (0, jsx_runtime_1.jsxs)("span", { className: "tag", children: ["#", x] }, x))] }), actions && (0, jsx_runtime_1.jsx)("div", { className: "card-actions", children: actions })] }));
 }
 
-},{"react/jsx-runtime":1,"../lib/dates":8,"../lib/labels":12,"../lib/store":9,"./ui":13}]; // build/src/components/TaskCard.js
-defs[23]=[function(module,exports,require){
+},{"react/jsx-runtime":1,"../lib/dates":10,"../lib/i18n":8,"../lib/labels":17,"../lib/store":14,"./ui":19}]; // build/src/components/TaskCard.js
+defs[31]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SettingsView = SettingsView;
@@ -19154,9 +21231,13 @@ const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const api_1 = require("../lib/api");
 const dates_1 = require("../lib/dates");
+const i18n_1 = require("../lib/i18n");
 const labels_1 = require("../lib/labels");
 const store_1 = require("../lib/store");
+const theme_1 = require("../lib/theme");
+const DateInput_1 = require("../components/DateInput");
 const ui_1 = require("../components/ui");
+const DAY_KEYS = ["1", "2", "3", "4", "5", "6", "7"];
 function SettingsView() {
     const app = (0, store_1.useApp)();
     const s = app.boot.settings;
@@ -19171,13 +21252,14 @@ function SettingsView() {
         try {
             await api_1.api.patch("/api/settings", {
                 app_name: draft.app_name.trim(), start_view: draft.start_view, timezone: draft.timezone, due_soon_days: Number(draft.due_soon_days),
-                workdays: draft.workdays, work_start: draft.work_start, work_end: draft.work_end, backup_retention: Number(draft.backup_retention),
+                work_schedule: draft.work_schedule, backup_retention: Number(draft.backup_retention),
                 quiet_start: draft.quiet_start, quiet_end: draft.quiet_end, notifications_discreet: draft.notifications_discreet,
-                recurrence_horizon_days: Number(draft.recurrence_horizon_days),
+                recurrence_horizon_days: Number(draft.recurrence_horizon_days), language: draft.language, date_format: draft.date_format,
+                week_start: Number(draft.week_start), undo_seconds: Number(draft.undo_seconds),
             });
             await app.reloadBoot();
             app.changed();
-            app.toast("Configuración guardada", "ok");
+            app.toast((0, i18n_1.t)("Configuración guardada"), "ok");
             setErr("");
         }
         catch (e) {
@@ -19186,21 +21268,21 @@ function SettingsView() {
     };
     const enableNotifications = async () => {
         if (!("Notification" in window)) {
-            setNotifMsg("Este navegador no admite notificaciones del sistema. Los recordatorios siguen disponibles dentro de la aplicación.");
+            setNotifMsg((0, i18n_1.t)("Este navegador no admite notificaciones del sistema. Los recordatorios siguen disponibles dentro de la aplicación."));
             return;
         }
         if (Notification.permission === "denied") {
-            setNotifMsg("El permiso está denegado en el navegador. No se volverá a solicitar; puedes cambiarlo en la configuración del sitio.");
+            setNotifMsg((0, i18n_1.t)("El permiso está denegado en el navegador. No se volverá a solicitar; puedes cambiarlo en la configuración del sitio."));
             return;
         }
         const perm = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
         if (perm === "granted") {
             await api_1.api.patch("/api/settings", { notifications_enabled: true });
             await app.reloadBoot();
-            setNotifMsg("Notificaciones activadas.");
+            setNotifMsg((0, i18n_1.t)("Notificaciones activadas."));
         }
         else
-            setNotifMsg("Permiso no concedido. Los recordatorios internos siguen funcionando.");
+            setNotifMsg((0, i18n_1.t)("Permiso no concedido. Los recordatorios internos siguen funcionando."));
     };
     const pickFile = async (e) => {
         const f = e.target.files?.[0];
@@ -19215,15 +21297,15 @@ function SettingsView() {
             setRestoreData(data);
         }
         catch (ex) {
-            setErr(ex instanceof SyntaxError ? "El archivo no es un JSON válido" : ex.message);
+            setErr(ex instanceof SyntaxError ? (0, i18n_1.t)("El archivo no es un JSON válido") : ex.message);
         }
     };
     const doRestore = async () => {
-        if (!window.confirm("Se sustituirán TODOS los datos actuales por los del archivo. Antes se creará una copia de seguridad. ¿Continuar?"))
+        if (!window.confirm((0, i18n_1.t)("Se sustituirán TODOS los datos actuales por los del archivo. Antes se creará una copia de seguridad. ¿Continuar?")))
             return;
         try {
             const r = await api_1.api.post("/api/restore", { data: restoreData, confirm: true });
-            app.toast(`Restauración completada. Copia previa: ${r.previous_backup}`, "ok");
+            app.toast((0, i18n_1.t)("Restauración completada. Copia previa: {copia}", { copia: r.previous_backup }), "ok");
             setTimeout(() => window.location.reload(), 800);
         }
         catch (e) {
@@ -19231,11 +21313,11 @@ function SettingsView() {
         }
     };
     const restoreBackup = async (name) => {
-        if (!window.confirm(`Se sustituirán todos los datos actuales por la copia ${name}. Antes se creará una copia del estado actual. ¿Continuar?`))
+        if (!window.confirm((0, i18n_1.t)("Se sustituirán todos los datos actuales por la copia {copia}. Antes se creará una copia del estado actual. ¿Continuar?", { copia: name })))
             return;
         try {
             const r = await api_1.api.post(`/api/backups/${encodeURIComponent(name)}/restore`);
-            app.toast(`Copia restaurada. Copia previa: ${r.previous_backup}`, "ok");
+            app.toast((0, i18n_1.t)("Copia restaurada. Copia previa: {copia}", { copia: r.previous_backup }), "ok");
             setTimeout(() => window.location.reload(), 800);
         }
         catch (e) {
@@ -19243,25 +21325,105 @@ function SettingsView() {
         }
     };
     const shutdown = async () => {
-        if (!window.confirm("¿Cerrar la aplicación? Los datos ya están guardados en la base de datos local."))
+        if (!window.confirm((0, i18n_1.t)("¿Cerrar la aplicación? Los datos ya están guardados en la base de datos local.")))
             return;
         try {
             await api_1.api.post("/api/system/shutdown");
-            document.body.textContent = `${s.app_name} se ha cerrado correctamente. Puedes cerrar esta pestaña.`;
+            document.body.textContent = (0, i18n_1.t)("{app} se ha cerrado correctamente. Puedes cerrar esta pestaña.", { app: s.app_name });
         }
         catch (e) {
             setErr(e.message);
         }
     };
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "view settings", children: [(0, jsx_runtime_1.jsxs)("header", { className: "view-head row", children: [(0, jsx_runtime_1.jsx)("h1", { children: "Configuraci\u00F3n" }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), (0, jsx_runtime_1.jsx)("button", { className: "primary", onClick: save, children: "Guardar configuraci\u00F3n" })] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: err }), (0, jsx_runtime_1.jsxs)("div", { className: "settings-grid", children: [(0, jsx_runtime_1.jsxs)(ui_1.Section, { title: "General", children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Nombre de la aplicaci\u00F3n", children: (0, jsx_runtime_1.jsx)("input", { value: draft.app_name, maxLength: 40, onChange: (e) => set("app_name", e.target.value) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Pantalla de apertura", hint: "Tambi\u00E9n es el destino al pulsar el nombre de la aplicaci\u00F3n.", children: (0, jsx_runtime_1.jsxs)("select", { value: draft.start_view, onChange: (e) => set("start_view", e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "hoy", children: "Hoy" }), (0, jsx_runtime_1.jsx)("option", { value: "proyectos", children: "Proyectos" }), (0, jsx_runtime_1.jsx)("option", { value: "trabajo", children: "Trabajo" }), (0, jsx_runtime_1.jsx)("option", { value: "equipo", children: "Equipo" }), (0, jsx_runtime_1.jsx)("option", { value: "notas", children: "Notas" }), (0, jsx_runtime_1.jsx)("option", { value: "ultima", children: "Recordar la \u00FAltima vista" })] }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Zona horaria", hint: "Identificador IANA. Por defecto Europe/Madrid (incluye cambios de horario).", children: (0, jsx_runtime_1.jsx)("input", { value: draft.timezone, onChange: (e) => set("timezone", e.target.value) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Generar ocurrencias recurrentes con antelaci\u00F3n (d\u00EDas)", children: (0, jsx_runtime_1.jsx)("input", { type: "number", min: "0", max: "60", value: draft.recurrence_horizon_days, onChange: (e) => set("recurrence_horizon_days", e.target.value) }) })] }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: "Horario laboral", children: [(0, jsx_runtime_1.jsxs)("fieldset", { className: "weekdays", children: [(0, jsx_runtime_1.jsx)("legend", { children: "D\u00EDas laborables" }), labels_1.DAYS_LONG.map((d, i) => (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: draft.workdays.includes(i + 1), onChange: (e) => set("workdays", e.target.checked ? [...draft.workdays, i + 1].sort() : draft.workdays.filter((x) => x !== i + 1)) }), d] }, d))] }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Inicio", children: (0, jsx_runtime_1.jsx)("input", { type: "time", value: draft.work_start, onChange: (e) => set("work_start", e.target.value) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Fin", children: (0, jsx_runtime_1.jsx)("input", { type: "time", value: draft.work_end, onChange: (e) => set("work_end", e.target.value) }) })] }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: "Los festivos se gestionan por oficina en la secci\u00F3n \u00ABOficinas y festivos\u00BB." })] }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: "Recordatorios y notificaciones", children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Avisar de vencimientos con (d\u00EDas) de antelaci\u00F3n", children: (0, jsx_runtime_1.jsx)("input", { type: "number", min: "0", max: "30", value: draft.due_soon_days, onChange: (e) => set("due_soon_days", e.target.value) }) }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Horario silencioso desde", children: (0, jsx_runtime_1.jsx)("input", { type: "time", value: draft.quiet_start, onChange: (e) => set("quiet_start", e.target.value) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "hasta", children: (0, jsx_runtime_1.jsx)("input", { type: "time", value: draft.quiet_end, onChange: (e) => set("quiet_end", e.target.value) }) })] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: draft.notifications_discreet, onChange: (e) => set("notifications_discreet", e.target.checked) }), " Contenido discreto (sin t\u00EDtulos ni datos de cliente)"] }), (0, jsx_runtime_1.jsxs)("p", { children: ["Notificaciones del sistema: ", (0, jsx_runtime_1.jsx)("strong", { children: s.notifications_enabled ? "activadas" : "desactivadas" }), ". Opcionales y solo con la aplicaci\u00F3n abierta; el centro de recordatorios interno funciona siempre."] }), s.notifications_enabled ? (0, jsx_runtime_1.jsx)("button", { onClick: async () => { await api_1.api.patch("/api/settings", { notifications_enabled: false }); await app.reloadBoot(); setNotifMsg("Notificaciones desactivadas."); }, children: "Desactivar notificaciones" })
-                                : (0, jsx_runtime_1.jsx)("button", { onClick: enableNotifications, children: "Activar notificaciones del sistema" }), notifMsg && (0, jsx_runtime_1.jsx)("p", { className: "hint", role: "status", children: notifMsg })] }), (0, jsx_runtime_1.jsx)(OfficesAndHolidays, {}), (0, jsx_runtime_1.jsx)(TagsManager, {}), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: "Copias de seguridad", children: [(0, jsx_runtime_1.jsxs)("dl", { className: "paths", children: [(0, jsx_runtime_1.jsx)("dt", { children: "Datos" }), (0, jsx_runtime_1.jsx)("dd", { children: (0, jsx_runtime_1.jsx)("code", { children: app.boot.data_dir }) }), (0, jsx_runtime_1.jsx)("dt", { children: "Copias" }), (0, jsx_runtime_1.jsx)("dd", { children: (0, jsx_runtime_1.jsx)("code", { children: backups?.dir }) })] }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Copias autom\u00E1ticas diarias a conservar", children: (0, jsx_runtime_1.jsx)("input", { type: "number", min: "1", max: "365", value: draft.backup_retention, onChange: (e) => set("backup_retention", e.target.value) }) }), (0, jsx_runtime_1.jsx)("button", { onClick: async () => { try {
+    const setDay = (k, v) => set("work_schedule", { ...draft.work_schedule, [k]: v });
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "view settings", children: [(0, jsx_runtime_1.jsxs)("header", { className: "view-head row", children: [(0, jsx_runtime_1.jsx)("h1", { children: (0, i18n_1.t)("Configuración") }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), (0, jsx_runtime_1.jsx)("button", { className: "primary", onClick: save, children: (0, i18n_1.t)("Guardar configuración") })] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: err }), (0, jsx_runtime_1.jsxs)("div", { className: "settings-grid", children: [(0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("General"), children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Nombre de la aplicación"), children: (0, jsx_runtime_1.jsx)("input", { value: draft.app_name, maxLength: 40, onChange: (e) => set("app_name", e.target.value) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Idioma de la interfaz"), hint: (0, i18n_1.t)("Los datos que escribes no se traducen."), children: (0, jsx_runtime_1.jsxs)("select", { value: draft.language, onChange: (e) => set("language", e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "es", children: "Espa\u00F1ol" }), (0, jsx_runtime_1.jsx)("option", { value: "en", children: "English" })] }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Pantalla de apertura"), hint: (0, i18n_1.t)("También es el destino al pulsar el nombre de la aplicación."), children: (0, jsx_runtime_1.jsxs)("select", { value: draft.start_view, onChange: (e) => set("start_view", e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "hoy", children: (0, i18n_1.t)("Hoy") }), (0, jsx_runtime_1.jsx)("option", { value: "proyectos", children: (0, i18n_1.t)("Proyectos") }), (0, jsx_runtime_1.jsx)("option", { value: "trabajo", children: (0, i18n_1.t)("Trabajo") }), (0, jsx_runtime_1.jsx)("option", { value: "equipo", children: (0, i18n_1.t)("Equipo") }), (0, jsx_runtime_1.jsx)("option", { value: "notas", children: (0, i18n_1.t)("Notas") }), (0, jsx_runtime_1.jsx)("option", { value: "ultima", children: (0, i18n_1.t)("Recordar la última vista") })] }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Zona horaria"), hint: (0, i18n_1.t)("Identificador IANA. Por defecto Europe/Madrid (incluye cambios de horario)."), children: (0, jsx_runtime_1.jsx)("input", { value: draft.timezone, onChange: (e) => set("timezone", e.target.value) }) }), (0, jsx_runtime_1.jsxs)("div", { className: "grid2", children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Formato de fecha"), children: (0, jsx_runtime_1.jsxs)("select", { value: draft.date_format, onChange: (e) => set("date_format", e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "dd/mm/aaaa", children: (0, i18n_1.t)("dd/mm/aaaa") }), (0, jsx_runtime_1.jsx)("option", { value: "aaaa-mm-dd", children: (0, i18n_1.t)("aaaa-mm-dd") }), (0, jsx_runtime_1.jsx)("option", { value: "mm/dd/aaaa", children: (0, i18n_1.t)("mm/dd/aaaa") })] }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("La semana empieza en"), hint: (0, i18n_1.t)("Solo en calendarios; la planificación semanal es siempre de lunes a domingo."), children: (0, jsx_runtime_1.jsxs)("select", { value: draft.week_start, onChange: (e) => set("week_start", Number(e.target.value)), children: [(0, jsx_runtime_1.jsx)("option", { value: 1, children: (0, i18n_1.t)("Lunes") }), (0, jsx_runtime_1.jsx)("option", { value: 7, children: (0, i18n_1.t)("Domingo") })] }) })] }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Generar ocurrencias recurrentes con antelación (días)"), children: (0, jsx_runtime_1.jsx)("input", { type: "number", min: "0", max: "60", value: draft.recurrence_horizon_days, onChange: (e) => set("recurrence_horizon_days", e.target.value) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Tiempo para «Deshacer» (segundos)"), hint: (0, i18n_1.t)("Duración del aviso con «Deshacer» tras una acción directa (3–60 s)."), children: (0, jsx_runtime_1.jsx)("input", { type: "number", min: "3", max: "60", value: draft.undo_seconds, onChange: (e) => set("undo_seconds", e.target.value) }) })] }), (0, jsx_runtime_1.jsx)(AppearanceSection, {}), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("Horario laboral"), children: [(0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Horario de cada día. Se usa en las horas laborables de las revisiones, en las recurrencias de días laborables y en la disponibilidad de la planificación.") }), (0, jsx_runtime_1.jsx)("div", { className: "table-wrap", children: (0, jsx_runtime_1.jsxs)("table", { className: "list compact schedule", children: [(0, jsx_runtime_1.jsx)("thead", { children: (0, jsx_runtime_1.jsxs)("tr", { children: [(0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Día") }), (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Laborable") }), (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Inicio") }), (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Fin") })] }) }), (0, jsx_runtime_1.jsx)("tbody", { children: DAY_KEYS.map((k, i) => {
+                                                const w = draft.work_schedule[k];
+                                                return (0, jsx_runtime_1.jsxs)("tr", { children: [(0, jsx_runtime_1.jsx)("td", { children: labels_1.DAYS_LONG[i] }), (0, jsx_runtime_1.jsx)("td", { children: (0, jsx_runtime_1.jsx)("input", { type: "checkbox", "aria-label": (0, i18n_1.t)("{dia} laborable", { dia: labels_1.DAYS_LONG[i] }), checked: !!w, onChange: (e) => setDay(k, e.target.checked ? { start: "09:00", end: "18:00" } : null) }) }), (0, jsx_runtime_1.jsx)("td", { children: w ? (0, jsx_runtime_1.jsx)(DateInput_1.TimeInput, { label: (0, i18n_1.t)("{dia}: inicio", { dia: labels_1.DAYS_LONG[i] }), value: w.start, onChange: (v) => v && setDay(k, { ...w, start: v }) }) : "—" }), (0, jsx_runtime_1.jsx)("td", { children: w ? (0, jsx_runtime_1.jsx)(DateInput_1.TimeInput, { label: (0, i18n_1.t)("{dia}: fin", { dia: labels_1.DAYS_LONG[i] }), value: w.end, onChange: (v) => v && setDay(k, { ...w, end: v }) }) : "—" })] }, k);
+                                            }) })] }) }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Resumen: {horario}", { horario: (0, labels_1.describeSchedule)(draft.work_schedule) }) }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Los festivos se gestionan por oficina en la sección «Oficinas y festivos».") })] }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("Recordatorios y notificaciones"), children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Avisar de vencimientos con (días) de antelación"), children: (0, jsx_runtime_1.jsx)("input", { type: "number", min: "0", max: "30", value: draft.due_soon_days, onChange: (e) => set("due_soon_days", e.target.value) }) }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Horario silencioso desde"), children: (0, jsx_runtime_1.jsx)(DateInput_1.TimeInput, { label: (0, i18n_1.t)("Horario silencioso desde"), value: draft.quiet_start, onChange: (v) => v && set("quiet_start", v) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("hasta"), children: (0, jsx_runtime_1.jsx)(DateInput_1.TimeInput, { label: (0, i18n_1.t)("Horario silencioso hasta"), value: draft.quiet_end, onChange: (v) => v && set("quiet_end", v) }) })] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: draft.notifications_discreet, onChange: (e) => set("notifications_discreet", e.target.checked) }), " ", (0, i18n_1.t)("Contenido discreto (sin títulos ni datos de cliente)")] }), (0, jsx_runtime_1.jsxs)("p", { children: [(0, i18n_1.t)("Notificaciones del sistema:"), " ", (0, jsx_runtime_1.jsx)("strong", { children: s.notifications_enabled ? (0, i18n_1.t)("activadas") : (0, i18n_1.t)("desactivadas") }), ". ", (0, i18n_1.t)("Opcionales y solo con la aplicación abierta; el centro de recordatorios interno funciona siempre.")] }), s.notifications_enabled ? (0, jsx_runtime_1.jsx)("button", { onClick: async () => { await api_1.api.patch("/api/settings", { notifications_enabled: false }); await app.reloadBoot(); setNotifMsg((0, i18n_1.t)("Notificaciones desactivadas.")); }, children: (0, i18n_1.t)("Desactivar notificaciones") })
+                                : (0, jsx_runtime_1.jsx)("button", { onClick: enableNotifications, children: (0, i18n_1.t)("Activar notificaciones del sistema") }), notifMsg && (0, jsx_runtime_1.jsx)("p", { className: "hint", role: "status", children: notifMsg })] }), (0, jsx_runtime_1.jsx)(OfficesAndHolidays, {}), (0, jsx_runtime_1.jsx)(TagsManager, {}), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("Copias de seguridad"), children: [(0, jsx_runtime_1.jsxs)("dl", { className: "paths", children: [(0, jsx_runtime_1.jsx)("dt", { children: (0, i18n_1.t)("Datos") }), (0, jsx_runtime_1.jsx)("dd", { children: (0, jsx_runtime_1.jsx)("code", { children: app.boot.data_dir }) }), (0, jsx_runtime_1.jsx)("dt", { children: (0, i18n_1.t)("Copias") }), (0, jsx_runtime_1.jsx)("dd", { children: (0, jsx_runtime_1.jsx)("code", { children: backups?.dir }) })] }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Copias automáticas diarias a conservar"), children: (0, jsx_runtime_1.jsx)("input", { type: "number", min: "1", max: "365", value: draft.backup_retention, onChange: (e) => set("backup_retention", e.target.value) }) }), (0, jsx_runtime_1.jsx)("button", { onClick: async () => { try {
                                     const r = await api_1.api.post("/api/backups");
-                                    app.toast(`Copia creada: ${r.name}`, "ok");
+                                    app.toast((0, i18n_1.t)("Copia creada: {copia}", { copia: r.name }), "ok");
                                     reloadBackups();
                                 }
                                 catch (e) {
                                     setErr(e.message);
-                                } }, children: "Crear copia ahora" }), (0, jsx_runtime_1.jsx)("ul", { className: "plain backups", children: backups?.items.slice(0, 30).map((b) => ((0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("code", { children: b.name }), " ", (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [(b.size / 1024).toFixed(0), " KB \u00B7 ", (0, dates_1.fmtDateTime)(b.modified, app.tz)] }), (0, jsx_runtime_1.jsx)("button", { className: "small ghost", onClick: () => restoreBackup(b.name), children: "Restaurar" })] }, b.name))) }), (0, jsx_runtime_1.jsx)("p", { className: "warn-box", children: "Las copias locales est\u00E1n en el mismo equipo: no protegen ante p\u00E9rdida, robo o aver\u00EDa del port\u00E1til. Guarda peri\u00F3dicamente la exportaci\u00F3n completa en una ubicaci\u00F3n autorizada por tu organizaci\u00F3n." })] }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: "Exportar", children: [(0, jsx_runtime_1.jsxs)("ul", { className: "plain export-list", children: [(0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("a", { className: "button", href: "/api/export/full", download: true, children: "Exportaci\u00F3n completa (JSON)" }), " ", (0, jsx_runtime_1.jsx)("span", { className: "hint", children: "\u00DAnica exportaci\u00F3n restaurable." })] }), (0, jsx_runtime_1.jsx)("li", { children: (0, jsx_runtime_1.jsx)("a", { className: "button", href: "/api/export/notes.zip", download: true, children: "Notas en Markdown (ZIP)" }) }), (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("a", { className: "button", href: "/api/export/tasks.csv", download: true, children: "Tareas en CSV" }), " ", (0, jsx_runtime_1.jsx)("span", { className: "hint", children: "Para consulta; no es copia completa." })] })] }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: "La exportaci\u00F3n por proyecto est\u00E1 en la pantalla de cada proyecto." })] }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: "Restaurar desde exportaci\u00F3n completa", children: [(0, jsx_runtime_1.jsx)("p", { className: "hint", children: "Restauraci\u00F3n completa (sin fusi\u00F3n). Se valida el archivo, se muestra qu\u00E9 se restaurar\u00E1 y se crea una copia previa." }), (0, jsx_runtime_1.jsx)("input", { type: "file", accept: "application/json,.json", "aria-label": "Archivo de exportaci\u00F3n completa", onChange: pickFile }), preview && (0, jsx_runtime_1.jsxs)("div", { className: "subtle-box", children: [(0, jsx_runtime_1.jsxs)("p", { children: ["Exportado: ", (0, dates_1.fmtDateTime)(preview.exported_at, app.tz), " \u00B7 versi\u00F3n ", preview.app_version] }), (0, jsx_runtime_1.jsx)("div", { className: "table-wrap", children: (0, jsx_runtime_1.jsxs)("table", { className: "list compact", children: [(0, jsx_runtime_1.jsx)("thead", { children: (0, jsx_runtime_1.jsxs)("tr", { children: [(0, jsx_runtime_1.jsx)("th", { children: "Tabla" }), (0, jsx_runtime_1.jsx)("th", { children: "Actual" }), (0, jsx_runtime_1.jsx)("th", { children: "Tras restaurar" })] }) }), (0, jsx_runtime_1.jsx)("tbody", { children: Object.keys(preview.incoming).map((k) => (0, jsx_runtime_1.jsxs)("tr", { children: [(0, jsx_runtime_1.jsx)("td", { children: k }), (0, jsx_runtime_1.jsx)("td", { children: preview.current[k] }), (0, jsx_runtime_1.jsx)("td", { children: preview.incoming[k] })] }, k)) })] }) }), (0, jsx_runtime_1.jsx)("button", { className: "danger", onClick: doRestore, children: "Restaurar (sustituye todos los datos)" })] })] }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: "Sistema", children: [(0, jsx_runtime_1.jsxs)("p", { children: ["Versi\u00F3n ", app.boot.version, app.boot.demo ? " · MODO DEMO (datos ficticios)" : "", ". Escucha solo en 127.0.0.1. Sin conexiones externas ni telemetr\u00EDa."] }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: "Sin inicio de sesi\u00F3n: cualquier persona con acceso a tu sesi\u00F3n de Windows puede abrir la aplicaci\u00F3n. Protege tu equipo con las medidas de tu organizaci\u00F3n." }), (0, jsx_runtime_1.jsx)("button", { className: "danger", onClick: shutdown, children: "Cerrar aplicaci\u00F3n" })] })] }), (0, jsx_runtime_1.jsx)("div", { className: "sticky-save", children: (0, jsx_runtime_1.jsx)("button", { className: "primary", onClick: save, children: "Guardar configuraci\u00F3n" }) })] }));
+                                } }, children: (0, i18n_1.t)("Crear copia ahora") }), (0, jsx_runtime_1.jsx)("ul", { className: "plain backups", children: backups?.items.slice(0, 30).map((b) => ((0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("code", { children: b.name }), " ", (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [(b.size / 1024).toFixed(0), " KB \u00B7 ", (0, dates_1.fmtDateTime)(b.modified, app.tz)] }), (0, jsx_runtime_1.jsx)("button", { className: "small ghost", onClick: () => restoreBackup(b.name), children: (0, i18n_1.t)("Restaurar") })] }, b.name))) }), (0, jsx_runtime_1.jsx)("p", { className: "warn-box", children: (0, i18n_1.t)("Las copias locales están en el mismo equipo: no protegen ante pérdida, robo o avería del portátil. Guarda periódicamente la exportación completa en una ubicación autorizada por tu organización.") })] }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("Exportar"), children: [(0, jsx_runtime_1.jsxs)("ul", { className: "plain export-list", children: [(0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("a", { className: "button", href: "/api/export/full", download: true, children: (0, i18n_1.t)("Exportación completa (JSON)") }), " ", (0, jsx_runtime_1.jsx)("span", { className: "hint", children: (0, i18n_1.t)("Única exportación restaurable.") })] }), (0, jsx_runtime_1.jsx)("li", { children: (0, jsx_runtime_1.jsx)("a", { className: "button", href: "/api/export/notes.zip", download: true, children: (0, i18n_1.t)("Notas en Markdown (ZIP)") }) }), (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("a", { className: "button", href: "/api/export/tasks.csv", download: true, children: (0, i18n_1.t)("Tareas en CSV") }), " ", (0, jsx_runtime_1.jsx)("span", { className: "hint", children: (0, i18n_1.t)("Para consulta; no es copia completa.") })] })] }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("La exportación por proyecto está en la pantalla de cada proyecto.") })] }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("Restaurar desde exportación completa"), children: [(0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Restauración completa (sin fusión). Se valida el archivo, se muestra qué se restaurará y se crea una copia previa. Se admiten exportaciones de esta versión y de la 0.2.") }), (0, jsx_runtime_1.jsx)("input", { type: "file", accept: "application/json,.json", "aria-label": (0, i18n_1.t)("Archivo de exportación completa"), onChange: pickFile }), preview && (0, jsx_runtime_1.jsxs)("div", { className: "subtle-box", children: [(0, jsx_runtime_1.jsx)("p", { children: (0, i18n_1.t)("Exportado: {fecha} · versión {version}", { fecha: (0, dates_1.fmtDateTime)(preview.exported_at, app.tz), version: preview.app_version }) }), (0, jsx_runtime_1.jsx)("div", { className: "table-wrap", children: (0, jsx_runtime_1.jsxs)("table", { className: "list compact", children: [(0, jsx_runtime_1.jsx)("thead", { children: (0, jsx_runtime_1.jsxs)("tr", { children: [(0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Tabla") }), (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Actual") }), (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Tras restaurar") })] }) }), (0, jsx_runtime_1.jsx)("tbody", { children: Object.keys(preview.incoming).map((k) => (0, jsx_runtime_1.jsxs)("tr", { children: [(0, jsx_runtime_1.jsx)("td", { children: k }), (0, jsx_runtime_1.jsx)("td", { children: preview.current[k] }), (0, jsx_runtime_1.jsx)("td", { children: preview.incoming[k] })] }, k)) })] }) }), (0, jsx_runtime_1.jsx)("button", { className: "danger", onClick: doRestore, children: (0, i18n_1.t)("Restaurar (sustituye todos los datos)") })] })] }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("Sistema"), children: [(0, jsx_runtime_1.jsxs)("p", { children: [(0, i18n_1.t)("Versión {version}", { version: app.boot.version }), app.boot.demo ? " · " + (0, i18n_1.t)("MODO DEMO (datos ficticios)") : "", ". ", (0, i18n_1.t)("Escucha solo en 127.0.0.1. Sin conexiones externas ni telemetría.")] }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Sin inicio de sesión: cualquier persona con acceso a tu sesión de Windows puede abrir la aplicación. Protege tu equipo con las medidas de tu organización.") }), (0, jsx_runtime_1.jsx)("button", { className: "danger", onClick: shutdown, children: (0, i18n_1.t)("Cerrar aplicación") })] }), (0, jsx_runtime_1.jsx)(DangerZone, {})] }), (0, jsx_runtime_1.jsx)("div", { className: "sticky-save", children: (0, jsx_runtime_1.jsx)("button", { className: "primary", onClick: save, children: (0, i18n_1.t)("Guardar configuración") }) })] }));
+}
+/** Aspecto: claro / oscuro / según el sistema y temas declarativos (integrados o importados). Se aplica al momento. */
+function AppearanceSection() {
+    const app = (0, store_1.useApp)();
+    const s = app.boot.settings;
+    const custom = s.custom_themes || [];
+    const [err, setErr] = (0, react_1.useState)("");
+    const [warn, setWarn] = (0, react_1.useState)("");
+    const patch = async (body) => { try {
+        await api_1.api.patch("/api/settings", body);
+        await app.reloadBoot();
+        setErr("");
+    }
+    catch (e) {
+        setErr(e.message);
+    } };
+    const current = (0, theme_1.findTheme)(s.theme_id, custom);
+    const importFile = async (e) => {
+        const f = e.target.files?.[0];
+        e.target.value = "";
+        setErr("");
+        setWarn("");
+        if (!f)
+            return;
+        let theme;
+        try {
+            theme = JSON.parse(await f.text());
+        }
+        catch {
+            setErr((0, i18n_1.t)("El archivo no es un JSON válido"));
+            return;
+        }
+        const msg = (0, theme_1.validateTheme)(theme);
+        if (msg) {
+            setErr((0, i18n_1.t)("Tema no válido: {motivo}", { motivo: msg }));
+            return;
+        }
+        const issues = [...(0, theme_1.contrastIssues)((0, theme_1.resolveAppearance)(theme, "light").vars), ...(0, theme_1.contrastIssues)((0, theme_1.resolveAppearance)(theme, "dark").vars)];
+        try {
+            const saved = await api_1.api.post("/api/themes", theme);
+            await api_1.api.patch("/api/settings", { theme_id: saved.id });
+            await app.reloadBoot();
+            app.toast((0, i18n_1.t)("Tema «{nombre}» importado y aplicado", { nombre: saved.name }), "ok");
+            if (issues.length)
+                setWarn((0, i18n_1.t)("Aviso de contraste (texto por debajo de 4,5:1): {pares}", { pares: issues.join(" · ") }));
+        }
+        catch (ex) {
+            setErr(ex.message);
+        }
+    };
+    const download = () => {
+        const blob = new Blob([JSON.stringify((0, theme_1.themeTemplate)(current), null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `kaosnt-tema-${current.id}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+    };
+    const all = [...theme_1.BUILTIN_THEMES, ...custom];
+    const mode = (0, theme_1.effectiveMode)(s.theme_mode);
+    return ((0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("Aspecto"), children: [(0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: err }), warn && (0, jsx_runtime_1.jsx)("p", { className: "warn-box", children: warn }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Modo"), children: (0, jsx_runtime_1.jsx)("div", { className: "tabs-inline", role: "radiogroup", "aria-label": (0, i18n_1.t)("Modo"), children: [["claro", (0, i18n_1.t)("Claro")], ["oscuro", (0, i18n_1.t)("Oscuro")], ["sistema", (0, i18n_1.t)("Según el sistema")]].map(([k, label]) => ((0, jsx_runtime_1.jsx)("button", { role: "radio", "aria-checked": s.theme_mode === k, className: s.theme_mode === k ? "active" : "", onClick: () => patch({ theme_mode: k }), children: label }, k))) }) }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Ahora se ve en modo {modo}.", { modo: mode === "dark" ? (0, i18n_1.t)("oscuro") : (0, i18n_1.t)("claro") }) }), (0, jsx_runtime_1.jsx)("ul", { className: "plain theme-list", children: all.map((th) => {
+                    const v = { ...theme_1.BASE[mode], ...th[mode] };
+                    const builtin = theme_1.BUILTIN_THEMES.some((b) => b.id === th.id);
+                    return (0, jsx_runtime_1.jsxs)("li", { className: "theme-item" + (th.id === current.id ? " active" : ""), children: [(0, jsx_runtime_1.jsx)("span", { className: "theme-swatches", "aria-hidden": "true", children: ["bg", "surface", "accent", "text"].map((k) => (0, jsx_runtime_1.jsx)("span", { className: "swatch", style: { background: v[k] } }, k)) }), (0, jsx_runtime_1.jsxs)("span", { className: "grow", children: [(0, jsx_runtime_1.jsx)("strong", { children: builtin ? (0, i18n_1.t)(th.name) : th.name }), (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [" \u00B7 ", builtin ? (0, i18n_1.t)(th.description) : th.description] })] }), th.id === current.id ? (0, jsx_runtime_1.jsx)("span", { className: "chip chip-info", children: (0, i18n_1.t)("En uso") }) : (0, jsx_runtime_1.jsx)("button", { className: "small", onClick: () => patch({ theme_id: th.id }), children: (0, i18n_1.t)("Usar") }), !builtin && (0, jsx_runtime_1.jsx)("button", { className: "small ghost", onClick: async () => { if (window.confirm((0, i18n_1.t)("¿Eliminar el tema «{nombre}»?", { nombre: th.name }))) {
+                                    try {
+                                        await api_1.api.del(`/api/themes/${th.id}`);
+                                        await app.reloadBoot();
+                                    }
+                                    catch (e) {
+                                        setErr(e.message);
+                                    }
+                                } }, children: (0, i18n_1.t)("Eliminar") })] }, th.id);
+                }) }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsxs)("label", { className: "button", children: [(0, i18n_1.t)("Importar tema (JSON)"), (0, jsx_runtime_1.jsx)("input", { type: "file", accept: "application/json,.json", className: "sr", "aria-label": (0, i18n_1.t)("Importar tema (JSON)"), onChange: importFile })] }), (0, jsx_runtime_1.jsx)("button", { onClick: download, children: (0, i18n_1.t)("Descargar plantilla del tema actual") })] }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Los temas solo admiten colores (#hex, rgb[a], hsl[a]), una fuente de la lista (sistema, serif, mono, redondeada) y el radio de las esquinas. Nada de CSS libre, URLs ni fuentes remotas. Consulta docs/TEMAS.md.") })] }));
 }
 /** Oficinas y festivos: comunes (todas las oficinas) o de una oficina concreta. Se guardan al momento. */
 function OfficesAndHolidays() {
@@ -19270,8 +21432,9 @@ function OfficesAndHolidays() {
     const { data: locations, reload: reloadLoc } = (0, store_1.useApi)("/api/locations");
     const { data: holidays, reload: reloadHol } = (0, store_1.useApi)(`/api/holidays?year=${year}`);
     const [locName, setLocName] = (0, react_1.useState)("");
-    const [h, setH] = (0, react_1.useState)({ date: "", name: "", location_id: null });
+    const [h, setH] = (0, react_1.useState)({ date: null, name: "", location_id: null });
     const [err, setErr] = (0, react_1.useState)("");
+    const [bulk, setBulk] = (0, react_1.useState)(false);
     const call = async (fn) => { try {
         await fn();
         reloadLoc();
@@ -19285,11 +21448,55 @@ function OfficesAndHolidays() {
         setErr(e.message);
         return false;
     } };
-    return ((0, jsx_runtime_1.jsxs)(ui_1.Section, { title: "Oficinas y festivos", children: [(0, jsx_runtime_1.jsx)("p", { className: "hint", children: "Asigna a cada persona su oficina (Equipo \u2192 Editar). Un festivo \u00ABcom\u00FAn\u00BB aplica a todas. No se infieren festivos: solo cuentan los registrados aqu\u00ED." }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: err }), (0, jsx_runtime_1.jsx)("h3", { children: "Oficinas" }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: locations?.map((l) => ((0, jsx_runtime_1.jsxs)("li", { className: "row", children: [(0, jsx_runtime_1.jsx)("strong", { className: "grow", children: l.name }), (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [l.people, " persona(s) \u00B7 ", l.holidays, " festivo(s)"] }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => { const n = window.prompt("Nuevo nombre de la oficina:", l.name); if (n?.trim())
-                                void call(() => api_1.api.patch(`/api/locations/${l.id}`, { name: n.trim() })); }, children: "Renombrar" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => { if (window.confirm(`¿Eliminar «${l.name}»? Se eliminan sus festivos locales y sus personas quedan sin oficina.`))
-                                void call(() => api_1.api.del(`/api/locations/${l.id}`)); }, children: "Eliminar" })] }, l.id))) }), locations && !locations.length && (0, jsx_runtime_1.jsx)("p", { className: "muted", children: "Sin oficinas: todos los festivos ser\u00E1n comunes." }), (0, jsx_runtime_1.jsxs)("form", { className: "row", onSubmit: async (e) => { e.preventDefault(); if (await call(() => api_1.api.post("/api/locations", { name: locName.trim() })))
-                    setLocName(""); }, children: [(0, jsx_runtime_1.jsx)("input", { className: "grow", "aria-label": "Nueva oficina", placeholder: "Nueva oficina (p. ej. Zaragoza)", value: locName, onChange: (e) => setLocName(e.target.value) }), (0, jsx_runtime_1.jsx)("button", { type: "submit", disabled: !locName.trim(), children: "A\u00F1adir oficina" })] }), (0, jsx_runtime_1.jsxs)("h3", { className: "row", children: ["Festivos ", (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => setYear(year - 1), "aria-label": "A\u00F1o anterior", children: "\u25C0" }), (0, jsx_runtime_1.jsx)("span", { children: year }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => setYear(year + 1), "aria-label": "A\u00F1o siguiente", children: "\u25B6" })] }), holidays && !holidays.length && (0, jsx_runtime_1.jsxs)(ui_1.Empty, { children: ["Sin festivos registrados en ", year, "."] }), (0, jsx_runtime_1.jsx)("ul", { className: "plain holidays", children: holidays?.map((x) => ((0, jsx_runtime_1.jsxs)("li", { className: "row", children: [(0, jsx_runtime_1.jsx)("span", { className: "nowrap", children: (0, dates_1.fmtDate)(x.date) }), (0, jsx_runtime_1.jsx)("span", { className: "grow", children: x.name || "Festivo" }), (0, jsx_runtime_1.jsx)("span", { className: "chip " + (x.location ? "chip-info" : "chip-neutral"), children: x.location || "Común" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", "aria-label": `Eliminar festivo ${x.date}`, onClick: () => call(() => api_1.api.del(`/api/holidays/${x.id}`)), children: "\u2715" })] }, x.id))) }), (0, jsx_runtime_1.jsxs)("form", { className: "row", onSubmit: async (e) => { e.preventDefault(); if (await call(() => api_1.api.post("/api/holidays", { date: h.date, name: h.name.trim(), location_id: h.location_id })))
-                    setH({ ...h, date: "", name: "" }); }, children: [(0, jsx_runtime_1.jsx)("input", { type: "date", "aria-label": "Fecha del festivo", value: h.date, onChange: (e) => setH({ ...h, date: e.target.value }) }), (0, jsx_runtime_1.jsx)("input", { className: "grow", "aria-label": "Nombre del festivo", placeholder: "Nombre (opcional)", value: h.name, onChange: (e) => setH({ ...h, name: e.target.value }) }), (0, jsx_runtime_1.jsx)(ui_1.LocationSelect, { value: h.location_id, onChange: (v) => setH({ ...h, location_id: v }), emptyLabel: "Com\u00FAn (todas)" }), (0, jsx_runtime_1.jsx)("button", { type: "submit", disabled: !h.date, children: "A\u00F1adir festivo" })] })] }));
+    return ((0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("Oficinas y festivos"), children: [(0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Asigna a cada persona su oficina (Equipo → Editar). Un festivo «común» aplica a todas. No se infieren festivos: solo cuentan los registrados aquí.") }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: err }), (0, jsx_runtime_1.jsx)("h3", { children: (0, i18n_1.t)("Oficinas") }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: locations?.map((l) => ((0, jsx_runtime_1.jsxs)("li", { className: "row", children: [(0, jsx_runtime_1.jsx)("strong", { className: "grow", children: l.name }), (0, jsx_runtime_1.jsx)("span", { className: "muted small", children: (0, i18n_1.t)("{p} persona(s) · {h} festivo(s)", { p: l.people ?? 0, h: l.holidays ?? 0 }) }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => { const n = window.prompt((0, i18n_1.t)("Nuevo nombre de la oficina:"), l.name); if (n?.trim())
+                                void call(() => api_1.api.patch(`/api/locations/${l.id}`, { name: n.trim() })); }, children: (0, i18n_1.t)("Renombrar") }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => { if (window.confirm((0, i18n_1.t)("¿Eliminar «{nombre}»? Se eliminan sus festivos locales y sus personas quedan sin oficina.", { nombre: l.name })))
+                                void call(() => api_1.api.del(`/api/locations/${l.id}`)); }, children: (0, i18n_1.t)("Eliminar") })] }, l.id))) }), locations && !locations.length && (0, jsx_runtime_1.jsx)("p", { className: "muted", children: (0, i18n_1.t)("Sin oficinas: todos los festivos serán comunes.") }), (0, jsx_runtime_1.jsxs)("form", { className: "row", onSubmit: async (e) => { e.preventDefault(); if (await call(() => api_1.api.post("/api/locations", { name: locName.trim() })))
+                    setLocName(""); }, children: [(0, jsx_runtime_1.jsx)("input", { className: "grow", "aria-label": (0, i18n_1.t)("Nueva oficina"), placeholder: (0, i18n_1.t)("Nueva oficina (p. ej. Zaragoza)"), value: locName, onChange: (e) => setLocName(e.target.value) }), (0, jsx_runtime_1.jsx)("button", { type: "submit", disabled: !locName.trim(), children: (0, i18n_1.t)("Añadir oficina") })] }), (0, jsx_runtime_1.jsxs)("h3", { className: "row", children: [(0, i18n_1.t)("Festivos"), " ", (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => setYear(year - 1), "aria-label": (0, i18n_1.t)("Año anterior"), children: "\u25C0" }), (0, jsx_runtime_1.jsx)("span", { children: year }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => setYear(year + 1), "aria-label": (0, i18n_1.t)("Año siguiente"), children: "\u25B6" })] }), holidays && !holidays.length && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: (0, i18n_1.t)("Sin festivos registrados en {anio}.", { anio: year }) }), (0, jsx_runtime_1.jsx)("ul", { className: "plain holidays", children: holidays?.map((x) => ((0, jsx_runtime_1.jsxs)("li", { className: "row", children: [(0, jsx_runtime_1.jsx)("span", { className: "nowrap", children: (0, dates_1.fmtDate)(x.date) }), (0, jsx_runtime_1.jsx)("span", { className: "grow", children: x.name || (0, i18n_1.t)("Festivo") }), (0, jsx_runtime_1.jsx)("span", { className: "chip " + (x.location ? "chip-info" : "chip-neutral"), children: x.location || (0, i18n_1.t)("Común") }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", "aria-label": (0, i18n_1.t)("Eliminar festivo {fecha}", { fecha: (0, dates_1.fmtDate)(x.date) }), onClick: () => call(() => api_1.api.del(`/api/holidays/${x.id}`)), children: "\u2715" })] }, x.id))) }), (0, jsx_runtime_1.jsxs)("form", { className: "row", onSubmit: async (e) => { e.preventDefault(); if (h.date && await call(() => api_1.api.post("/api/holidays", { date: h.date, name: h.name.trim(), location_id: h.location_id })))
+                    setH({ ...h, date: null, name: "" }); }, children: [(0, jsx_runtime_1.jsx)(DateInput_1.DateInput, { label: (0, i18n_1.t)("Fecha del festivo"), value: h.date, onChange: (v) => setH({ ...h, date: v }) }), (0, jsx_runtime_1.jsx)("input", { className: "grow", "aria-label": (0, i18n_1.t)("Nombre del festivo"), placeholder: (0, i18n_1.t)("Nombre (opcional)"), value: h.name, onChange: (e) => setH({ ...h, name: e.target.value }) }), (0, jsx_runtime_1.jsx)(ui_1.LocationSelect, { value: h.location_id, onChange: (v) => setH({ ...h, location_id: v }), emptyLabel: (0, i18n_1.t)("Común (todas)") }), (0, jsx_runtime_1.jsx)("button", { type: "submit", disabled: !h.date, children: (0, i18n_1.t)("Añadir festivo") })] }), (0, jsx_runtime_1.jsx)("button", { onClick: () => setBulk(true), children: (0, i18n_1.t)("Importar festivos en bloque…") }), bulk && (0, jsx_runtime_1.jsx)(HolidayImport, { onClose: () => setBulk(false), onDone: () => { setBulk(false); reloadLoc(); reloadHol(); void app.reloadBoot(); app.changed(); } })] }));
+}
+const IMPORT_REASON = {
+    existe: () => (0, i18n_1.t)("Ya está registrado"), repetido: () => (0, i18n_1.t)("Repetido en el texto"),
+    fecha: (l) => (0, i18n_1.t)("Fecha no válida: «{texto}» (usa dd/mm/aaaa o AAAA-MM-DD)", { texto: l.text.split(/[;,\t]/)[0] }),
+    oficina: (l) => (0, i18n_1.t)("Oficina desconocida: «{oficina}» (no se importa como común)", { oficina: l.location || "" }),
+    columnas: () => (0, i18n_1.t)("Demasiadas columnas: usa día;nombre;oficina"), nueva_oficina: () => (0, i18n_1.t)("Se creará la oficina"),
+};
+/** Festivos en bloque: pegar texto o subir CSV «día;nombre;oficina»; vista previa por línea antes de guardar. */
+function HolidayImport({ onClose, onDone }) {
+    const app = (0, store_1.useApp)();
+    const [text, setText] = (0, react_1.useState)("");
+    const [create, setCreate] = (0, react_1.useState)(false);
+    const [result, setResult] = (0, react_1.useState)(null);
+    const [err, setErr] = (0, react_1.useState)("");
+    const previewImport = async (txt = text, cr = create) => {
+        try {
+            setResult(await api_1.api.post("/api/holidays/import", { text: txt, create_locations: cr, dry_run: true }));
+            setErr("");
+        }
+        catch (e) {
+            setErr(e.message);
+        }
+    };
+    const file = async (e) => {
+        const f = e.target.files?.[0];
+        if (!f)
+            return;
+        const txt = await f.text();
+        setText(txt);
+        void previewImport(txt);
+    };
+    const save = async () => {
+        try {
+            const r = await api_1.api.post("/api/holidays/import", { text, create_locations: create, dry_run: false });
+            app.toast((0, i18n_1.t)("{n} festivo(s) importado(s)", { n: r.created }), "ok");
+            onDone();
+        }
+        catch (e) {
+            setErr(e.message);
+        }
+    };
+    const label = { importar: (0, i18n_1.t)("Se importará"), duplicado: (0, i18n_1.t)("Duplicado"), error: (0, i18n_1.t)("Error") };
+    return ((0, jsx_runtime_1.jsxs)(ui_1.Modal, { title: (0, i18n_1.t)("Importar festivos en bloque"), onClose: onClose, wide: true, children: [(0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Formato por línea: día;nombre;oficina. Fecha dd/mm/aaaa (también AAAA-MM-DD). Nombre opcional. Oficina vacía o «Común» = todas las oficinas. Separador «;», «,» o tabulador; cabecera opcional.") }), (0, jsx_runtime_1.jsx)("pre", { className: "example", children: "día;nombre;oficina\n12/10/2026;Fiesta Nacional;\n29/01/2026;San Valero;Zaragoza" }), (0, jsx_runtime_1.jsx)("textarea", { "aria-label": (0, i18n_1.t)("Festivos a importar"), rows: 8, value: text, onChange: (e) => { setText(e.target.value); setResult(null); }, placeholder: (0, i18n_1.t)("Pega aquí las líneas…") }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsxs)("label", { className: "button", children: [(0, i18n_1.t)("Subir CSV…"), (0, jsx_runtime_1.jsx)("input", { type: "file", accept: ".csv,.txt,text/csv,text/plain", className: "sr", "aria-label": (0, i18n_1.t)("Subir CSV"), onChange: file })] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: create, onChange: (e) => { setCreate(e.target.checked); if (result)
+                                    void previewImport(text, e.target.checked); } }), " ", (0, i18n_1.t)("Crear oficinas que no existan")] }), (0, jsx_runtime_1.jsx)("button", { onClick: () => previewImport(), disabled: !text.trim(), children: (0, i18n_1.t)("Vista previa") })] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: err }), result && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("p", { children: (0, i18n_1.t)("{a} se importarán · {d} duplicados · {e} con error", { a: result.summary.importar, d: result.summary.duplicado, e: result.summary.error }) }), (0, jsx_runtime_1.jsx)("div", { className: "table-wrap", children: (0, jsx_runtime_1.jsxs)("table", { className: "list compact", children: [(0, jsx_runtime_1.jsx)("thead", { children: (0, jsx_runtime_1.jsxs)("tr", { children: [(0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Línea") }), (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Fecha") }), (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Nombre") }), (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Oficina") }), (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Resultado") })] }) }), (0, jsx_runtime_1.jsx)("tbody", { children: result.lines.map((l) => (0, jsx_runtime_1.jsxs)("tr", { className: "imp-" + l.status, children: [(0, jsx_runtime_1.jsx)("td", { children: l.line }), (0, jsx_runtime_1.jsx)("td", { children: l.date ? (0, dates_1.fmtDate)(l.date) : (0, jsx_runtime_1.jsx)("code", { children: l.text.split(/[;,\t]/)[0] }) }), (0, jsx_runtime_1.jsx)("td", { className: "wrap", children: l.name }), (0, jsx_runtime_1.jsxs)("td", { children: [l.location || (l.status !== "error" ? (0, i18n_1.t)("Común") : ""), l.new_location ? " " + (0, i18n_1.t)("(nueva)") : ""] }), (0, jsx_runtime_1.jsxs)("td", { children: [(0, jsx_runtime_1.jsx)("span", { className: "chip " + (l.status === "importar" ? "chip-info" : l.status === "error" ? "chip-danger" : "chip-warn"), children: label[l.status] }), l.reason_code && (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [" ", (IMPORT_REASON[l.reason_code] || (() => l.reason))(l)] })] })] }, l.line)) })] }) })] }), (0, jsx_runtime_1.jsxs)("div", { className: "modal-foot", children: [(0, jsx_runtime_1.jsx)("button", { className: "primary", disabled: !result || !result.summary.importar, onClick: save, children: (0, i18n_1.t)("Importar {n} festivo(s)", { n: result?.summary.importar ?? 0 }) }), (0, jsx_runtime_1.jsx)("button", { onClick: onClose, children: (0, i18n_1.t)("Cancelar") })] })] }));
 }
 function TagsManager() {
     const app = (0, store_1.useApp)();
@@ -19305,13 +21512,36 @@ function TagsManager() {
     catch (e) {
         setErr(e.message);
     } };
-    return ((0, jsx_runtime_1.jsxs)(ui_1.Section, { title: "Etiquetas", count: data?.length, children: [(0, jsx_runtime_1.jsx)("p", { className: "hint", children: "Se crean al escribirlas en una tarea o nota. Renombrar a un nombre existente fusiona ambas. Eliminar la quita de todas las tareas y notas." }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: err }), data && !data.length && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: "Sin etiquetas." }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: data?.map((t) => ((0, jsx_runtime_1.jsxs)("li", { className: "row", children: [(0, jsx_runtime_1.jsxs)("span", { className: "tagchip", children: ["#", t.name] }), (0, jsx_runtime_1.jsxs)("span", { className: "muted small grow", children: [t.tasks, " tarea(s) \u00B7 ", t.notes, " nota(s)"] }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => { const n = window.prompt("Nuevo nombre de la etiqueta:", t.name); if (n?.trim() && n.trim() !== t.name)
-                                void call(() => api_1.api.patch(`/api/tags/${t.id}`, { name: n.trim() })); }, children: "Renombrar" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => { if (window.confirm(`¿Eliminar la etiqueta «${t.name}»? Se quitará de ${t.tasks} tarea(s) y ${t.notes} nota(s).`))
-                                void call(() => api_1.api.del(`/api/tags/${t.id}`)); }, children: "Eliminar" })] }, t.id))) })] }));
+    return ((0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("Etiquetas"), count: data?.length, children: [(0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Se crean al escribirlas en una tarea o nota. Renombrar a un nombre existente fusiona ambas. Eliminar la quita de todas las tareas y notas.") }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: err }), data && !data.length && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: (0, i18n_1.t)("Sin etiquetas.") }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: data?.map((tag) => ((0, jsx_runtime_1.jsxs)("li", { className: "row", children: [(0, jsx_runtime_1.jsxs)("span", { className: "tagchip", children: ["#", tag.name] }), (0, jsx_runtime_1.jsx)("span", { className: "muted small grow", children: (0, i18n_1.t)("{tareas} tarea(s) · {notas} nota(s)", { tareas: tag.tasks, notas: tag.notes }) }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => { const n = window.prompt((0, i18n_1.t)("Nuevo nombre de la etiqueta:"), tag.name); if (n?.trim() && n.trim() !== tag.name)
+                                void call(() => api_1.api.patch(`/api/tags/${tag.id}`, { name: n.trim() })); }, children: (0, i18n_1.t)("Renombrar") }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => { if (window.confirm((0, i18n_1.t)("¿Eliminar la etiqueta «{nombre}»? Se quitará de {tareas} tarea(s) y {notas} nota(s).", { nombre: tag.name, tareas: tag.tasks, notas: tag.notes })))
+                                void call(() => api_1.api.del(`/api/tags/${tag.id}`)); }, children: (0, i18n_1.t)("Eliminar") })] }, tag.id))) })] }));
+}
+/** Zona de peligro: borrar todo el entorno (copia previa automática y confirmación muy explícita). */
+function DangerZone() {
+    const app = (0, store_1.useApp)();
+    const name = app.boot.settings.app_name || "KAOSnt";
+    const [text, setText] = (0, react_1.useState)("");
+    const [reseed, setReseed] = (0, react_1.useState)(app.boot.demo);
+    const [err, setErr] = (0, react_1.useState)("");
+    const ok = text.trim().toLowerCase() === name.trim().toLowerCase() || text.trim().toLowerCase() === "borrar todo";
+    const run = async () => {
+        if (!window.confirm((0, i18n_1.t)("Última confirmación: se borrarán TODOS los datos (tareas, proyectos, notas, personas, festivos y configuración). Antes se creará una copia. ¿Continuar?")))
+            return;
+        try {
+            const r = await api_1.api.post("/api/system/reset", { confirm_text: text, reseed_demo: app.boot.demo && reseed });
+            window.alert((0, i18n_1.t)("Datos borrados. Copia previa: {copia} (en la carpeta de copias; se puede restaurar desde «Copias de seguridad»).", { copia: r.previous_backup }));
+            window.location.hash = "#/hoy";
+            window.location.reload();
+        }
+        catch (e) {
+            setErr(e.message);
+        }
+    };
+    return ((0, jsx_runtime_1.jsx)(ui_1.Section, { title: (0, i18n_1.t)("Zona de peligro"), children: (0, jsx_runtime_1.jsxs)("div", { className: "danger-zone", children: [(0, jsx_runtime_1.jsxs)("p", { children: [(0, jsx_runtime_1.jsx)("strong", { children: (0, i18n_1.t)("Borrar todo el entorno") }), ": ", (0, i18n_1.t)("elimina todos los datos y deja la aplicación como recién instalada (con la persona «Yo»). Antes se crea una copia automática y se informa de su nombre.")] }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Para confirmar, escribe «{nombre}» o «BORRAR TODO»", { nombre: name }), children: (0, jsx_runtime_1.jsx)("input", { value: text, onChange: (e) => setText(e.target.value), autoComplete: "off" }) }), app.boot.demo && (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: reseed, onChange: (e) => setReseed(e.target.checked) }), " ", (0, i18n_1.t)("Volver a cargar los datos ficticios de la demo")] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: err }), (0, jsx_runtime_1.jsx)("button", { className: "danger", disabled: !ok, onClick: run, children: (0, i18n_1.t)("Borrar todo") })] }) }));
 }
 
-},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":8,"../lib/labels":12,"../lib/store":9,"../components/ui":13}]; // build/src/views/Settings.js
-defs[24]=[function(module,exports,require){
+},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":10,"../lib/i18n":8,"../lib/labels":17,"../lib/store":14,"../lib/theme":12,"../components/DateInput":18,"../components/ui":19}]; // build/src/views/Settings.js
+defs[32]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TeamView = TeamView;
@@ -19319,8 +21549,11 @@ const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const api_1 = require("../lib/api");
 const dates_1 = require("../lib/dates");
+const i18n_1 = require("../lib/i18n");
+const labels_1 = require("../lib/labels");
 const store_1 = require("../lib/store");
 const TaskCard_1 = require("../components/TaskCard");
+const DateInput_1 = require("../components/DateInput");
 const ui_1 = require("../components/ui");
 function TeamView({ personId }) {
     const app = (0, store_1.useApp)();
@@ -19328,20 +21561,20 @@ function TeamView({ personId }) {
     const [editing, setEditing] = (0, react_1.useState)(null);
     const people = app.boot.people;
     const sel = personId ?? people.find((p) => p.is_me)?.id ?? people[0]?.id;
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "view", children: [(0, jsx_runtime_1.jsxs)("header", { className: "view-head row", children: [(0, jsx_runtime_1.jsx)("h1", { children: "Equipo" }), (0, jsx_runtime_1.jsxs)("div", { role: "tablist", className: "tabs-inline", "aria-label": "Secciones de equipo", children: [(0, jsx_runtime_1.jsx)("button", { role: "tab", "aria-selected": tab === "personas", className: tab === "personas" ? "active" : "", onClick: () => setTab("personas"), children: "Personas" }), (0, jsx_runtime_1.jsx)("button", { role: "tab", "aria-selected": tab === "plan", className: tab === "plan" ? "active" : "", onClick: () => setTab("plan"), children: "Planificaci\u00F3n semanal" })] }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), (0, jsx_runtime_1.jsx)("button", { className: "primary", onClick: () => setEditing("nueva"), children: "Nueva persona" })] }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: "Vista operativa de los datos registrados. No se muestran rankings, puntuaciones ni valoraciones de desempe\u00F1o." }), tab === "personas" ? ((0, jsx_runtime_1.jsxs)("div", { className: "split", children: [(0, jsx_runtime_1.jsx)("nav", { className: "side-list", "aria-label": "Personas", children: (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: people.map((p) => ((0, jsx_runtime_1.jsx)("li", { children: (0, jsx_runtime_1.jsxs)("button", { className: "side-item" + (p.id === sel ? " active" : ""), "aria-current": p.id === sel, onClick: () => app.navigate(`#/equipo/${p.id}`), children: [p.name, p.is_me ? " (yo)" : "", !p.active && " · inactiva"] }) }, p.id))) }) }), sel ? (0, jsx_runtime_1.jsx)(PersonDetail, { id: sel, onEdit: (p) => setEditing(p) }) : (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: "A\u00F1ade personas del equipo." })] })) : (0, jsx_runtime_1.jsx)(WeekPlan, {}), editing && (0, jsx_runtime_1.jsx)(PersonForm, { person: editing === "nueva" ? null : editing, onClose: () => setEditing(null) })] }));
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "view", children: [(0, jsx_runtime_1.jsxs)("header", { className: "view-head row", children: [(0, jsx_runtime_1.jsx)("h1", { children: (0, i18n_1.t)("Equipo") }), (0, jsx_runtime_1.jsxs)("div", { role: "tablist", className: "tabs-inline", "aria-label": (0, i18n_1.t)("Secciones de equipo"), children: [(0, jsx_runtime_1.jsx)("button", { role: "tab", "aria-selected": tab === "personas", className: tab === "personas" ? "active" : "", onClick: () => setTab("personas"), children: (0, i18n_1.t)("Personas") }), (0, jsx_runtime_1.jsx)("button", { role: "tab", "aria-selected": tab === "plan", className: tab === "plan" ? "active" : "", onClick: () => setTab("plan"), children: (0, i18n_1.t)("Planificación semanal") })] }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), (0, jsx_runtime_1.jsx)("button", { className: "primary", onClick: () => setEditing("nueva"), children: (0, i18n_1.t)("Nueva persona") })] }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Vista operativa de los datos registrados. No se muestran rankings, puntuaciones ni valoraciones de desempeño.") }), tab === "personas" ? ((0, jsx_runtime_1.jsxs)("div", { className: "split", children: [(0, jsx_runtime_1.jsx)("nav", { className: "side-list", "aria-label": (0, i18n_1.t)("Personas"), children: (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: people.map((p) => ((0, jsx_runtime_1.jsx)("li", { children: (0, jsx_runtime_1.jsxs)("button", { className: "side-item" + (p.id === sel ? " active" : ""), "aria-current": p.id === sel, onClick: () => app.navigate(`#/equipo/${p.id}`), children: [p.name, p.is_me ? " " + (0, i18n_1.t)("(yo)") : "", !p.active && " · " + (0, i18n_1.t)("inactiva")] }) }, p.id))) }) }), sel ? (0, jsx_runtime_1.jsx)(PersonDetail, { id: sel, onEdit: (p) => setEditing(p) }) : (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: (0, i18n_1.t)("Añade personas del equipo.") })] })) : (0, jsx_runtime_1.jsx)(WeekPlan, {}), editing && (0, jsx_runtime_1.jsx)(PersonForm, { person: editing === "nueva" ? null : editing, onClose: () => setEditing(null) })] }));
 }
 function PersonDetail({ id, onEdit }) {
     const app = (0, store_1.useApp)();
     const { data: p, error, reload } = (0, store_1.useApi)(`/api/people/${id}/view`);
-    const [abs, setAbs] = (0, react_1.useState)({ start_date: "", end_date: "", label: "" });
+    const [abs, setAbs] = (0, react_1.useState)({ start_date: null, end_date: null, label: "" });
     const [err, setErr] = (0, react_1.useState)("");
     if (!p)
         return (0, jsx_runtime_1.jsx)("div", { children: (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error, onRetry: reload }) });
-    const list = (ts, empty) => ts.length ? (0, jsx_runtime_1.jsx)("div", { className: "cards", children: ts.map((t) => (0, jsx_runtime_1.jsx)(TaskCard_1.TaskCard, { task: t, showStatus: true }, t.id)) }) : (0, jsx_runtime_1.jsx)("p", { className: "muted", children: empty });
+    const list = (ts, empty) => ts.length ? (0, jsx_runtime_1.jsx)("div", { className: "cards", children: ts.map((x) => (0, jsx_runtime_1.jsx)(TaskCard_1.TaskCard, { task: x, showStatus: true }, x.id)) }) : (0, jsx_runtime_1.jsx)("p", { className: "muted", children: empty });
     const addAbs = async () => {
         try {
             await api_1.api.post("/api/absences", { person_id: id, ...abs });
-            setAbs({ start_date: "", end_date: "", label: "" });
+            setAbs({ start_date: null, end_date: null, label: "" });
             reload();
             app.changed();
             setErr("");
@@ -19350,21 +21583,21 @@ function PersonDetail({ id, onEdit }) {
             setErr(e.message);
         }
     };
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "person-detail", children: [(0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsxs)("h2", { children: [p.name, p.is_me ? " (yo)" : ""] }), p.role && (0, jsx_runtime_1.jsx)("span", { className: "muted", children: p.role }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), (0, jsx_runtime_1.jsxs)("button", { onClick: () => app.quickTask({ assignee_id: p.id }), children: ["Nueva tarea para ", p.is_me ? "mí" : p.name] }), (0, jsx_runtime_1.jsx)("button", { onClick: () => onEdit(p), children: "Editar" })] }), (0, jsx_runtime_1.jsxs)("p", { className: "muted", children: ["Oficina: ", p.location_name || "no informada", " \u00B7 Capacidad semanal: ", p.weekly_capacity_hours !== null ? `${p.weekly_capacity_hours} h` : "no informada", " \u00B7 Esfuerzo estimado registrado (no backlog): ", p.estimate.known_hours !== null ? `${p.estimate.known_hours} h en ${p.estimate.tasks_with_estimate} tareas` : "no informado", p.estimate.tasks_without_estimate > 0 && ` · ${p.estimate.tasks_without_estimate} sin estimación`] }), (0, jsx_runtime_1.jsxs)("p", { className: "muted", children: ["Proyectos: ", p.projects.length ? p.projects.map((x) => `${x.name}${x.dedication_pct !== null ? ` (${x.dedication_pct}%)` : ""}`).join(", ") : "ninguno vinculado"] }), !p.active_tasks.length && !p.in_review.length && (0, jsx_runtime_1.jsx)("p", { className: "empty", children: "Sin tareas activas registradas." }), (0, jsx_runtime_1.jsxs)("div", { className: "grid2", children: [(0, jsx_runtime_1.jsx)(ui_1.Section, { title: "Tareas activas", count: p.active_tasks.length, children: list(p.active_tasks, "Sin tareas activas registradas.") }), (0, jsx_runtime_1.jsx)(ui_1.Section, { title: "En revisi\u00F3n", count: p.in_review.length, children: list(p.in_review, "Ninguna.") }), (0, jsx_runtime_1.jsx)(ui_1.Section, { title: "Pr\u00F3ximos vencimientos (14 d\u00EDas)", count: p.upcoming_due.length, children: list(p.upcoming_due, "Ninguno registrado.") }), (0, jsx_runtime_1.jsx)(ui_1.Section, { title: "Con espera o bloqueo", count: p.blocked.length, children: list(p.blocked, "Ninguna.") }), (0, jsx_runtime_1.jsx)(ui_1.Section, { title: "Planificado esta semana", count: p.planned_week.length, children: list(p.planned_week, "Nada planificado con fecha esta semana.") }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: "Ausencias y festivos registrados", children: [p.absences.length ? (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: p.absences.map((a) => (0, jsx_runtime_1.jsxs)("li", { children: ["Ausencia ", (0, dates_1.fmtDate)(a.start_date), " \u2013 ", (0, dates_1.fmtDate)(a.end_date), " ", a.label && (0, jsx_runtime_1.jsxs)("span", { className: "muted", children: ["\u00B7 ", a.label] }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: async () => { if (window.confirm("¿Eliminar esta ausencia?")) {
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "person-detail", children: [(0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsxs)("h2", { children: [p.name, p.is_me ? " " + (0, i18n_1.t)("(yo)") : ""] }), p.role && (0, jsx_runtime_1.jsx)("span", { className: "muted", children: p.role }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), (0, jsx_runtime_1.jsx)("button", { onClick: () => app.quickTask({ assignee_id: p.id }), children: p.is_me ? (0, i18n_1.t)("Nueva tarea para mí") : (0, i18n_1.t)("Nueva tarea para {nombre}", { nombre: p.name }) }), (0, jsx_runtime_1.jsx)("button", { onClick: () => onEdit(p), children: (0, i18n_1.t)("Editar") })] }), (0, jsx_runtime_1.jsxs)("p", { className: "muted", children: [(0, i18n_1.t)("Oficina"), ": ", p.location_name || (0, i18n_1.t)("no informada"), " \u00B7 ", (0, i18n_1.t)("Capacidad semanal"), ": ", p.weekly_capacity_hours !== null ? `${p.weekly_capacity_hours} h` : (0, i18n_1.t)("no informada"), " \u00B7", " ", (0, i18n_1.t)("Esfuerzo estimado registrado (no backlog)"), ": ", p.estimate.known_hours !== null ? (0, i18n_1.t)("{h} h en {n} tareas", { h: p.estimate.known_hours, n: p.estimate.tasks_with_estimate }) : (0, i18n_1.t)("no informado"), p.estimate.tasks_without_estimate > 0 && " · " + (0, i18n_1.t)("{n} sin estimación", { n: p.estimate.tasks_without_estimate })] }), (0, jsx_runtime_1.jsxs)("p", { className: "muted", children: [(0, i18n_1.t)("Proyectos"), ": ", p.projects.length ? p.projects.map((x) => `${x.name}${x.dedication_pct !== null ? ` (${x.dedication_pct}%)` : ""}`).join(", ") : (0, i18n_1.t)("ninguno vinculado")] }), !p.active_tasks.length && !p.in_review.length && (0, jsx_runtime_1.jsx)("p", { className: "empty", children: (0, i18n_1.t)("Sin tareas activas registradas.") }), (0, jsx_runtime_1.jsxs)("div", { className: "grid2", children: [(0, jsx_runtime_1.jsx)(ui_1.Section, { title: (0, i18n_1.t)("Tareas activas"), count: p.active_tasks.length, children: list(p.active_tasks, (0, i18n_1.t)("Sin tareas activas registradas.")) }), (0, jsx_runtime_1.jsx)(ui_1.Section, { title: (0, i18n_1.t)("En revisión"), count: p.in_review.length, children: list(p.in_review, (0, i18n_1.t)("Ninguna.")) }), (0, jsx_runtime_1.jsx)(ui_1.Section, { title: (0, i18n_1.t)("Próximos vencimientos (14 días)"), count: p.upcoming_due.length, children: list(p.upcoming_due, (0, i18n_1.t)("Ninguno registrado.")) }), (0, jsx_runtime_1.jsx)(ui_1.Section, { title: (0, i18n_1.t)("Con espera o bloqueo"), count: p.blocked.length, children: list(p.blocked, (0, i18n_1.t)("Ninguna.")) }), (0, jsx_runtime_1.jsx)(ui_1.Section, { title: (0, i18n_1.t)("Planificado esta semana"), count: p.planned_week.length, children: list(p.planned_week, (0, i18n_1.t)("Nada planificado con fecha esta semana.")) }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("Ausencias y festivos registrados"), children: [p.absences.length ? (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: p.absences.map((a) => (0, jsx_runtime_1.jsxs)("li", { children: [(0, i18n_1.t)("Ausencia"), " ", (0, dates_1.fmtDate)(a.start_date), " \u2013 ", (0, dates_1.fmtDate)(a.end_date), " ", a.label && (0, jsx_runtime_1.jsxs)("span", { className: "muted", children: ["\u00B7 ", a.label] }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: async () => { if (window.confirm((0, i18n_1.t)("¿Eliminar esta ausencia?"))) {
                                                 await api_1.api.del(`/api/absences/${a.id}`);
                                                 reload();
                                                 app.changed();
-                                            } }, children: "Eliminar" })] }, a.id)) })
-                                : (0, jsx_runtime_1.jsx)("p", { className: "muted", children: "Sin ausencias registradas." }), p.holidays.length > 0 && (0, jsx_runtime_1.jsxs)("p", { className: "muted small", children: ["Festivos pr\u00F3ximos: ", p.holidays.map((h) => `${(0, dates_1.fmtDate)(h.date)}${h.location ? "" : " (común)"}`).join(", ")] }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)("input", { type: "date", "aria-label": "Desde", value: abs.start_date, onChange: (e) => setAbs({ ...abs, start_date: e.target.value, end_date: abs.end_date || e.target.value }) }), (0, jsx_runtime_1.jsx)("input", { type: "date", "aria-label": "Hasta", value: abs.end_date, onChange: (e) => setAbs({ ...abs, end_date: e.target.value }) }), (0, jsx_runtime_1.jsx)("input", { className: "grow", "aria-label": "Etiqueta opcional", placeholder: "Etiqueta (opcional)", value: abs.label, onChange: (e) => setAbs({ ...abs, label: e.target.value }) }), (0, jsx_runtime_1.jsx)("button", { disabled: !abs.start_date || !abs.end_date, onClick: addAbs, children: "Registrar ausencia" })] }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: "No se piden motivos. Las tareas no se reasignan autom\u00E1ticamente." }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: err })] })] }), (0, jsx_runtime_1.jsx)(ui_1.Section, { title: "\u00DAltimas actualizaciones de sus tareas", children: p.recent_updates.length ? (0, jsx_runtime_1.jsx)("ul", { className: "history", children: p.recent_updates.map((u, i) => (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsxs)("div", { className: "h-meta", children: [(0, jsx_runtime_1.jsx)("time", { children: (0, dates_1.fmtDateTime)(u.at, app.tz) }), " \u00B7 ", (0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.openTask(u.task_id), children: u.title })] }), (0, jsx_runtime_1.jsx)("div", { className: "h-text", children: u.text })] }, i)) })
-                    : (0, jsx_runtime_1.jsx)("p", { className: "muted", children: "Sin actualizaciones registradas." }) })] }));
+                                            } }, children: (0, i18n_1.t)("Eliminar") })] }, a.id)) })
+                                : (0, jsx_runtime_1.jsx)("p", { className: "muted", children: (0, i18n_1.t)("Sin ausencias registradas.") }), p.holidays.length > 0 && (0, jsx_runtime_1.jsxs)("p", { className: "muted small", children: [(0, i18n_1.t)("Festivos próximos"), ": ", p.holidays.map((h) => `${(0, dates_1.fmtDate)(h.date)}${h.location ? "" : " " + (0, i18n_1.t)("(común)")}`).join(", ")] }), (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)(DateInput_1.DateInput, { label: (0, i18n_1.t)("Desde"), value: abs.start_date, onChange: (v) => setAbs({ ...abs, start_date: v, end_date: abs.end_date || v }) }), (0, jsx_runtime_1.jsx)(DateInput_1.DateInput, { label: (0, i18n_1.t)("Hasta"), value: abs.end_date, onChange: (v) => setAbs({ ...abs, end_date: v }) }), (0, jsx_runtime_1.jsx)("input", { className: "grow", "aria-label": (0, i18n_1.t)("Etiqueta opcional"), placeholder: (0, i18n_1.t)("Etiqueta (opcional)"), value: abs.label, onChange: (e) => setAbs({ ...abs, label: e.target.value }) }), (0, jsx_runtime_1.jsx)("button", { disabled: !abs.start_date || !abs.end_date, onClick: addAbs, children: (0, i18n_1.t)("Registrar ausencia") })] }), (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("No se piden motivos. Las tareas no se reasignan automáticamente.") }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: err })] })] }), (0, jsx_runtime_1.jsx)(ui_1.Section, { title: (0, i18n_1.t)("Últimas actualizaciones de sus tareas"), children: p.recent_updates.length ? (0, jsx_runtime_1.jsx)("ul", { className: "history", children: p.recent_updates.map((u, i) => (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsxs)("div", { className: "h-meta", children: [(0, jsx_runtime_1.jsx)("time", { children: (0, dates_1.fmtDateTime)(u.at, app.tz) }), " \u00B7 ", (0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.openTask(u.task_id), children: u.title })] }), (0, jsx_runtime_1.jsx)("div", { className: "h-text", children: u.text })] }, i)) })
+                    : (0, jsx_runtime_1.jsx)("p", { className: "muted", children: (0, i18n_1.t)("Sin actualizaciones registradas.") }) })] }));
 }
 function WeekPlan() {
     const app = (0, store_1.useApp)();
     const [week, setWeek] = (0, react_1.useState)((0, dates_1.weekStart)((0, dates_1.todayIn)(app.tz)));
     const { data, error, reload } = (0, store_1.useApi)(`/api/planning?week=${week}`);
-    return ((0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)("button", { onClick: () => setWeek((0, dates_1.addDays)(week, -7)), "aria-label": "Semana anterior", children: "\u25C0" }), (0, jsx_runtime_1.jsx)("button", { onClick: () => setWeek((0, dates_1.weekStart)((0, dates_1.todayIn)(app.tz))), children: "Esta semana" }), (0, jsx_runtime_1.jsx)("button", { onClick: () => setWeek((0, dates_1.addDays)(week, 7)), "aria-label": "Semana siguiente", children: "\u25B6" }), (0, jsx_runtime_1.jsxs)("strong", { children: ["Semana del ", (0, dates_1.fmtDate)(week), " al ", (0, dates_1.fmtDate)((0, dates_1.addDays)(week, 6))] })] }), (0, jsx_runtime_1.jsxs)("details", { className: "mini", children: [(0, jsx_runtime_1.jsx)("summary", { children: "\u00BFC\u00F3mo se calcula?" }), (0, jsx_runtime_1.jsxs)("ul", { className: "hint", children: [(0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("strong", { children: "Esfuerzo registrado" }), ": estimaci\u00F3n de las tareas planificadas esa semana (o el reparto semanal expl\u00EDcito si lo hay). Las tareas sin estimaci\u00F3n se listan aparte; nunca cuentan como 0."] }), (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("strong", { children: "Disponible" }), ": capacidad semanal \u00D7 d\u00EDas laborables que quedan tras festivos (comunes y de su oficina) y ausencias registrados."] }), (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("strong", { children: "Por proyecto" }), ": dedicaci\u00F3n (% de su capacidad, definido en cada proyecto) frente al esfuerzo estimado de las tareas de ese proyecto."] }), (0, jsx_runtime_1.jsx)("li", { children: "Son datos de referencia para planificar; no miden rendimiento ni horas trabajadas." })] })] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error, onRetry: reload }), (0, jsx_runtime_1.jsx)("div", { className: "plan", children: data?.people.map((p) => {
+    return ((0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsx)("button", { onClick: () => setWeek((0, dates_1.addDays)(week, -7)), "aria-label": (0, i18n_1.t)("Semana anterior"), children: "\u25C0" }), (0, jsx_runtime_1.jsx)("button", { onClick: () => setWeek((0, dates_1.weekStart)((0, dates_1.todayIn)(app.tz))), children: (0, i18n_1.t)("Esta semana") }), (0, jsx_runtime_1.jsx)("button", { onClick: () => setWeek((0, dates_1.addDays)(week, 7)), "aria-label": (0, i18n_1.t)("Semana siguiente"), children: "\u25B6" }), (0, jsx_runtime_1.jsx)("strong", { children: (0, i18n_1.t)("Semana del {desde} al {hasta}", { desde: (0, dates_1.fmtDate)(week), hasta: (0, dates_1.fmtDate)((0, dates_1.addDays)(week, 6)) }) })] }), (0, jsx_runtime_1.jsxs)("details", { className: "mini", children: [(0, jsx_runtime_1.jsx)("summary", { children: (0, i18n_1.t)("¿Cómo se calcula?") }), (0, jsx_runtime_1.jsxs)("ul", { className: "hint", children: [(0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("strong", { children: (0, i18n_1.t)("Esfuerzo registrado") }), ": ", (0, i18n_1.t)("estimación de las tareas planificadas esa semana (o el reparto semanal explícito si lo hay). Las tareas sin estimación se listan aparte; nunca cuentan como 0.")] }), (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("strong", { children: (0, i18n_1.t)("Disponible") }), ": ", (0, i18n_1.t)("capacidad semanal × proporción de las horas del horario laboral de la semana que quedan tras festivos (comunes y de su oficina) y ausencias registrados. La semana es siempre de lunes a domingo.")] }), (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("strong", { children: (0, i18n_1.t)("Por proyecto") }), ": ", (0, i18n_1.t)("dedicación (% de su capacidad, definido en cada proyecto) frente al esfuerzo estimado de las tareas de ese proyecto.")] }), (0, jsx_runtime_1.jsx)("li", { children: (0, i18n_1.t)("Son datos de referencia para planificar; no miden rendimiento ni horas trabajadas.") })] })] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error, onRetry: reload }), (0, jsx_runtime_1.jsx)("div", { className: "plan", children: data?.people.map((p) => {
                     const av = p.availability;
-                    return (0, jsx_runtime_1.jsxs)("article", { className: "plan-person", children: [(0, jsx_runtime_1.jsx)("h3", { children: p.name }), (0, jsx_runtime_1.jsxs)("dl", { className: "facts", children: [(0, jsx_runtime_1.jsx)("dt", { children: "Esfuerzo registrado" }), (0, jsx_runtime_1.jsxs)("dd", { children: [(0, jsx_runtime_1.jsx)("strong", { children: p.counted_hours !== null ? `${p.counted_hours} h` : "no informado" }), p.unestimated.length > 0 && (0, jsx_runtime_1.jsxs)("span", { className: "muted", children: [" + ", p.unestimated.length, " sin estimar"] })] }), av && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("dt", { children: "Disponible" }), (0, jsx_runtime_1.jsxs)("dd", { children: [av.available_hours !== null ? `${av.available_hours} h` : "capacidad no informada", " ", (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: ["(", av.available_days, " de ", av.nominal_days, " d\u00EDas laborables", av.holiday_days ? ` · ${av.holiday_days} festivo(s)` : "", av.absence_days ? ` · ${av.absence_days} de ausencia` : "", ")"] })] })] })] }), av?.available_hours != null && p.counted_hours !== null && p.counted_hours > av.available_hours && (0, jsx_runtime_1.jsx)("p", { children: (0, jsx_runtime_1.jsx)(ui_1.Chip, { tone: "warn", children: "El esfuerzo registrado supera lo disponible" }) }), p.by_project.length > 0 && (0, jsx_runtime_1.jsxs)("table", { className: "list compact", children: [(0, jsx_runtime_1.jsx)("thead", { children: (0, jsx_runtime_1.jsxs)("tr", { children: [(0, jsx_runtime_1.jsx)("th", { children: "Proyecto" }), (0, jsx_runtime_1.jsx)("th", { children: "Dedicaci\u00F3n" }), (0, jsx_runtime_1.jsx)("th", { children: "Estimado" })] }) }), (0, jsx_runtime_1.jsx)("tbody", { children: p.by_project.map((b) => (0, jsx_runtime_1.jsxs)("tr", { children: [(0, jsx_runtime_1.jsx)("td", { className: "wrap", children: b.name }), (0, jsx_runtime_1.jsx)("td", { children: b.dedication_pct !== null ? `${b.dedication_pct}%${b.dedication_hours !== null ? ` · ${b.dedication_hours} h` : ""}` : "—" }), (0, jsx_runtime_1.jsxs)("td", { children: [b.counted_hours !== null ? `${b.counted_hours} h` : "—", b.unestimated ? (0, jsx_runtime_1.jsxs)("span", { className: "muted", children: [" +", b.unestimated, " sin est."] }) : null, b.dedication_hours !== null && b.counted_hours !== null && b.counted_hours > b.dedication_hours && (0, jsx_runtime_1.jsx)("span", { title: "Supera la dedicaci\u00F3n registrada", children: " \u26A0" })] })] }, String(b.project_id))) })] }), p.conflicts.length > 0 && (0, jsx_runtime_1.jsxs)("div", { className: "warn-box", role: "note", children: [(0, jsx_runtime_1.jsx)("strong", { children: "Coincide con festivo o ausencia registrados:" }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: p.conflicts.map((c, i) => (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.openTask(c.task_id), children: c.title }), " \u00B7 ", c.field === "due_date" ? "vence" : "planificada", " el ", (0, dates_1.fmtDate)(c.date), " (", c.reason, ")"] }, i)) })] }), (0, jsx_runtime_1.jsxs)("details", { className: "mini", children: [(0, jsx_runtime_1.jsxs)("summary", { children: ["Tareas de la semana (", p.counted.length + p.unestimated.length + p.split_into_subtasks.length, ")"] }), (0, jsx_runtime_1.jsxs)("ul", { className: "plain", children: [p.counted.map((t) => (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.openTask(t.id), children: t.title }), " \u00B7 ", t.counted_hours, " h ", (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: ["(", t.source === "reparto" ? "reparto semanal" : "estimación", ")"] })] }, t.id)), p.unestimated.map((t) => (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.openTask(t.id), children: t.title }), " \u00B7 ", (0, jsx_runtime_1.jsx)("span", { className: "muted", children: "sin estimaci\u00F3n" })] }, t.id)), p.split_into_subtasks.map((t) => (0, jsx_runtime_1.jsxs)("li", { className: "muted", children: [t.title, " \u00B7 se cuentan sus subtareas"] }, t.id))] })] })] }, String(p.person_id));
+                    return (0, jsx_runtime_1.jsxs)("article", { className: "plan-person", children: [(0, jsx_runtime_1.jsx)("h3", { children: p.name }), (0, jsx_runtime_1.jsxs)("dl", { className: "facts", children: [(0, jsx_runtime_1.jsx)("dt", { children: (0, i18n_1.t)("Esfuerzo registrado") }), (0, jsx_runtime_1.jsxs)("dd", { children: [(0, jsx_runtime_1.jsx)("strong", { children: p.counted_hours !== null ? `${p.counted_hours} h` : (0, i18n_1.t)("no informado") }), p.unestimated.length > 0 && (0, jsx_runtime_1.jsxs)("span", { className: "muted", children: [" + ", p.unestimated.length, " ", (0, i18n_1.t)("sin estimar")] })] }), av && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("dt", { children: (0, i18n_1.t)("Disponible") }), (0, jsx_runtime_1.jsxs)("dd", { children: [av.available_hours !== null ? `${av.available_hours} h` : (0, i18n_1.t)("capacidad no informada"), " ", (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: ["(", (0, i18n_1.t)("{a} de {n} días laborables", { a: av.available_days, n: av.nominal_days }), av.holiday_days ? " · " + (0, i18n_1.t)("{n} festivo(s)", { n: av.holiday_days }) : "", av.absence_days ? " · " + (0, i18n_1.t)("{n} de ausencia", { n: av.absence_days }) : "", ")"] })] })] })] }), av?.available_hours != null && p.counted_hours !== null && p.counted_hours > av.available_hours && (0, jsx_runtime_1.jsx)("p", { children: (0, jsx_runtime_1.jsx)(ui_1.Chip, { tone: "warn", children: (0, i18n_1.t)("El esfuerzo registrado supera lo disponible") }) }), p.by_project.length > 0 && (0, jsx_runtime_1.jsxs)("table", { className: "list compact", children: [(0, jsx_runtime_1.jsx)("thead", { children: (0, jsx_runtime_1.jsxs)("tr", { children: [(0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Proyecto") }), (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Dedicación") }), (0, jsx_runtime_1.jsx)("th", { children: (0, i18n_1.t)("Estimado") })] }) }), (0, jsx_runtime_1.jsx)("tbody", { children: p.by_project.map((b) => (0, jsx_runtime_1.jsxs)("tr", { children: [(0, jsx_runtime_1.jsx)("td", { className: "wrap", children: b.name }), (0, jsx_runtime_1.jsx)("td", { children: b.dedication_pct !== null ? `${b.dedication_pct}%${b.dedication_hours !== null ? ` · ${b.dedication_hours} h` : ""}` : "—" }), (0, jsx_runtime_1.jsxs)("td", { children: [b.counted_hours !== null ? `${b.counted_hours} h` : "—", b.unestimated ? (0, jsx_runtime_1.jsxs)("span", { className: "muted", children: [" +", b.unestimated, " ", (0, i18n_1.t)("sin est.")] }) : null, b.dedication_hours !== null && b.counted_hours !== null && b.counted_hours > b.dedication_hours && (0, jsx_runtime_1.jsx)("span", { title: (0, i18n_1.t)("Supera la dedicación registrada"), children: " \u26A0" })] })] }, String(b.project_id))) })] }), p.conflicts.length > 0 && (0, jsx_runtime_1.jsxs)("div", { className: "warn-box", role: "note", children: [(0, jsx_runtime_1.jsxs)("strong", { children: [(0, i18n_1.t)("Coincide con festivo o ausencia registrados"), ":"] }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: p.conflicts.map((c, i) => (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.openTask(c.task_id), children: c.title }), " \u00B7 ", c.field === "due_date" ? (0, i18n_1.t)("vence el {fecha}", { fecha: (0, dates_1.fmtDate)(c.date) }) : (0, i18n_1.t)("planificada el {fecha}", { fecha: (0, dates_1.fmtDate)(c.date) }), " (", labels_1.CONFLICT_REASON[c.reason] || c.reason, ")"] }, i)) })] }), (0, jsx_runtime_1.jsxs)("details", { className: "mini", children: [(0, jsx_runtime_1.jsx)("summary", { children: (0, i18n_1.t)("Tareas de la semana ({n})", { n: p.counted.length + p.unestimated.length + p.split_into_subtasks.length }) }), (0, jsx_runtime_1.jsxs)("ul", { className: "plain", children: [p.counted.map((x) => (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.openTask(x.id), children: x.title }), " \u00B7 ", x.counted_hours, " h ", (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: ["(", x.source === "reparto" ? (0, i18n_1.t)("reparto semanal") : (0, i18n_1.t)("estimación"), ")"] })] }, x.id)), p.unestimated.map((x) => (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.openTask(x.id), children: x.title }), " \u00B7 ", (0, jsx_runtime_1.jsx)("span", { className: "muted", children: (0, i18n_1.t)("sin estimación") })] }, x.id)), p.split_into_subtasks.map((x) => (0, jsx_runtime_1.jsxs)("li", { className: "muted", children: [x.title, " \u00B7 ", (0, i18n_1.t)("se cuentan sus subtareas")] }, x.id))] })] })] }, String(p.person_id));
                 }) })] }));
 }
 function PersonForm({ person, onClose }) {
@@ -19390,22 +21623,21 @@ function PersonForm({ person, onClose }) {
             setError(e.message);
         }
     };
-    return ((0, jsx_runtime_1.jsx)(ui_1.Modal, { title: person ? "Editar persona" : "Nueva persona", onClose: onClose, children: (0, jsx_runtime_1.jsxs)("form", { onSubmit: (e) => { e.preventDefault(); void submit(); }, children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Nombre", children: (0, jsx_runtime_1.jsx)("input", { value: name, onChange: (e) => setName(e.target.value), required: true }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Rol (opcional)", children: (0, jsx_runtime_1.jsx)("input", { value: role, onChange: (e) => setRole(e.target.value) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Oficina (opcional)", hint: "Determina qu\u00E9 festivos locales le aplican. Gestiona oficinas en Configuraci\u00F3n.", children: (0, jsx_runtime_1.jsx)(ui_1.LocationSelect, { value: loc, onChange: setLoc }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: "Capacidad semanal en horas (opcional)", hint: "Vac\u00EDo = no informada. Se combina con la dedicaci\u00F3n por proyecto y con festivos/ausencias en la Planificaci\u00F3n semanal.", children: (0, jsx_runtime_1.jsx)("input", { type: "number", min: "0", max: "168", value: cap, onChange: (e) => setCap(e.target.value) }) }), person && (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: active, onChange: (e) => setActive(e.target.checked) }), " Activa (desmarca para ocultarla sin borrar su historial)"] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error }), (0, jsx_runtime_1.jsxs)("div", { className: "modal-foot", children: [(0, jsx_runtime_1.jsx)("button", { className: "primary", type: "submit", disabled: !name.trim(), children: "Guardar" }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, children: "Cancelar" })] })] }) }));
+    return ((0, jsx_runtime_1.jsx)(ui_1.Modal, { title: person ? (0, i18n_1.t)("Editar persona") : (0, i18n_1.t)("Nueva persona"), onClose: onClose, children: (0, jsx_runtime_1.jsxs)("form", { onSubmit: (e) => { e.preventDefault(); void submit(); }, children: [(0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Nombre"), children: (0, jsx_runtime_1.jsx)("input", { value: name, onChange: (e) => setName(e.target.value), required: true }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Rol (opcional)"), children: (0, jsx_runtime_1.jsx)("input", { value: role, onChange: (e) => setRole(e.target.value) }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Oficina (opcional)"), hint: (0, i18n_1.t)("Determina qué festivos locales le aplican. Gestiona oficinas en Configuración."), children: (0, jsx_runtime_1.jsx)(ui_1.LocationSelect, { value: loc, onChange: setLoc }) }), (0, jsx_runtime_1.jsx)(ui_1.Field, { label: (0, i18n_1.t)("Capacidad semanal en horas (opcional)"), hint: (0, i18n_1.t)("Vacío = no informada. Se combina con la dedicación por proyecto y con festivos/ausencias en la Planificación semanal."), children: (0, jsx_runtime_1.jsx)("input", { type: "number", min: "0", max: "168", value: cap, onChange: (e) => setCap(e.target.value) }) }), person && (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: active, onChange: (e) => setActive(e.target.checked) }), " ", (0, i18n_1.t)("Activa (desmarca para ocultarla sin borrar su historial)")] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error }), (0, jsx_runtime_1.jsxs)("div", { className: "modal-foot", children: [(0, jsx_runtime_1.jsx)("button", { className: "primary", type: "submit", disabled: !name.trim(), children: (0, i18n_1.t)("Guardar") }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, children: (0, i18n_1.t)("Cancelar") })] })] }) }));
 }
 
-},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":8,"../lib/store":9,"../components/TaskCard":22,"../components/ui":13}]; // build/src/views/Team.js
-defs[25]=[function(module,exports,require){
+},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":10,"../lib/i18n":8,"../lib/labels":17,"../lib/store":14,"../components/TaskCard":30,"../components/DateInput":18,"../components/ui":19}]; // build/src/views/Team.js
+defs[33]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TodayView = TodayView;
-exports.Reminders = Reminders;
 const jsx_runtime_1 = require("react/jsx-runtime");
-const react_1 = require("react");
-const api_1 = require("../lib/api");
 const dates_1 = require("../lib/dates");
+const i18n_1 = require("../lib/i18n");
 const labels_1 = require("../lib/labels");
 const store_1 = require("../lib/store");
 const ReminderForm_1 = require("../components/ReminderForm");
+const ReminderCenter_1 = require("../components/ReminderCenter");
 const TaskCard_1 = require("../components/TaskCard");
 const TaskPanel_1 = require("../components/TaskPanel");
 const ui_1 = require("../components/ui");
@@ -19413,55 +21645,39 @@ function TodayView() {
     const app = (0, store_1.useApp)();
     const { data, error, reload } = (0, store_1.useApi)("/api/today");
     if (!data)
-        return (0, jsx_runtime_1.jsxs)("div", { className: "view", children: [(0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error, onRetry: reload }), !error && (0, jsx_runtime_1.jsx)("p", { className: "muted", children: "Cargando\u2026" })] });
+        return (0, jsx_runtime_1.jsxs)("div", { className: "view", children: [(0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error, onRetry: reload }), !error && (0, jsx_runtime_1.jsx)("p", { className: "muted", children: (0, i18n_1.t)("Cargando…") })] });
     const s = data.sections;
+    const scheduled = data.scheduled || [];
     const nothing = !s.vence.length && !s.revisar.length && !s.bloqueos_externos.length && !s.depende_de_mi.length && !data.reminders.length;
-    const act = async (t, body, msg) => {
+    const act = async (task, body, msg) => {
         try {
-            if (await (0, TaskPanel_1.patchTask)(t.id, body)) {
+            const r = await (0, TaskPanel_1.patchTask)(task.id, body, true);
+            if (r) {
                 app.changed();
-                app.toast(msg, "ok");
+                app.undoable(msg, r.undo_id);
             }
         }
         catch (e) {
             app.toast(e.message, "error");
         }
     };
-    const actions = (t) => (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [t.status === "backlog" && (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => act(t, { status: "pendiente" }, "Promovida a Pendiente"), children: "Promover" }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => act(t, { status: "hecha" }, "Marcada como hecha"), children: "Hecha" })] });
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "view today", children: [(0, jsx_runtime_1.jsxs)("header", { className: "view-head", children: [(0, jsx_runtime_1.jsxs)("h1", { children: ["Hoy \u00B7 ", (0, dates_1.fmtDate)(data.today)] }), (0, jsx_runtime_1.jsx)("p", { className: "muted", children: "Resumen de atenci\u00F3n. Cada tarea aparece una sola vez; las dem\u00E1s se\u00F1ales se indican en la tarjeta." })] }), nothing && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: "Nada requiere acci\u00F3n seg\u00FAn los datos registrados. Esto no significa que todo est\u00E9 bien: revisa los proyectos si hace tiempo que no los actualizas." }), (0, jsx_runtime_1.jsxs)("div", { className: "today-grid", children: [(0, jsx_runtime_1.jsxs)(ui_1.Section, { title: "Vence hoy y esta semana", count: s.vence.length, id: "sec-vence", children: [s.vence.length ? (0, jsx_runtime_1.jsx)("div", { className: "cards", children: s.vence.map((t) => (0, jsx_runtime_1.jsx)(TaskCard_1.TaskCard, { task: t, showStatus: true, actions: actions(t) }, t.id)) })
-                                : (0, jsx_runtime_1.jsxs)(ui_1.Empty, { children: ["Sin vencimientos registrados hasta el ", (0, dates_1.fmtDate)(data.week_end), "."] }), data.milestones.length > 0 && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("h3", { children: "Hitos y compromisos" }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: data.milestones.map((m) => ((0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)(ui_1.Chip, { children: labels_1.MILESTONE_KIND[m.kind] }), " ", (0, dates_1.fmtDate)(m.date), " \u00B7 ", (0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.navigate(`#/proyectos/${m.project_id}`), children: m.project_name }), ": ", m.title] }, m.id))) })] })] }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: "Revisiones y recordatorios", count: s.revisar.length + data.reminders.length, id: "sec-rev", children: [s.revisar.length > 0 && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("h3", { children: "Pendientes de mi revisi\u00F3n" }), (0, jsx_runtime_1.jsx)("div", { className: "cards", children: s.revisar.map((t) => (0, jsx_runtime_1.jsx)(TaskCard_1.TaskCard, { task: t, showStatus: true }, t.id)) })] }), (0, jsx_runtime_1.jsx)(Reminders, { items: data.reminders, onChange: reload }), !s.revisar.length && !data.reminders.length && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: "Sin revisiones ni recordatorios pendientes." }), (0, jsx_runtime_1.jsxs)("details", { className: "mini", children: [(0, jsx_runtime_1.jsx)("summary", { children: "Programar un recordatorio" }), (0, jsx_runtime_1.jsx)(ReminderForm_1.ReminderForm, { onCreated: reload })] })] }), (0, jsx_runtime_1.jsx)(ui_1.Section, { title: "Bloqueos externos", count: s.bloqueos_externos.length, id: "sec-bloq", children: s.bloqueos_externos.length ? (0, jsx_runtime_1.jsx)("div", { className: "cards", children: s.bloqueos_externos.map((t) => (0, jsx_runtime_1.jsx)(TaskCard_1.TaskCard, { task: t, showStatus: true }, t.id)) })
-                            : (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: "Sin esperas ni bloqueos registrados." }) }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: "Tareas que dependen de m\u00ED", count: s.depende_de_mi.length, id: "sec-mi", children: [app.meId === null && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: "Configura qui\u00E9n eres en Equipo." }), s.depende_de_mi.length ? (0, jsx_runtime_1.jsx)("div", { className: "cards", children: s.depende_de_mi.map((t) => (0, jsx_runtime_1.jsx)(TaskCard_1.TaskCard, { task: t, showStatus: true }, t.id)) })
-                                : (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: "Ninguna tarea registrada est\u00E1 esperando por ti (fuera de las secciones anteriores)." })] }), (0, jsx_runtime_1.jsx)(ui_1.Section, { title: "Resumen operativo del equipo", id: "sec-eq", children: (0, jsx_runtime_1.jsx)("ul", { className: "plain team-list", children: data.team.map((p) => {
-                                const counts = [p.active ? `${p.active} activas` : "", p.in_review ? `${p.in_review} en revisión` : "",
-                                    p.blocked ? `${p.blocked} con espera/bloqueo` : "", p.due_this_week ? `${p.due_this_week} vencen esta semana` : ""].filter(Boolean);
-                                return (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsxs)("button", { className: "linklike strong", onClick: () => app.navigate(`#/equipo/${p.person_id}`), children: [p.name, p.is_me ? " (yo)" : ""] }), (0, jsx_runtime_1.jsxs)("span", { className: "muted", children: [" \u00B7 ", counts.length ? counts.join(" · ") : "Sin tareas activas registradas"] }), (p.absences.length > 0 || p.holidays.length > 0) && (0, jsx_runtime_1.jsxs)("div", { className: "team-avail", children: [p.absences.map((a) => (0, jsx_runtime_1.jsxs)("span", { children: ["Ausencia ", (0, dates_1.fmtDate)(a.start_date), a.end_date !== a.start_date ? `–${(0, dates_1.fmtDate)(a.end_date)}` : ""] }, "a" + a.id)), p.holidays.map((h) => (0, jsx_runtime_1.jsxs)("span", { children: ["Festivo ", (0, dates_1.fmtDate)(h.date), h.location ? ` (${h.location})` : ""] }, "h" + h.date))] })] }, p.person_id);
+    const actions = (task) => (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [task.status === "backlog" && (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => act(task, { status: "pendiente" }, (0, i18n_1.t)("Promovida a Pendiente")), children: (0, i18n_1.t)("Promover") }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => act(task, { status: "hecha" }, (0, i18n_1.t)("Marcada como hecha")), children: (0, i18n_1.t)("Hecha") })] });
+    const card = (task, withActions = false) => (0, jsx_runtime_1.jsx)(TaskCard_1.TaskCard, { task: task, showStatus: true, actions: withActions ? actions(task) : undefined, seriesLabel: (0, i18n_1.t)("esta semana") }, task.id);
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "view today", children: [(0, jsx_runtime_1.jsxs)("header", { className: "view-head", children: [(0, jsx_runtime_1.jsxs)("h1", { children: [(0, i18n_1.t)("Hoy"), " \u00B7 ", (0, dates_1.fmtDateDow)(data.today)] }), (0, jsx_runtime_1.jsx)("p", { className: "muted", children: (0, i18n_1.t)("Resumen de atención. Cada tarea aparece una sola vez; las demás señales se indican en la tarjeta. Las series recurrentes se muestran una vez con «↻ +N esta semana».") })] }), nothing && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: (0, i18n_1.t)("Nada requiere acción según los datos registrados. Esto no significa que todo esté bien: revisa los proyectos si hace tiempo que no los actualizas.") }), (0, jsx_runtime_1.jsxs)("div", { className: "today-grid", children: [(0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("Vence hoy y esta semana"), count: s.vence.length, id: "sec-vence", children: [s.vence.length ? (0, jsx_runtime_1.jsx)("div", { className: "cards", children: s.vence.map((x) => card(x, true)) })
+                                : (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: (0, i18n_1.t)("Sin vencimientos registrados hasta el {fecha}.", { fecha: (0, dates_1.fmtDate)(data.week_end) }) }), data.milestones.length > 0 && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("h3", { children: (0, i18n_1.t)("Hitos y compromisos") }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: data.milestones.map((m) => ((0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)(ui_1.Chip, { children: labels_1.MILESTONE_KIND[m.kind] }), " ", (0, dates_1.fmtDate)(m.date), " \u00B7 ", (0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.navigate(`#/proyectos/${m.project_id}`), children: m.project_name }), ": ", m.title] }, m.id))) })] })] }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("Revisiones y recordatorios"), count: s.revisar.length + data.reminders.length, id: "sec-rev", actions: (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => app.openReminders("pendientes"), children: (0, i18n_1.t)("Centro de recordatorios") }), children: [s.revisar.length > 0 && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("h3", { children: (0, i18n_1.t)("Pendientes de mi revisión") }), (0, jsx_runtime_1.jsx)("div", { className: "cards", children: s.revisar.map((x) => card(x)) })] }), data.reminders.length > 0 && (0, jsx_runtime_1.jsx)(ReminderCenter_1.ReminderList, { items: data.reminders, mode: "pendientes", onChange: reload }), !s.revisar.length && !data.reminders.length && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: (0, i18n_1.t)("Sin revisiones ni recordatorios pendientes.") }), (0, jsx_runtime_1.jsxs)("h3", { children: [(0, i18n_1.t)("Programados esta semana"), " ", (0, jsx_runtime_1.jsxs)("span", { className: "count", children: ["(", scheduled.length, ")"] })] }), scheduled.length ? (0, jsx_runtime_1.jsx)("ul", { className: "plain scheduled", children: scheduled.map((r) => ((0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsx)("span", { className: "chip", children: (0, ReminderCenter_1.reminderLabel)(r) }), " ", (0, dates_1.fmtDateTime)(r.snoozed_until || r.due_at, app.tz), " \u00B7 ", r.task_id
+                                            ? (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.openTask(r.task_id), children: r.task_title }), " ", (0, jsx_runtime_1.jsxs)("span", { className: "muted", children: ["\u00B7 ", (0, i18n_1.translateServer)(r.title)] })] })
+                                            : (0, jsx_runtime_1.jsx)("strong", { children: (0, i18n_1.translateServer)(r.title) })] }, r.id))) })
+                                : (0, jsx_runtime_1.jsx)("p", { className: "muted small", children: (0, i18n_1.t)("Ningún recordatorio programado para lo que queda de semana.") }), (0, jsx_runtime_1.jsxs)("details", { className: "mini", children: [(0, jsx_runtime_1.jsx)("summary", { children: (0, i18n_1.t)("Programar un recordatorio") }), (0, jsx_runtime_1.jsx)(ReminderForm_1.ReminderForm, { onCreated: reload })] })] }), (0, jsx_runtime_1.jsx)(ui_1.Section, { title: (0, i18n_1.t)("Bloqueos externos"), count: s.bloqueos_externos.length, id: "sec-bloq", children: s.bloqueos_externos.length ? (0, jsx_runtime_1.jsx)("div", { className: "cards", children: s.bloqueos_externos.map((x) => card(x)) })
+                            : (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: (0, i18n_1.t)("Sin esperas ni bloqueos registrados.") }) }), (0, jsx_runtime_1.jsxs)(ui_1.Section, { title: (0, i18n_1.t)("Tareas que dependen de mí"), count: s.depende_de_mi.length, id: "sec-mi", children: [app.meId === null && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: (0, i18n_1.t)("Configura quién eres en Equipo.") }), s.depende_de_mi.length ? (0, jsx_runtime_1.jsx)("div", { className: "cards", children: s.depende_de_mi.map((x) => card(x)) })
+                                : (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: (0, i18n_1.t)("Ninguna tarea registrada está esperando por ti (fuera de las secciones anteriores).") })] }), (0, jsx_runtime_1.jsx)(ui_1.Section, { title: (0, i18n_1.t)("Resumen operativo del equipo"), id: "sec-eq", children: (0, jsx_runtime_1.jsx)("ul", { className: "plain team-list", children: data.team.map((p) => {
+                                const counts = [p.active ? (0, i18n_1.t)("{n} activas", { n: p.active }) : "", p.in_review ? (0, i18n_1.t)("{n} en revisión", { n: p.in_review }) : "",
+                                    p.blocked ? (0, i18n_1.t)("{n} con espera/bloqueo", { n: p.blocked }) : "", p.due_this_week ? (0, i18n_1.t)("{n} vencen esta semana", { n: p.due_this_week }) : ""].filter(Boolean);
+                                return (0, jsx_runtime_1.jsxs)("li", { children: [(0, jsx_runtime_1.jsxs)("button", { className: "linklike strong", onClick: () => app.navigate(`#/equipo/${p.person_id}`), children: [p.name, p.is_me ? " " + (0, i18n_1.t)("(yo)") : ""] }), (0, jsx_runtime_1.jsxs)("span", { className: "muted", children: [" \u00B7 ", counts.length ? counts.join(" · ") : (0, i18n_1.t)("Sin tareas activas registradas")] }), (p.absences.length > 0 || p.holidays.length > 0) && (0, jsx_runtime_1.jsxs)("div", { className: "team-avail", children: [p.absences.map((a) => (0, jsx_runtime_1.jsxs)("span", { children: [(0, i18n_1.t)("Ausencia"), " ", (0, dates_1.fmtDate)(a.start_date), a.end_date !== a.start_date ? `–${(0, dates_1.fmtDate)(a.end_date)}` : ""] }, "a" + a.id)), p.holidays.map((h) => (0, jsx_runtime_1.jsxs)("span", { children: [(0, i18n_1.t)("Festivo"), " ", (0, dates_1.fmtDate)(h.date), h.location ? ` (${h.location})` : ""] }, "h" + h.date))] })] }, p.person_id);
                             }) }) })] })] }));
 }
-function Reminders({ items, onChange }) {
-    const app = (0, store_1.useApp)();
-    const [err, setErr] = (0, react_1.useState)("");
-    if (!items.length)
-        return null;
-    const groups = new Map();
-    for (const r of items)
-        groups.set(r.rule_label, [...(groups.get(r.rule_label) || []), r]);
-    const act = async (r, action, until) => {
-        try {
-            await api_1.api.post(`/api/reminders/${r.id}/action`, { action, until });
-            onChange();
-            app.changed();
-        }
-        catch (e) {
-            setErr(e.message);
-        }
-    };
-    const tomorrow9 = (0, dates_1.zonedToUtc)((0, dates_1.addDays)((0, dates_1.todayIn)(app.tz), 1) + "T09:00", app.tz);
-    const in2h = new Date(Date.now() + 2 * 3600 * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "reminders", children: [(0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: err }), [...groups.entries()].map(([label, rs]) => ((0, jsx_runtime_1.jsxs)("div", { className: "rem-group", children: [(0, jsx_runtime_1.jsxs)("h3", { children: [label, " ", (0, jsx_runtime_1.jsxs)("span", { className: "count", children: ["(", rs.length, ")"] })] }), (0, jsx_runtime_1.jsx)("ul", { className: "plain", children: rs.map((r) => ((0, jsx_runtime_1.jsxs)("li", { className: "rem", children: [(0, jsx_runtime_1.jsxs)("div", { className: "rem-text", children: [r.task_id ? (0, jsx_runtime_1.jsx)("button", { className: "linklike", onClick: () => app.openTask(r.task_id), children: r.task_title }) : (0, jsx_runtime_1.jsx)("strong", { children: r.title }), (0, jsx_runtime_1.jsxs)("span", { className: "muted small", children: [" \u00B7 ", r.task_id ? r.title : "", r.project_name ? ` · ${r.project_name}` : "", " \u00B7 desde ", (0, dates_1.fmtDateTime)(r.due_at, app.tz), r.task_shown_elsewhere ? " · también arriba" : ""] })] }), (0, jsx_runtime_1.jsxs)("div", { className: "row tight", children: [(0, jsx_runtime_1.jsx)("button", { className: "small", onClick: () => act(r, "atendido"), children: "Atendido" }), (0, jsx_runtime_1.jsx)("button", { className: "small", onClick: () => act(r, "posponer", in2h), children: "+2 h" }), (0, jsx_runtime_1.jsx)("button", { className: "small", onClick: () => act(r, "posponer", tomorrow9), children: "Ma\u00F1ana 9:00" }), (0, jsx_runtime_1.jsx)("button", { className: "small ghost", onClick: () => act(r, "descartar"), children: "Descartar" })] })] }, r.id))) })] }, label)))] }));
-}
 
-},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":8,"../lib/labels":12,"../lib/store":9,"../components/ReminderForm":17,"../components/TaskCard":22,"../components/TaskPanel":15,"../components/ui":13}]; // build/src/views/Today.js
-defs[26]=[function(module,exports,require){
+},{"react/jsx-runtime":1,"../lib/dates":10,"../lib/i18n":8,"../lib/labels":17,"../lib/store":14,"../components/ReminderForm":24,"../components/ReminderCenter":21,"../components/TaskCard":30,"../components/TaskPanel":22,"../components/ui":19}]; // build/src/views/Today.js
+defs[34]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WorkView = WorkView;
@@ -19469,6 +21685,7 @@ const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const api_1 = require("../lib/api");
 const dates_1 = require("../lib/dates");
+const i18n_1 = require("../lib/i18n");
 const store_1 = require("../lib/store");
 const Recurrences_1 = require("../components/Recurrences");
 const TaskViews_1 = require("../components/TaskViews");
@@ -19482,9 +21699,17 @@ function WorkView() {
     const [anchor, setAnchor] = (0, react_1.useState)((0, dates_1.todayIn)(app.tz));
     const [viewId, setViewId] = (0, react_1.useState)("");
     const [recurrences, setRecurrences] = (0, react_1.useState)(false);
+    const groupRec = app.boot.settings.group_recurring !== false;
+    const setGroupRec = async (v) => { try {
+        await api_1.api.patch("/api/settings", { group_recurring: v });
+        await app.reloadBoot();
+    }
+    catch (e) {
+        app.toast(e.message, "error");
+    } };
     let url = mode === "archivadas" ? "/api/tasks?archived=only" : "/api/tasks" + (0, TaskViews_1.filtersToQuery)(filters);
     if (mode === "calendario") {
-        const days = calMode === "semana" ? [(0, dates_1.weekStart)(anchor), (0, dates_1.addDays)((0, dates_1.weekStart)(anchor), 6)] : [(0, dates_1.monthGrid)(anchor)[0], (0, dates_1.monthGrid)(anchor)[41]];
+        const days = calMode === "semana" ? [(0, dates_1.viewWeekStart)(anchor), (0, dates_1.addDays)((0, dates_1.viewWeekStart)(anchor), 6)] : [(0, dates_1.monthGrid)(anchor)[0], (0, dates_1.monthGrid)(anchor)[41]];
         url += (url.includes("?") ? "&" : "?") + `date_from=${days[0]}&date_to=${days[1]}`;
     }
     const { data, error, reload } = (0, store_1.useApi)(url);
@@ -19497,14 +21722,14 @@ function WorkView() {
         }
     };
     const saveView = async () => {
-        const name = window.prompt("Nombre de la vista guardada:");
+        const name = window.prompt((0, i18n_1.t)("Nombre de la vista guardada:"));
         if (!name?.trim())
             return;
         try {
             const v = await api_1.api.post("/api/saved-views", { name: name.trim(), view: mode === "archivadas" ? "lista" : mode, filters });
             await app.reloadBoot();
             setViewId(String(v.id));
-            app.toast("Vista guardada", "ok");
+            app.toast((0, i18n_1.t)("Vista guardada"), "ok");
         }
         catch (e) {
             app.toast(e.message, "error");
@@ -19512,18 +21737,18 @@ function WorkView() {
     };
     (0, react_1.useEffect)(() => { if (filters.project_id && groupBy === "ninguna")
         setGroupBy("linea"); }, [filters.project_id]);
-    const tabs = [["kanban", "Kanban"], ["lista", "Lista"], ["calendario", "Calendario"], ["archivadas", "Archivadas"]];
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "view", children: [(0, jsx_runtime_1.jsxs)("header", { className: "view-head row", children: [(0, jsx_runtime_1.jsx)("h1", { children: "Trabajo" }), (0, jsx_runtime_1.jsx)("div", { role: "tablist", "aria-label": "Tipo de vista", className: "tabs-inline", children: tabs.map(([m, label]) => (0, jsx_runtime_1.jsx)("button", { role: "tab", "aria-selected": mode === m, className: mode === m ? "active" : "", onClick: () => setMode(m), children: label }, m)) }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), (0, jsx_runtime_1.jsx)("button", { onClick: () => setRecurrences(true), title: "Ver y gestionar todas las series recurrentes", children: "\u21BB Recurrentes" }), mode !== "archivadas" && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("label", { children: ["Vista guardada ", (0, jsx_runtime_1.jsxs)("select", { value: viewId, onChange: (e) => applyView(e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: "\u2014" }), app.boot.saved_views.map((v) => (0, jsx_runtime_1.jsx)("option", { value: v.id, children: v.name }, v.id))] })] }), (0, jsx_runtime_1.jsx)("button", { onClick: saveView, children: "Guardar vista" }), viewId && (0, jsx_runtime_1.jsx)("button", { className: "ghost", onClick: async () => { if (window.confirm("¿Eliminar esta vista guardada? Las tareas no se ven afectadas.")) {
+    const tabs = [["kanban", (0, i18n_1.t)("Kanban")], ["lista", (0, i18n_1.t)("Lista")], ["calendario", (0, i18n_1.t)("Calendario")], ["archivadas", (0, i18n_1.t)("Archivadas")]];
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "view", children: [(0, jsx_runtime_1.jsxs)("header", { className: "view-head row", children: [(0, jsx_runtime_1.jsx)("h1", { children: (0, i18n_1.t)("Trabajo") }), (0, jsx_runtime_1.jsx)("div", { role: "tablist", "aria-label": (0, i18n_1.t)("Tipo de vista"), className: "tabs-inline", children: tabs.map(([m, label]) => (0, jsx_runtime_1.jsx)("button", { role: "tab", "aria-selected": mode === m, className: mode === m ? "active" : "", onClick: () => setMode(m), children: label }, m)) }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), (0, jsx_runtime_1.jsxs)("button", { onClick: () => setRecurrences(true), title: (0, i18n_1.t)("Ver y gestionar todas las series recurrentes"), children: ["\u21BB ", (0, i18n_1.t)("Recurrentes")] }), mode !== "archivadas" && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("label", { children: [(0, i18n_1.t)("Vista guardada"), " ", (0, jsx_runtime_1.jsxs)("select", { value: viewId, onChange: (e) => applyView(e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: "\u2014" }), app.boot.saved_views.map((v) => (0, jsx_runtime_1.jsx)("option", { value: v.id, children: v.name }, v.id))] })] }), (0, jsx_runtime_1.jsx)("button", { onClick: saveView, children: (0, i18n_1.t)("Guardar vista") }), viewId && (0, jsx_runtime_1.jsx)("button", { className: "ghost", onClick: async () => { if (window.confirm((0, i18n_1.t)("¿Eliminar esta vista guardada? Las tareas no se ven afectadas."))) {
                                     await api_1.api.del(`/api/saved-views/${viewId}`);
                                     setViewId("");
                                     await app.reloadBoot();
-                                } }, children: "Eliminar vista" })] })] }), mode === "archivadas" ? (0, jsx_runtime_1.jsx)("p", { className: "hint", children: "Tareas archivadas: rest\u00E1uralas o elim\u00EDnalas definitivamente. Archivar oculta una tarea de todas las vistas sin borrarla." }) : (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)(TaskViews_1.FilterBar, { filters: filters, setFilters: (f) => { setFilters(f); setViewId(""); } }), (0, jsx_runtime_1.jsx)(TaskViews_1.WeekAvailabilityStrip, {}), mode === "kanban" && (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [(0, jsx_runtime_1.jsxs)("label", { children: ["Agrupar por ", (0, jsx_runtime_1.jsxs)("select", { value: groupBy, onChange: (e) => setGroupBy(e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "ninguna", children: "Sin agrupar" }), (0, jsx_runtime_1.jsx)("option", { value: "proyecto", children: "Proyecto" }), (0, jsx_runtime_1.jsx)("option", { value: "persona", children: "Persona" }), (0, jsx_runtime_1.jsx)("option", { value: "linea", children: "L\u00EDnea de trabajo" }), (0, jsx_runtime_1.jsx)("option", { value: "fase", children: "Fase" }), (0, jsx_runtime_1.jsx)("option", { value: "entregable", children: "Entregable" })] })] }), (0, jsx_runtime_1.jsx)("span", { className: "hint", children: "Backlog y terminadas ocultos por defecto (act\u00EDvalos en los filtros)." })] })] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error, onRetry: reload }), !data ? (0, jsx_runtime_1.jsx)("p", { className: "muted", children: "Cargando\u2026" }) :
-                mode === "kanban" ? (0, jsx_runtime_1.jsx)(TaskViews_1.Board, { tasks: data, showBacklog: !!filters.include_backlog, showDone: !!filters.include_closed, groupBy: groupBy }) :
-                    mode === "lista" ? (0, jsx_runtime_1.jsx)(TaskViews_1.TaskTable, { tasks: data }) :
+                                } }, children: (0, i18n_1.t)("Eliminar vista") })] })] }), mode === "archivadas" ? (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("Tareas archivadas: restáuralas o elimínalas definitivamente. Archivar oculta una tarea de todas las vistas sin borrarla.") }) : (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)(TaskViews_1.FilterBar, { filters: filters, setFilters: (f) => { setFilters(f); setViewId(""); } }), (0, jsx_runtime_1.jsx)(TaskViews_1.WeekAvailabilityStrip, {}), (mode === "kanban" || mode === "lista") && (0, jsx_runtime_1.jsxs)("div", { className: "row", children: [mode === "kanban" && (0, jsx_runtime_1.jsxs)("label", { children: [(0, i18n_1.t)("Agrupar por"), " ", (0, jsx_runtime_1.jsxs)("select", { value: groupBy, onChange: (e) => setGroupBy(e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "ninguna", children: (0, i18n_1.t)("Sin agrupar") }), (0, jsx_runtime_1.jsx)("option", { value: "proyecto", children: (0, i18n_1.t)("Proyecto") }), (0, jsx_runtime_1.jsx)("option", { value: "persona", children: (0, i18n_1.t)("Persona") }), (0, jsx_runtime_1.jsx)("option", { value: "linea", children: (0, i18n_1.t)("Línea de trabajo") }), (0, jsx_runtime_1.jsx)("option", { value: "fase", children: (0, i18n_1.t)("Fase") }), (0, jsx_runtime_1.jsx)("option", { value: "entregable", children: (0, i18n_1.t)("Entregable") })] })] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", title: (0, i18n_1.t)("Una tarjeta por serie y estado (la ocurrencia abierta más antigua) con «↻ +N»; pulsa para desplegar la serie"), children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: groupRec, onChange: (e) => setGroupRec(e.target.checked) }), " ", (0, i18n_1.t)("Agrupar series recurrentes")] }), mode === "kanban" && (0, jsx_runtime_1.jsx)("span", { className: "hint", children: (0, i18n_1.t)("Backlog y terminadas ocultos por defecto (actívalos en los filtros).") })] })] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error, onRetry: reload }), !data ? (0, jsx_runtime_1.jsx)("p", { className: "muted", children: (0, i18n_1.t)("Cargando…") }) :
+                mode === "kanban" ? (0, jsx_runtime_1.jsx)(TaskViews_1.Board, { tasks: data, showBacklog: !!filters.include_backlog, showDone: !!filters.include_closed, groupBy: groupBy, groupRecurring: groupRec }) :
+                    mode === "lista" ? (0, jsx_runtime_1.jsx)(TaskViews_1.TaskTable, { tasks: data, groupRecurring: groupRec }) :
                         mode === "archivadas" ? (0, jsx_runtime_1.jsx)(TaskViews_1.TaskTable, { tasks: data, archived: true }) :
                             (0, jsx_runtime_1.jsx)(TaskViews_1.Calendar, { tasks: data, mode: calMode, setMode: setCalMode, anchor: anchor, setAnchor: setAnchor }), recurrences && (0, jsx_runtime_1.jsx)(Recurrences_1.RecurrencesModal, { onClose: () => setRecurrences(false) })] }));
 }
 
-},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":8,"../lib/store":9,"../components/Recurrences":11,"../components/TaskViews":21,"../components/ui":13}]; // build/src/views/Work.js
+},{"react/jsx-runtime":1,"react":2,"../lib/api":7,"../lib/dates":10,"../lib/i18n":8,"../lib/store":14,"../components/Recurrences":16,"../components/TaskViews":28,"../components/ui":19}]; // build/src/views/Work.js
 req(0);
 })();

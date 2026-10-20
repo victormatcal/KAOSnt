@@ -2,6 +2,7 @@
 Nunca se infieren festivos ni vacaciones: solo se usan los registrados."""
 from __future__ import annotations
 
+import re
 import sqlite3
 from datetime import date, timedelta
 from typing import Any
@@ -61,3 +62,103 @@ def person_holidays_between(conn, person_id: int, start: date, end: date) -> lis
            WHERE h.date BETWEEN ? AND ? AND (h.location_id IS NULL""" + (" OR h.location_id = ?)" if loc else ")")
     params: list[Any] = [start.isoformat(), end.isoformat()] + ([loc] if loc else [])
     return rows(conn.execute(q + " ORDER BY h.date", params))
+
+
+# ---------- Importación de festivos en bloque (0.3) ----------
+COMMON_WORDS = {"", "común", "comun", "todas", "todas las oficinas", "common", "all"}
+HEADER_WORDS = ("día", "dia", "fecha", "date", "day")
+_DMY = re.compile(r"^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$")
+_YMD = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
+
+
+def parse_date_text(s: str) -> str | None:
+    s = s.strip()
+    m = _YMD.match(s)
+    try:
+        if m:
+            return date(int(m[1]), int(m[2]), int(m[3])).isoformat()
+        m = _DMY.match(s)
+        if m:
+            return date(int(m[3]), int(m[2]), int(m[1])).isoformat()
+    except ValueError:
+        return None
+    return None
+
+
+def _split(line: str) -> list[str]:
+    for sep in ("\t", ";", ","):
+        if sep in line:
+            return [x.strip().strip('"').strip() for x in line.split(sep)]
+    return [line.strip()]
+
+
+def parse_holidays(conn: sqlite3.Connection, text: str, create_locations: bool) -> list[dict[str, Any]]:
+    """Analiza «día;nombre;oficina» por línea. Estado por línea: importar | duplicado | error (con motivo).
+    Una oficina desconocida nunca se convierte en festivo común: es un error salvo que se pida crearla."""
+    locs = {r["name"].lower(): (r["id"], r["name"]) for r in conn.execute("SELECT id, name FROM locations")}
+    existing = {(r[0], r[1]) for r in conn.execute("SELECT date, IFNULL(location_id, 0) FROM holidays")}
+    seen: set[tuple[str, str]] = set()
+    out: list[dict[str, Any]] = []
+    first = True
+    for n, raw in enumerate((text or "").splitlines()[:2000], start=1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        f = _split(line)
+        if first:
+            first = False
+            if parse_date_text(f[0]) is None and f[0].lower() in HEADER_WORDS:
+                continue  # cabecera
+        item: dict[str, Any] = {"line": n, "text": raw[:300], "date": None, "name": f[1][:200] if len(f) > 1 else "",
+                                "location": None, "location_id": None, "new_location": False}
+        d = parse_date_text(f[0])
+        loc_txt = f[2].strip() if len(f) > 2 else ""
+        if len(f) > 3 and any(x for x in f[3:]):
+            item.update(status="error", reason_code="columnas", reason="Demasiadas columnas: usa día;nombre;oficina")
+        elif d is None:
+            item.update(status="error", reason_code="fecha", reason=f"Fecha no válida: «{f[0]}» (usa dd/mm/aaaa o AAAA-MM-DD)")
+        else:
+            item["date"] = d
+            key_loc = "0"
+            if loc_txt.lower() not in COMMON_WORDS:
+                if loc_txt.lower() in locs:
+                    item["location_id"], item["location"] = locs[loc_txt.lower()]
+                    key_loc = str(item["location_id"])
+                elif create_locations:
+                    item.update(location=loc_txt[:100], new_location=True)
+                    key_loc = "nueva:" + loc_txt.lower()
+                else:
+                    item.update(status="error", reason_code="oficina", reason=f"Oficina desconocida: «{loc_txt}» (no se importa como común)",
+                                location=loc_txt)
+            if "status" not in item:
+                k = (d, key_loc)
+                if (d, item["location_id"] or 0) in existing:
+                    item.update(status="duplicado", reason_code="existe", reason="Ya está registrado")
+                elif k in seen:
+                    item.update(status="duplicado", reason_code="repetido", reason="Repetido en el texto")
+                else:
+                    seen.add(k)
+                    item.update(status="importar", reason_code="nueva_oficina" if item["new_location"] else "", 
+                                reason="Se creará la oficina" if item["new_location"] else "")
+        out.append(item)
+    return out
+
+
+def import_holidays(conn: sqlite3.Connection, items: list[dict[str, Any]], ts: str) -> int:
+    created = 0
+    new_locs: dict[str, int] = {}
+    for it in items:
+        if it["status"] != "importar":
+            continue
+        lid = it["location_id"]
+        if it["new_location"]:
+            key = it["location"].lower()
+            if key not in new_locs:
+                r = conn.execute("SELECT id FROM locations WHERE name = ?", (it["location"],)).fetchone()
+                new_locs[key] = r[0] if r else conn.execute("INSERT INTO locations(name, created_at) VALUES (?,?)",
+                                                             (it["location"], ts)).lastrowid
+            lid = new_locs[key]
+        conn.execute("INSERT OR IGNORE INTO holidays(date, name, location_id, created_at) VALUES (?,?,?,?)",
+                     (it["date"], it["name"], lid, ts))
+        created += 1
+    return created

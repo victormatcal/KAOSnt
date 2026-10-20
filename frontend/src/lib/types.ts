@@ -49,7 +49,7 @@ export interface Task {
   recurrence_id: number | null; occurrence_date: string | null; archived: boolean;
   created_at: string; updated_at: string; tags: string[]; open_blockers: number; open_dependents: number;
   subtasks_total: number; subtasks_closed: number; steps_total: number; steps_done: number;
-  parent_title: string | null; signals?: string[];
+  parent_title: string | null; signals?: string[]; series_more?: number; undo_id?: number | null;
 }
 
 export interface TaskRef { id: number; title: string; status: TaskStatus; assignee_id: number | null; project_id: number | null }
@@ -80,14 +80,20 @@ export interface Reminder {
   id: number; rule: string; rule_label: string; task_id: number | null; project_id: number | null;
   title: string; due_at: string; status: string; snoozed_until: string | null; notified: number;
   task_title?: string | null; project_name?: string | null; task_shown_elsewhere?: boolean;
+  resolved_at?: string | null; grouped?: number; grouped_ids?: number[];
 }
+export interface ReminderBuckets { active: Reminder[]; scheduled: Reminder[]; resolved: Reminder[] }
 
 export interface Settings {
   app_name: string; timezone: string; start_view: string; last_view: string; due_soon_days: number;
-  workdays: number[]; work_start: string; work_end: string; backup_retention: number;
+  work_schedule: WorkSchedule; backup_retention: number;
   quiet_start: string; quiet_end: string; notifications_enabled: boolean; notifications_discreet: boolean;
   recurrence_horizon_days: number; project_types: string[];
+  language: "es" | "en"; date_format: "dd/mm/aaaa" | "aaaa-mm-dd" | "mm/dd/aaaa"; week_start: 1 | 7;
+  theme_mode: "sistema" | "claro" | "oscuro"; theme_id: string; custom_themes: import("./theme").ThemeDef[];
+  undo_seconds: number; group_recurring: boolean;
 }
+export type WorkSchedule = Record<"1" | "2" | "3" | "4" | "5" | "6" | "7", { start: string; end: string } | null>;
 
 export interface Filters {
   project_id?: string; person_id?: string; status?: string; priority?: string; tag?: string;
@@ -109,7 +115,7 @@ export interface DayContext {
 export interface TodayData {
   today: string; week_end: string; me_id: number | null;
   sections: { vence: Task[]; revisar: Task[]; bloqueos_externos: Task[]; depende_de_mi: Task[] };
-  reminders: Reminder[];
+  reminders: Reminder[]; scheduled: Reminder[];
   team: { person_id: number; name: string; is_me: boolean; active: number; in_review: number; blocked: number;
     due_this_week: number; absences: { id: number; start_date: string; end_date: string; label: string }[];
     holidays: { date: string; name: string; location: string | null }[] }[];

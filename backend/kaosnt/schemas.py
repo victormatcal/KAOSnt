@@ -333,6 +333,7 @@ class NoteLinkIn(Strict):
 class NoteTabsIn(Strict):
     open: list[int]
     active: Optional[int] = None
+    split: Optional[int] = None  # nota del panel derecho en pantalla dividida (0.3)
 
 
 # ---------- Etiquetas, recordatorios, vistas, restauración ----------
@@ -348,8 +349,35 @@ class ManualReminderIn(Strict):
 
 
 class ReminderAction(Strict):
-    action: Literal["posponer", "descartar", "atendido"]
+    action: Literal["posponer", "descartar", "atendido", "reabrir"]
     until: Optional[DateTimeStr] = None
+    also_ids: list[int] = Field(default_factory=list, max_length=500)  # avisos agrupados de la misma serie (0.3)
+
+
+class ReminderPatch(Strict):
+    title: Optional[Annotated[str, Field(min_length=1, max_length=300)]] = None
+    due_at: Optional[DateTimeStr] = None
+
+
+# ---------- 0.3 ----------
+class BulkArchiveIn(Strict):
+    ids: list[int] = Field(min_length=1, max_length=2000)
+
+
+class HolidayImportIn(Strict):
+    text: Annotated[str, Field(max_length=500_000)]
+    create_locations: bool = False
+    dry_run: bool = True
+
+
+class ResetIn(Strict):
+    confirm_text: Annotated[str, Field(max_length=200)]
+    reseed_demo: bool = False
+
+
+class ProjectDeleteIn(Strict):
+    mode: Literal["desvincular", "eliminar"]
+    confirm: bool = False
 
 
 class SavedViewIn(Strict):

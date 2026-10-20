@@ -1,0 +1,40 @@
+{
+  "format": "kaosnt-theme",
+  "version": 1,
+  "id": "minimalista",
+  "name": "Minimalista",
+  "description": "Blanco y negro, sin color de acento, bordes finos y esquinas casi rectas.",
+  "font": "sistema",
+  "radius": 2,
+  "light": {
+    "bg": "#ffffff",
+    "surface": "#ffffff",
+    "surface-2": "#f4f4f4",
+    "border": "#e2e2e2",
+    "text": "#111111",
+    "muted": "#595959",
+    "accent": "#111111",
+    "accent-text": "#ffffff",
+    "accent-soft": "#efefef",
+    "subtle": "#f4f4f4",
+    "code-bg": "#f4f4f4",
+    "focus": "#111111",
+    "toast-bg": "#111111"
+  },
+  "dark": {
+    "bg": "#0f0f0f",
+    "surface": "#151515",
+    "surface-2": "#1f1f1f",
+    "border": "#2e2e2e",
+    "text": "#f2f2f2",
+    "muted": "#a6a6a6",
+    "accent": "#f2f2f2",
+    "accent-text": "#111111",
+    "accent-soft": "#2a2a2a",
+    "subtle": "#1c1c1c",
+    "code-bg": "#1f1f1f",
+    "focus": "#f2f2f2",
+    "toast-bg": "#f2f2f2",
+    "toast-text": "#111111"
+  }
+}

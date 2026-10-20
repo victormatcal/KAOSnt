@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { t } from "../lib/i18n";
 import { STATUS } from "../lib/labels";
 import { isSafeUrl, linkProps } from "../lib/links";
 import { useApp } from "../lib/store";
@@ -17,7 +18,7 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
   return (
     <div className="modal-backdrop" onMouseDown={(e: any) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className={"modal" + (wide ? " modal-wide" : "")} role="dialog" aria-modal="true" aria-label={title} ref={ref}>
-        <div className="modal-head"><h2>{title}</h2><button className="ghost modal-close" onClick={onClose} aria-label="Cerrar (Esc)">✕</button></div>
+        <div className="modal-head"><h2>{title}</h2><button className="ghost modal-close" onClick={onClose} aria-label={t("Cerrar (Esc)")}>✕</button></div>
         {children}
       </div>
     </div>
@@ -63,7 +64,7 @@ export function CommitText({ value, onCommit, placeholder, label, maxRows = 6 }:
     }} />;
 }
 
-export function PersonSelect({ value, onChange, label = "Persona", allowEmpty = true, emptyLabel = "Sin asignar" }:
+export function PersonSelect({ value, onChange, label = t("Persona"), allowEmpty = true, emptyLabel = t("Sin asignar") }:
   { value: number | null | undefined; onChange: (v: number | null) => void; label?: string; allowEmpty?: boolean; emptyLabel?: string }) {
   const { boot } = useApp();
   return (
@@ -74,7 +75,7 @@ export function PersonSelect({ value, onChange, label = "Persona", allowEmpty = 
   );
 }
 
-export function ProjectSelect({ value, onChange, label = "Proyecto", emptyLabel = "Sin proyecto" }:
+export function ProjectSelect({ value, onChange, label = t("Proyecto"), emptyLabel = t("Sin proyecto") }:
   { value: number | null | undefined; onChange: (v: number | null) => void; label?: string; emptyLabel?: string }) {
   const { boot } = useApp();
   return (
@@ -86,10 +87,10 @@ export function ProjectSelect({ value, onChange, label = "Proyecto", emptyLabel 
   );
 }
 
-export function LocationSelect({ value, onChange, emptyLabel = "Sin oficina" }: { value: number | null | undefined; onChange: (v: number | null) => void; emptyLabel?: string }) {
+export function LocationSelect({ value, onChange, emptyLabel = t("Sin oficina") }: { value: number | null | undefined; onChange: (v: number | null) => void; emptyLabel?: string }) {
   const { boot } = useApp();
   return (
-    <select aria-label="Oficina" value={value ?? ""} onChange={(e: any) => onChange(e.target.value ? Number(e.target.value) : null)}>
+    <select aria-label={t("Oficina")} value={value ?? ""} onChange={(e: any) => onChange(e.target.value ? Number(e.target.value) : null)}>
       <option value="">{emptyLabel}</option>
       {boot.locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
     </select>
@@ -104,11 +105,11 @@ export function Empty({ children }: { children: ReactNode }) { return <p classNa
 
 export function ErrorBox({ error, onRetry }: { error: string; onRetry?: () => void }) {
   if (!error) return null;
-  return <div className="error-box" role="alert"><span>{error}</span>{onRetry && <button onClick={onRetry}>Reintentar</button>}</div>;
+  return <div className="error-box" role="alert"><span>{error}</span>{onRetry && <button onClick={onRetry}>{t("Reintentar")}</button>}</div>;
 }
 
 export function SafeLink({ link }: { link: Link }) {
-  if (!isSafeUrl(link.url)) return <span className="unsafe-link">{link.label || link.url} [bloqueado]</span>;
+  if (!isSafeUrl(link.url)) return <span className="unsafe-link">{link.label || link.url} [{t("bloqueado")}]</span>;
   return <a {...linkProps(link.url)} title={link.url}>{link.label || link.url}</a>;
 }
 
@@ -117,21 +118,21 @@ export function LinksEditor({ value, onChange }: { value: Link[]; onChange: (v: 
   const [url, setUrl] = useState("");
   const [err, setErr] = useState("");
   const add = () => {
-    if (!isSafeUrl(url)) { setErr("Usa un enlace http(s), mailto o file. Otros esquemas se bloquean."); return; }
+    if (!isSafeUrl(url)) { setErr(t("Usa un enlace http(s), mailto o file. Otros esquemas se bloquean.")); return; }
     onChange([...value, { label: label.trim(), url: url.trim() }]);
     setLabel(""); setUrl(""); setErr("");
   };
   return (
     <div className="links-editor">
-      {value.length === 0 && <span className="muted">Sin enlaces</span>}
+      {value.length === 0 && <span className="muted">{t("Sin enlaces")}</span>}
       <ul className="plain">{value.map((l, i) => (
-        <li key={i}><SafeLink link={l} /> <button className="ghost small" onClick={() => onChange(value.filter((_, j) => j !== i))} aria-label={`Quitar enlace ${l.label || l.url}`}>Quitar</button></li>))}
+        <li key={i}><SafeLink link={l} /> <button className="ghost small" onClick={() => onChange(value.filter((_, j) => j !== i))} aria-label={t("Quitar enlace {enlace}", { enlace: l.label || l.url })}>{t("Quitar")}</button></li>))}
       </ul>
       <div className="row">
-        <input placeholder="Etiqueta (opcional)" aria-label="Etiqueta del enlace" value={label} onChange={(e: any) => setLabel(e.target.value)} />
-        <input className="grow" placeholder="https://… o file:///…" aria-label="URL del enlace" value={url} onChange={(e: any) => setUrl(e.target.value)}
+        <input placeholder={t("Etiqueta (opcional)")} aria-label={t("Etiqueta del enlace")} value={label} onChange={(e: any) => setLabel(e.target.value)} />
+        <input className="grow" placeholder={t("https://… o file:///…")} aria-label={t("URL del enlace")} value={url} onChange={(e: any) => setUrl(e.target.value)}
           onKeyDown={(e: any) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} />
-        <button onClick={add} disabled={!url.trim()}>Añadir enlace</button>
+        <button onClick={add} disabled={!url.trim()}>{t("Añadir enlace")}</button>
       </div>
       {err && <p className="field-error">{err}</p>}
     </div>
@@ -146,23 +147,23 @@ export function TagPicker({ value, onChange }: { value: string[]; onChange: (v: 
   const [open, setOpen] = useState(false);
   const lower = value.map((v) => v.toLowerCase());
   const q = text.trim().toLowerCase();
-  const exact = boot.tags.find((t) => t.toLowerCase() === q);
+  const exact = boot.tags.find((x) => x.toLowerCase() === q);
   const items: { label: string; name: string }[] = useMemo(() => {
-    const opts = boot.tags.filter((t) => !lower.includes(t.toLowerCase()) && (!q || t.toLowerCase().includes(q))).slice(0, 8)
-      .map((t) => ({ label: "#" + t, name: t }));
-    if (q && !exact) opts.push({ label: `Crear «${text.trim()}»`, name: text.trim() });
+    const opts = boot.tags.filter((x) => !lower.includes(x.toLowerCase()) && (!q || x.toLowerCase().includes(q))).slice(0, 8)
+      .map((x) => ({ label: "#" + x, name: x }));
+    if (q && !exact) opts.push({ label: t("Crear «{nombre}»", { nombre: text.trim() }), name: text.trim() });
     return opts;
   }, [boot.tags, value.join("|"), q, text]);
   const add = (name: string) => {
     const n = name.trim().replace(/\s+/g, " ");
-    if (n && !lower.includes(n.toLowerCase())) onChange([...value, boot.tags.find((t) => t.toLowerCase() === n.toLowerCase()) || n]);
+    if (n && !lower.includes(n.toLowerCase())) onChange([...value, boot.tags.find((x) => x.toLowerCase() === n.toLowerCase()) || n]);
     setText(""); setSel(0);
   };
   return (
     <div className="tagpicker" onBlur={(e: any) => { if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false); }}>
-      {value.map((t) => (
-        <span key={t} className="tagchip">#{t}<button className="ghost small" aria-label={`Quitar etiqueta ${t}`} onClick={() => onChange(value.filter((x) => x !== t))}>×</button></span>))}
-      <input aria-label="Añadir etiqueta" placeholder={value.length ? "" : "Añadir etiqueta…"} value={text} maxLength={60}
+      {value.map((x) => (
+        <span key={x} className="tagchip">#{x}<button className="ghost small" aria-label={t("Quitar etiqueta {nombre}", { nombre: x })} onClick={() => onChange(value.filter((y) => y !== x))}>×</button></span>))}
+      <input aria-label={t("Añadir etiqueta")} placeholder={value.length ? "" : t("Añadir etiqueta…")} value={text} maxLength={60}
         onFocus={() => setOpen(true)} onChange={(e: any) => { setText(e.target.value); setOpen(true); setSel(0); }}
         onKeyDown={(e: any) => {
           if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setSel(Math.min(sel + 1, items.length - 1)); }
@@ -181,7 +182,7 @@ export function TagPicker({ value, onChange }: { value: string[]; onChange: (v: 
 }
 
 /** Buscador de tareas por título, con contexto (proyecto, estado, responsable) en lugar de identificadores. */
-export function TaskPicker({ tasks, onPick, placeholder = "Buscar tarea por título…", exclude = [] }:
+export function TaskPicker({ tasks, onPick, placeholder = t("Buscar tarea por título…"), exclude = [] }:
   { tasks: TaskRef[]; onPick: (id: number) => void; placeholder?: string; exclude?: number[] }) {
   const app = useApp();
   const [q, setQ] = useState("");
@@ -189,7 +190,7 @@ export function TaskPicker({ tasks, onPick, placeholder = "Buscar tarea por tít
   const [sel, setSel] = useState(0);
   const norm = (s: string) => s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const nq = norm(q.trim());
-  const list = tasks.filter((t) => !exclude.includes(t.id) && (!nq || norm(t.title + " " + (app.project(t.project_id)?.name || "")).includes(nq))).slice(0, 10);
+  const list = tasks.filter((x) => !exclude.includes(x.id) && (!nq || norm(x.title + " " + (app.project(x.project_id)?.name || "")).includes(nq))).slice(0, 10);
   const pick = (id: number) => { onPick(id); setQ(""); setOpen(false); };
   return (
     <div className="taskpicker" onBlur={(e: any) => { if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false); }}>
@@ -203,11 +204,11 @@ export function TaskPicker({ tasks, onPick, placeholder = "Buscar tarea por tít
         }} />
       {open && (
         <ul className="dropdown" role="listbox">
-          {list.length === 0 && <li className="muted pad-s">Sin coincidencias</li>}
-          {list.map((t, i) => (
-            <li key={t.id}><button tabIndex={-1} className={i === sel ? "sel" : ""} onMouseDown={(e: any) => { e.preventDefault(); pick(t.id); }}>
-              <span className="dd-title">{t.title}</span>
-              <span className="dd-ctx">{[app.project(t.project_id)?.name || "Sin proyecto", STATUS[t.status], app.person(t.assignee_id)?.name || "Sin asignar"].join(" · ")}</span>
+          {list.length === 0 && <li className="muted pad-s">{t("Sin coincidencias")}</li>}
+          {list.map((x, i) => (
+            <li key={x.id}><button tabIndex={-1} className={i === sel ? "sel" : ""} onMouseDown={(e: any) => { e.preventDefault(); pick(x.id); }}>
+              <span className="dd-title">{x.title}</span>
+              <span className="dd-ctx">{[app.project(x.project_id)?.name || t("Sin proyecto"), STATUS[x.status], app.person(x.assignee_id)?.name || t("Sin asignar")].join(" · ")}</span>
             </button></li>))}
         </ul>
       )}

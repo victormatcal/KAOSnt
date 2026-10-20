@@ -1,0 +1,19 @@
+{
+  "format": "kaosnt-theme",
+  "version": 1,
+  "id": "mi-tema",
+  "name": "Mi tema (ejemplo)",
+  "description": "Ejemplo: solo cambia el acento a verde. Las variables que no se indican se toman del tema base.",
+  "font": "redondeada",
+  "radius": 10,
+  "light": {
+    "accent": "#1d6b36",
+    "accent-soft": "#e5f4ea",
+    "focus": "#2e9e57"
+  },
+  "dark": {
+    "accent": "#7ad69a",
+    "accent-text": "#0b1a10",
+    "accent-soft": "#15301f"
+  }
+}
