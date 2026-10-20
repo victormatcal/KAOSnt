@@ -149,7 +149,9 @@ def list_notes(conn, f: dict[str, Any]) -> list[dict[str, Any]]:
             where.append("project_id IS NULL")
         elif scope == "fijadas":
             where.append("pinned = 1")
-    if f.get("project_id"):
+    if f.get("project_id") == "none":
+        where.append("project_id IS NULL")
+    elif f.get("project_id"):
         where.append("(project_id = ? OR id IN (SELECT l.note_id FROM note_task_links l JOIN tasks t ON t.id = l.task_id WHERE t.project_id = ?))")
         params += [int(f["project_id"])] * 2
     if f.get("kind"):
@@ -158,8 +160,22 @@ def list_notes(conn, f: dict[str, Any]) -> list[dict[str, Any]]:
     if f.get("tag"):
         where.append("EXISTS (SELECT 1 FROM note_tags nt JOIN tags g ON g.id = nt.tag_id WHERE nt.note_id = notes.id AND g.name = ? COLLATE NOCASE)")
         params.append(f["tag"])
+    if f.get("linked") == "1":
+        where.append("EXISTS (SELECT 1 FROM note_task_links l WHERE l.note_id = notes.id)")
     q = f"SELECT * FROM notes WHERE {' AND '.join(where)} ORDER BY pinned DESC, updated_at DESC LIMIT 1000"
-    return _decorate(conn, rows(conn.execute(q, params)), False)
+    items = rows(conn.execute(q, params))
+    text = (f.get("q") or "").strip()
+    if text:  # título y/o contenido, sin distinguir mayúsculas ni acentos; todas las palabras
+        from .search import norm, parse_query
+        terms = parse_query(text)
+        field = f.get("in") or "todo"
+        tz_name = get_all(conn)["timezone"]
+
+        def hay(n):
+            title = display_title(n, tz_name)
+            return norm(title if field == "titulo" else n["content"] if field == "contenido" else title + "\n" + n["content"])
+        items = [n for n in items if all(t in hay(n) for t in terms)]
+    return _decorate(conn, items, False)
 
 
 def purge_note(conn, note_id: int) -> None:
@@ -192,4 +208,9 @@ def get_tabs(conn) -> dict[str, Any]:
     existing = {r[0] for r in conn.execute("SELECT id FROM notes WHERE state <> 'papelera'")}
     open_ids = [i for i in tabs.get("open", []) if i in existing]
     active = tabs.get("active") if tabs.get("active") in open_ids else (open_ids[0] if open_ids else None)
-    return {"open": open_ids, "active": active}
+    split = tabs.get("split")
+    split = split if split in open_ids and split != active else None  # pantalla dividida (0.3)
+    out = {"open": open_ids, "active": active}
+    if split is not None:
+        out["split"] = split
+    return out

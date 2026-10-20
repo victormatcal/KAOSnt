@@ -34,8 +34,10 @@ TABLES = [
     "recurrences", "tasks", "task_steps", "task_dependencies", "task_history", "task_allocations", "notes",
     "note_task_links", "tags", "task_tags", "note_tags", "absences", "reminders", "saved_views", "settings",
 ]
-REASONS = ("manual", "auto", "previa-restauracion", "previa-migracion")
-BACKUP_RE = re.compile(r"^(kaosnt|centro)-\d{8}-\d{6}(-\d+)?-(manual|auto|previa-restauracion|previa-migracion)\.db$")
+REASONS = ("manual", "auto", "previa-restauracion", "previa-migracion", "previa-borrado")
+BACKUP_RE = re.compile(r"^(kaosnt|centro)-\d{8}-\d{6}(-\d+)?-(manual|auto|previa-restauracion|previa-migracion|previa-borrado)\.db$")
+# Esquemas anteriores cuya exportación se puede restaurar (las migraciones posteriores son aditivas)
+RESTORABLE_OLD_SCHEMAS = {2}
 
 
 def _stamp(settings: dict[str, Any] | None) -> str:
@@ -234,7 +236,8 @@ def validate_export(conn: sqlite3.Connection, data: dict[str, Any]) -> dict[str,
         raise invalid("Solo se pueden restaurar exportaciones completas (no por proyecto)")
     if data.get("format_version") != FORMAT_VERSION:
         raise invalid(f"Versión de formato no compatible: {data.get('format_version')}")
-    if data.get("schema_version") != schema_version(conn):
+    sv = data.get("schema_version")
+    if sv != schema_version(conn) and not (sv in RESTORABLE_OLD_SCHEMAS and isinstance(sv, int) and sv < schema_version(conn)):
         raise invalid(f"La exportación es del esquema {data.get('schema_version')} y la base actual del "
                       f"{schema_version(conn)}. Para datos de una versión anterior, restaura una copia .db "
                       "(se actualiza automáticamente).")
@@ -257,7 +260,7 @@ def validate_export(conn: sqlite3.Connection, data: dict[str, Any]) -> dict[str,
         counts[t] = len(items)
     current = {t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in TABLES}
     return {"valid": True, "exported_at": data.get("exported_at"), "app_version": data.get("app_version"),
-            "incoming": counts, "current": current}
+            "schema_version": sv, "incoming": counts, "current": current}
 
 
 def restore_from_export(cfg: Config, conn: sqlite3.Connection, data: dict[str, Any]) -> dict[str, Any]:
@@ -269,6 +272,7 @@ def restore_from_export(cfg: Config, conn: sqlite3.Connection, data: dict[str, A
         try:
             for t in reversed(TABLES):
                 conn.execute(f"DELETE FROM {t}")
+            conn.execute("DELETE FROM undo_log")
             for t in TABLES:
                 for r in data["tables"].get(t, []):
                     cols = list(r.keys())
@@ -285,3 +289,26 @@ def restore_from_export(cfg: Config, conn: sqlite3.Connection, data: dict[str, A
     finally:
         conn.execute("PRAGMA foreign_keys = ON")
     return {**summary, "previous_backup": previous.name}
+
+
+# ---------------- Borrar todo el entorno (0.3) ----------------
+def wipe_all(cfg: Config, conn: sqlite3.Connection, settings: dict[str, Any]) -> str:
+    """Copia previa y borrado de todos los datos (incluidos los ajustes). Devuelve el nombre de la copia."""
+    previous = create_backup(cfg, "previa-borrado", settings)
+    conn.execute("PRAGMA foreign_keys = OFF")
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            for t in reversed(TABLES):
+                conn.execute(f"DELETE FROM {t}")
+            conn.execute("DELETE FROM undo_log")
+            conn.execute("DELETE FROM sqlite_sequence")
+            ts = now_utc()
+            conn.execute("INSERT INTO people(name, role, is_me, created_at, updated_at) VALUES (?,?,?,?,?)", ("Yo", "", 1, ts, ts))
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
+    return previous.name

@@ -1,4 +1,4 @@
-# KAOSnt · v0.2.0
+# KAOSnt · v0.3.0
 
 Aplicación web **local** para organizar trabajo propio y de equipo: captura rápida de tareas y notas, resumen «Hoy»,
 proyectos con «Dónde lo dejamos», Kanban/lista/calendario, equipo con festivos por oficina y planificación semanal.
@@ -52,7 +52,18 @@ Requisito: **Python 3.10 o superior** (`py -3 --version`). Node no es necesario 
 - **Cerrar** (controlado): *Configuración → Cerrar aplicación*, `detener.bat` (demo: `detener.bat 8766`) o `Ctrl+C` en la consola.
 - Opciones: `--port N`, `--data-dir RUTA`, `--no-browser`; variables `KAOSNT_DATA_DIR`, `KAOSNT_PORT`.
 
-## 5. Actualizar desde la 0.1 («Centro de trabajo») o entre versiones
+## 5. Actualizar desde la 0.2 a la 0.3
+
+1. En la 0.2: **Configuración → Exportar → Exportación completa** (por seguridad) y cierra la aplicación (`detener.bat` o «Cerrar aplicación»).
+2. Sustituye la carpeta del programa por la de la 0.3 (no toques `%LOCALAPPDATA%\KAOSnt`). Ejecuta `instalar.bat` (no hay dependencias nuevas) e `iniciar.bat`.
+3. Al arrancar se crea `copias\kaosnt-…-previa-migracion.db` y se aplica la migración **003** (aditiva):
+   - `recurrences.template` (plantilla completa de las series; las series de la 0.2 siguen funcionando como antes hasta que pulses «Aplicar estos datos a la serie»),
+   - tabla `undo_log` (efímera, para «Deshacer»),
+   - el horario `workdays` + `work_start`/`work_end` pasa a **horario por día** (`work_schedule`) con los mismos valores.
+4. Una exportación JSON de la 0.2 **sí** se puede restaurar en la 0.3 (la migración es aditiva).
+5. Revisa en Configuración: idioma, formato de fecha, inicio de semana, aspecto (claro/oscuro/sistema), tema y horario por día.
+
+## 5 bis. Actualizar desde la 0.1 («Centro de trabajo»)
 
 1. Haz una **exportación completa** (Configuración → Exportar) y cierra la aplicación anterior (`detener.bat`).
 2. Sustituye la carpeta del programa por la nueva (no toques `%LOCALAPPDATA%`). Ejecuta `instalar.bat` e `iniciar.bat`.
@@ -75,9 +86,11 @@ Exportaciones: completa (JSON restaurable), por proyecto, notas (ZIP Markdown) y
 ```bat
 cd frontend
 npm install
-npm run build      :: compila y genera frontend\dist
-npm test
+npm run build      :: genera src/lib/themes-data.ts desde temas/, compila y genera frontend\dist
+npm test           :: comprueba traducciones (tools/i18n-keys.mjs), compila y ejecuta las pruebas
+npm run i18n       :: lista claves sin traducir y textos en español sin t()
 ```
+Temas: [docs/TEMAS.md](docs/TEMAS.md) y carpeta `temas/`.
 Pruebas del servidor: `.venv\Scripts\python.exe -m pip install -r requirements-dev.txt` y `ejecutar-pruebas.bat`.
 Si cambian las respuestas de la API, regenera el fixture: `python backend\tools\gen_frontend_fixture.py`.
 

@@ -3,15 +3,15 @@ No se calculan puntuaciones, rankings ni porcentajes de avance."""
 from __future__ import annotations
 
 import sqlite3
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from .agenda import holidays_for, person_holidays_between
 from .db import jload, row, rows
 from .errors import not_found
-from .reminders import list_active
+from .reminders import list_active, scheduled_between
 from .tasks import decorate
-from .timeutil import today_local, week_start
+from .timeutil import day_hours, local_midnight_utc, today_local, week_start
 
 OPEN_SQL = "t.archived = 0 AND t.status NOT IN ('hecha','cancelada')"
 
@@ -69,6 +69,8 @@ def today_view(conn: sqlite3.Connection, settings: dict[str, Any], clock: dateti
         return out
 
     sec_due, sec_review, sec_external, sec_on_me = take(due), take(to_review), take(external), take(on_me)
+    # Series recurrentes: una sola entrada por serie (la ocurrencia más antigua) con «+N esta semana» (0.3)
+    sec_due, sec_review, sec_external, sec_on_me = (collapse_series(x) for x in (sec_due, sec_review, sec_external, sec_on_me))
     reminders = list_active(conn, clock)
     for r in reminders:
         r["task_shown_elsewhere"] = bool(r["task_id"]) and r["task_id"] in seen
@@ -90,11 +92,32 @@ def today_view(conn: sqlite3.Connection, settings: dict[str, Any], clock: dateti
         "today": t_iso, "week_end": w_iso, "me_id": me,
         "sections": {"vence": sec_due, "revisar": sec_review, "bloqueos_externos": sec_external, "depende_de_mi": sec_on_me},
         "reminders": reminders, "team": team,
+        "scheduled": scheduled_between(conn, clock or datetime.now(timezone.utc),
+                                       local_midnight_utc(end_week + timedelta(days=1), settings)),
         "milestones": rows(conn.execute(
             """SELECT m.*, p.name AS project_name FROM milestones m JOIN projects p ON p.id = m.project_id
                WHERE m.status = 'pendiente' AND m.date IS NOT NULL AND m.date <= ? AND p.status IN ('activo','pausado')
                ORDER BY m.date""", (w_iso,))),
     }
+
+
+def collapse_series(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Deja una tarea por serie recurrente (la de ocurrencia más antigua) y anota cuántas más hay."""
+    first: dict[int, dict[str, Any]] = {}
+    out = []
+    for t in sorted(items, key=lambda x: (x.get("occurrence_date") or "", x["id"])):
+        rid = t.get("recurrence_id")
+        if rid is None:
+            continue
+        if rid in first:
+            first[rid]["series_more"] += 1
+        else:
+            t["series_more"] = 0
+            first[rid] = t
+    for t in items:
+        if t.get("recurrence_id") is None or first.get(t["recurrence_id"]) is t:
+            out.append(t)
+    return out
 
 
 def project_overview(conn, project_id: int, settings: dict[str, Any], clock: datetime | None = None) -> dict[str, Any]:
@@ -185,22 +208,24 @@ def person_view(conn, person_id: int, settings: dict[str, Any], clock: datetime 
 
 
 def availability(conn, person: dict[str, Any], settings: dict[str, Any], ws: date) -> dict[str, Any]:
-    """Días laborables de la semana según días configurados, festivos registrados (comunes + oficina)
-    y ausencias registradas. Solo usa datos registrados; no infiere nada."""
-    workdays = settings.get("workdays") or [1, 2, 3, 4, 5]
+    """Días y horas laborables de la semana según el horario por día configurado, festivos registrados
+    (comunes + oficina) y ausencias registradas. Solo usa datos registrados; no infiere nada.
+    Horas disponibles = capacidad semanal × (horas de horario de los días disponibles / horas de horario de la semana)."""
     hol = holidays_for(conn, person.get("location_id"))
     days = [ws + timedelta(days=i) for i in range(7)]
-    nominal = [d for d in days if d.isoweekday() in workdays]
+    nominal = [d for d in days if day_hours(d, settings) > 0]
     holiday_days = [d for d in nominal if d.isoformat() in hol]
     absences = _absences_between(conn, ws, ws + timedelta(days=6), person["id"])
     absent = {d for d in nominal if d not in holiday_days
               and any(a["start_date"] <= d.isoformat() <= a["end_date"] for a in absences)}
-    available = len(nominal) - len(holiday_days) - len(absent)
+    avail_days = [d for d in nominal if d not in holiday_days and d not in absent]
+    nominal_h = sum(day_hours(d, settings) for d in nominal)
+    avail_h = sum(day_hours(d, settings) for d in avail_days)
     cap = person.get("weekly_capacity_hours")
     return {
         "nominal_days": len(nominal), "holiday_days": len(holiday_days), "absence_days": len(absent),
-        "available_days": available,
-        "available_hours": round(cap * available / len(nominal), 1) if cap is not None and nominal else None,
+        "available_days": len(avail_days),
+        "available_hours": round(cap * avail_h / nominal_h, 1) if cap is not None and nominal_h else None,
     }
 
 

@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import { t } from "./i18n";
 import type { Bootstrap, Person, ProjectListItem } from "./types";
 
-export interface Toast { id: number; text: string; kind: "info" | "error" | "ok"; action?: { label: string; run: () => void } }
+export interface Toast { id: number; text: string; kind: "info" | "error" | "ok"; action?: { label: string; run: () => void }; ms?: number; undo?: boolean }
 
 export interface AppCtx {
   boot: Bootstrap; tz: string; meId: number | null;
@@ -16,13 +17,16 @@ export interface AppCtx {
   newNote: (preset?: Record<string, unknown>) => Promise<void>;
   navigate: (hash: string) => void;
   toast: (text: string, kind?: Toast["kind"], action?: Toast["action"]) => void;
+  /** Aviso con «Deshacer» durante unos segundos (configurable) tras una acción directa. */
+  undoable: (text: string, undoId: number | null | undefined) => void;
+  openReminders: (tab?: "pendientes" | "programados" | "resueltos") => void;
 }
 
 export const Ctx = createContext<AppCtx | null>(null);
 
 export function useApp(): AppCtx {
   const c = useContext(Ctx);
-  if (!c) throw new Error("Contexto de aplicación no disponible");
+  if (!c) throw new Error("Contexto de aplicación no disponible"); // error de programación, no se muestra al usuario
   return c;
 }
 
@@ -44,7 +48,7 @@ export function useApi<T>(url: string | null): { data: T | undefined; error: str
     setLoading(true);
     api.get<T>(url).then(
       (d) => { if (alive && current.current === url) { apiCache.set(url, d); setData(d); setError(""); setLoading(false); } },
-      (e) => { if (alive) { setError(e.message || "Error"); setLoading(false); } });
+      (e) => { if (alive) { setError(e.message || t("Error")); setLoading(false); } });
     return () => { alive = false; };
   }, [url, dataVersion, tick]);
   const reload = useCallback(() => setTick((x: number) => x + 1), []);

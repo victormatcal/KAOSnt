@@ -1,6 +1,7 @@
 // Renderizador Markdown propio y seguro: produce elementos React (nunca innerHTML). El HTML del texto se
 // muestra literal y no se ejecuta. No descarga imágenes ni recursos: las imágenes se muestran como enlace.
 import type { ReactNode } from "react";
+import { t } from "./i18n";
 import { isSafeUrl, linkProps } from "./links";
 
 let keySeq = 0;
@@ -15,11 +16,11 @@ function inline(text: string): ReactNode[] {
     if (m.index > last) out.push(text.slice(last, m.index));
     if (m[1]) out.push(<code key={k()}>{m[1].slice(1, -1)}</code>);
     else if (m[2]) out.push(isSafeUrl(m[4])
-      ? <a key={k()} {...linkProps(m[4])} title={m[4]}>[imagen: {m[3] || "sin descripción"} — no se carga]</a>
-      : <span key={k()}>[imagen: {m[3]}]</span>);
+      ? <a key={k()} {...linkProps(m[4])} title={m[4]}>[{t("imagen: {desc} — no se carga", { desc: m[3] || t("sin descripción") })}]</a>
+      : <span key={k()}>[{t("imagen: {desc}", { desc: m[3] })}]</span>);
     else if (m[5]) out.push(isSafeUrl(m[7])
       ? <a key={k()} {...linkProps(m[7])} title={m[7]}>{inline(m[6])}</a>
-      : <span key={k()} className="unsafe-link" title="Enlace bloqueado: esquema no permitido">{m[6]} [enlace bloqueado]</span>);
+      : <span key={k()} className="unsafe-link" title={t("Enlace bloqueado: esquema no permitido")}>{m[6]} [{t("enlace bloqueado")}]</span>);
     else if (m[8]) out.push(<a key={k()} {...linkProps(m[9])}>{m[9]}</a>);
     else if (m[10]) out.push(<strong key={k()}>{inline(m[11] ?? m[12])}</strong>);
     else if (m[13]) out.push(<em key={k()}>{inline(m[14] ?? m[15])}</em>);
@@ -82,7 +83,7 @@ export function renderMarkdown(src: string): ReactNode[] {
         const m = LIST_RE.exec(lines[i])!;
         const task = /^\[([ xX])\]\s+(.*)$/.exec(m[3]);
         const content = task
-          ? <><span aria-label={task[1].trim() ? "completado" : "pendiente"}>{task[1].trim() ? "☑" : "☐"}</span> {inline(task[2])}</>
+          ? <><span aria-label={task[1].trim() ? t("completado") : t("pendiente")}>{task[1].trim() ? "☑" : "☐"}</span> {inline(task[2])}</>
           : inline(m[3]);
         items.push(<li key={k()} style={m[1].length ? { marginLeft: `${Math.min(m[1].length, 12) * 0.6}em` } : undefined}>{content}</li>);
         i++;

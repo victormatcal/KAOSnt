@@ -12,6 +12,9 @@ KAOSnt **no** afirma cumplir ninguna política corporativa. Antes de guardar dat
 - CSV protegido frente a inyección de fórmulas. Sin registro de contenidos en logs.
 - Sin conexiones salientes: ni CDN, ni fuentes remotas, ni telemetría, ni IA.
 
+- **Temas (0.3)**: JSON declarativo validado en servidor y cliente; solo colores, fuente de lista cerrada y radio. Sin CSS libre, URLs ni fuentes remotas; se aplican por CSSOM (`style.setProperty`), compatible con la CSP.
+- **Borrados masivos (0.3)**: «Borrar todo» y «Eliminar proyecto» crean antes una copia verificada; «Borrar todo» exige escribir el nombre de la aplicación o «BORRAR TODO».
+
 ## Qué NO hace
 - No cifra la base de datos ni las copias (depende del cifrado de disco y de tu sesión de Windows).
 - No hay autenticación: cualquier proceso o persona con acceso a tu sesión puede usarla.
