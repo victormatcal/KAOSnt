@@ -1,6 +1,6 @@
-/* KAOSnt · estilos locales (sin fuentes ni recursos remotos) */
+/* KAOSnt · local styles (no remote fonts or resources) */
 :root {
-  /* Tema base (claro). El tema activo se aplica por CSSOM (style.setProperty) desde src/lib/theme.ts. */
+  /* Base theme (light). The active theme is applied through CSSOM (style.setProperty) from src/lib/theme.ts. */
   --bg: #f6f7f9;
   --surface: #ffffff;
   --surface-2: #eceff3;
@@ -30,7 +30,7 @@
   font-family: var(--font);
   font-size: 14px; color: var(--text); background: var(--bg);
 }
-/* Antes de que se aplique el tema guardado: respeta el modo oscuro del sistema (evita el destello blanco) */
+/* Before the saved theme is applied: follow the system dark mode (avoids the white flash) */
 @media (prefers-color-scheme: dark) {
   :root:not([data-mode="light"]) {
     --bg: #14171c;
@@ -63,7 +63,7 @@
 body { background: var(--bg); color: var(--text); font-family: var(--font); }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
-body { overflow-x: clip; }  /* solo desplazamiento vertical; «clip» no rompe los elementos sticky */
+body { overflow-x: clip; }  /* vertical scrolling only; «clip» does not break sticky elements */
 body { line-height: 1.4; }
 h1 { font-size: 1.35rem; margin: 0; }
 h2 { font-size: 1.05rem; margin: 0; }
@@ -111,6 +111,15 @@ input.num { width: 5em; }
 
 .layout { display: grid; grid-template-columns: minmax(0, 1fr); min-height: calc(100vh - 48px); }
 .layout.with-panel { grid-template-columns: minmax(0, 1fr) minmax(400px, 42%); }
+/* 0.4 · resizable task panel: the width never leaves less than 360 px for the main view */
+.layout.with-panel.custom-width { grid-template-columns: minmax(0, 1fr) clamp(360px, var(--panel-w), calc(100% - 360px)); }
+.panel-wrap { position: sticky; top: 48px; height: calc(100vh - 48px); display: flex; min-width: 0; }
+.panel-wrap > .panel { position: static; height: 100%; flex: 1 1 auto; min-width: 0; border-left: none; }
+.panel-resizer { flex: 0 0 7px; cursor: col-resize; touch-action: none; border-left: 1px solid var(--border); background: var(--surface); position: relative; }
+.panel-resizer::after { content: ""; position: absolute; top: 50%; left: 2px; width: 2px; height: 32px; margin-top: -16px; border-radius: 1px; background: var(--border); }
+.panel-resizer:hover, .panel-resizer:focus-visible { background: var(--accent-soft); }
+.panel-resizer:hover::after, .panel-resizer:focus-visible::after { background: var(--accent); }
+html.resizing, html.resizing * { cursor: col-resize !important; user-select: none !important; }
 main { padding: 12px 16px 48px; min-width: 0; }
 .view { min-width: 0; }
 .view-head { margin-bottom: 10px; }
@@ -208,16 +217,16 @@ td.overdue { color: var(--danger); font-weight: 600; }
 .calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
 .cal-dow { font-size: 0.8em; color: var(--muted); text-align: center; text-transform: uppercase; }
 .cal-day { background: var(--surface); border: 1px solid var(--border); min-height: 90px; padding: 3px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.cal-semana .cal-day { min-height: 260px; }
+.cal-week .cal-day { min-height: 260px; }
 .cal-day.today { border: 2px solid var(--accent); }
 .cal-day.out { opacity: 0.5; }
 .cal-day.weekend { background: var(--subtle); }
 .cal-date { font-size: 0.8em; color: var(--muted); }
 .cal-ctx { font-size: 0.72em; color: var(--muted); display: flex; flex-direction: column; border-left: 2px solid var(--border); padding-left: 4px; cursor: help; overflow-wrap: anywhere; }
 .cal-item { font-size: 0.8em; text-align: left; padding: 1px 4px; border-radius: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-.cal-vence { border-color: var(--danger); background: var(--danger-soft); }
+.cal-due { border-color: var(--danger); background: var(--danger-soft); }
 .cal-plan { border-color: var(--info); background: var(--info-soft); }
-.cal-revision { border-color: var(--warn); background: var(--warn-soft); border-style: dashed; }
+.cal-review { border-color: var(--warn); background: var(--warn-soft); border-style: dashed; }
 
 .panel { background: var(--surface); border-left: 1px solid var(--border); position: sticky; top: 48px; height: calc(100vh - 48px); overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; min-width: 0; }
 .panel-head { display: flex; gap: 6px; padding: 8px 10px 4px; align-items: flex-start; }
@@ -306,11 +315,11 @@ ul.signals { list-style: none; padding: 0; display: grid; grid-template-columns:
 .note-foot { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin-top: 6px; font-size: 0.85em; }
 .note-tags { display: flex; flex-direction: column; gap: 2px; }
 .save-state { font-size: 0.85em; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--border); white-space: nowrap; }
-.save-guardado { color: var(--ok); border-color: var(--ok); background: var(--ok-soft); }
-.save-guardado::before { content: "✓ "; }
-.save-guardando, .save-pendiente { color: var(--muted); }
-.save-error, .save-conflicto { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); font-weight: 600; white-space: normal; }
-.save-error::before, .save-conflicto::before { content: "⚠ "; }
+.save-saved { color: var(--ok); border-color: var(--ok); background: var(--ok-soft); }
+.save-saved::before { content: "✓ "; }
+.save-saving, .save-pending { color: var(--muted); }
+.save-error, .save-conflict { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); font-weight: 600; white-space: normal; }
+.save-error::before, .save-conflict::before { content: "⚠ "; }
 
 .markdown table { border-collapse: collapse; }
 .markdown th, .markdown td { border: 1px solid var(--border); padding: 3px 6px; }
@@ -333,12 +342,13 @@ ul.signals { list-style: none; padding: 0; display: grid; grid-template-columns:
 
 @media (max-width: 1100px) {
   .layout.with-panel { grid-template-columns: minmax(0, 1fr); }
-  .panel { position: fixed; inset: 48px 0 0 auto; width: min(560px, 100vw); z-index: 30; box-shadow: -4px 0 16px var(--shadow); }
+  .panel-wrap { position: fixed; inset: 48px 0 0 auto; width: min(560px, 100vw); height: auto; z-index: 30; box-shadow: -4px 0 16px var(--shadow); }
+  .layout.custom-width .panel-wrap { width: min(var(--panel-w), 100vw); }
   .project-top, .notes-view, .split { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 900px) { .board { grid-template-columns: minmax(0, 1fr) !important; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-/* 0.3 · campos de fecha y hora propios */
+/* 0.3 · own date and time fields */
 .date-input, .time-input, .datetime-input { position: relative; display: inline-flex; align-items: center; gap: 2px; flex-wrap: wrap; max-width: 100%; }
 .date-input input { width: 8.2em; }
 .time-input input { width: 4.2em; }
@@ -353,18 +363,18 @@ input.invalid { border-color: var(--danger); }
 .dp-day.today { border-color: var(--accent); }
 .dp-day.sel { background: var(--accent); color: var(--accent-text); }
 .dp-foot { display: flex; justify-content: space-between; margin-top: 4px; }
-/* 0.3 · aviso con «Deshacer» y barra de progreso */
+/* 0.3 · notice with «Undo» and progress bar */
 .toast-progress { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: currentColor; opacity: 0.6; transform-origin: left; animation-name: toast-countdown; animation-timing-function: linear; animation-fill-mode: forwards; }
 @keyframes toast-countdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 @media (prefers-reduced-motion: reduce) { .toast-progress { animation: none; } }
 button.bell { border-color: transparent; }
 .app-root { display: contents; }
-/* 0.3 · series recurrentes */
+/* 0.3 · recurring series */
 .series-more { cursor: pointer; padding: 0 6px; }
 .cal-rec { font-style: italic; }
 .archive-all { float: right; text-transform: none; letter-spacing: 0; }
 .plain-fieldset { border: 1px solid var(--border); border-radius: var(--radius); display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
-/* 0.3 · aspecto, festivos en bloque y zona de peligro */
+/* 0.3 · appearance, bulk holidays and danger zone */
 .theme-list li.theme-item { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 4px 6px; border-radius: var(--radius); }
 .theme-item.active { background: var(--accent-soft); }
 .theme-swatches { display: inline-flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; flex: 0 0 auto; }
@@ -374,7 +384,7 @@ pre.example { background: var(--code-bg); padding: 6px 8px; border-radius: var(-
 .danger-zone { border: 1px solid var(--danger); border-radius: var(--radius); padding: 8px 10px; background: var(--danger-soft); color: var(--text); }
 .danger-zone input { width: 100%; }
 table.schedule td { vertical-align: middle; }
-/* 0.3 · notas: filtros, pestañas arrastrables y pantalla dividida */
+/* 0.3 · notes: filters, draggable tabs and split screen */
 .note-filters { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
 .note-filters input, .note-filters select { width: 100%; }
 .note-item.split { border-color: var(--info); }
@@ -389,5 +399,8 @@ table.schedule td { vertical-align: middle; }
 .note-panes.two .note-editor { border-top: 1px solid var(--border); }
 .note-panes.two .note-toolbar { gap: 4px; }
 .note-panes.two .note-text, .note-panes.two .note-preview { min-height: 45vh; }
-.pane-derecha { box-shadow: inset 0 3px 0 var(--info); }
+.pane-right { box-shadow: inset 0 3px 0 var(--info); }
 @media (max-width: 1100px) { .note-panes.two { grid-template-columns: minmax(0, 1fr); } }
+/* 0.4 · delete a team member */
+.delete-summary { margin: 4px 0 8px; padding-left: 1.2em; }
+.modal-foot .spacer { flex: 1 1 auto; }

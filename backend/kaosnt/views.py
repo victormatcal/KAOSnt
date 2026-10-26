@@ -1,5 +1,5 @@
-"""Vistas de lectura sobre las mismas entidades: Hoy, proyecto, persona y planificación semanal.
-No se calculan puntuaciones, rankings ni porcentajes de avance."""
+"""Read views over the same entities: Today, project, person and weekly planning.
+No scores, rankings or progress percentages are computed."""
 from __future__ import annotations
 
 import sqlite3
@@ -60,7 +60,7 @@ def today_view(conn: sqlite3.Connection, settings: dict[str, Any], clock: dateti
     external = [t for t in open_tasks if t["condition"] and t["wait_on_person_id"] != me]
     on_me = [t for t in open_tasks if me and ((t["assignee_id"] == me and t["open_dependents"])
                                               or (t["condition"] and t["wait_on_person_id"] == me))]
-    # Cada tarea aparece una sola vez, en la primera sección (orden de pantalla) que le corresponde.
+    # Each task appears only once, in the first section (screen order) it belongs to.
     seen: set[int] = set()
 
     def take(items):
@@ -69,7 +69,7 @@ def today_view(conn: sqlite3.Connection, settings: dict[str, Any], clock: dateti
         return out
 
     sec_due, sec_review, sec_external, sec_on_me = take(due), take(to_review), take(external), take(on_me)
-    # Series recurrentes: una sola entrada por serie (la ocurrencia más antigua) con «+N esta semana» (0.3)
+    # Recurring series: a single entry per series (the oldest occurrence) with «+N this week» (0.3)
     sec_due, sec_review, sec_external, sec_on_me = (collapse_series(x) for x in (sec_due, sec_review, sec_external, sec_on_me))
     reminders = list_active(conn, clock)
     for r in reminders:
@@ -102,7 +102,7 @@ def today_view(conn: sqlite3.Connection, settings: dict[str, Any], clock: dateti
 
 
 def collapse_series(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Deja una tarea por serie recurrente (la de ocurrencia más antigua) y anota cuántas más hay."""
+    """Keep one task per recurring series (the oldest occurrence) and record how many more there are."""
     first: dict[int, dict[str, Any]] = {}
     out = []
     for t in sorted(items, key=lambda x: (x.get("occurrence_date") or "", x["id"])):
@@ -208,9 +208,9 @@ def person_view(conn, person_id: int, settings: dict[str, Any], clock: datetime 
 
 
 def availability(conn, person: dict[str, Any], settings: dict[str, Any], ws: date) -> dict[str, Any]:
-    """Días y horas laborables de la semana según el horario por día configurado, festivos registrados
-    (comunes + oficina) y ausencias registradas. Solo usa datos registrados; no infiere nada.
-    Horas disponibles = capacidad semanal × (horas de horario de los días disponibles / horas de horario de la semana)."""
+    """Working days and hours of the week from the configured per-day schedule, registered holidays
+    (common + office) and registered absences. Only registered data is used; nothing is inferred.
+    Available hours = weekly capacity × (schedule hours of the available days / schedule hours of the week)."""
     hol = holidays_for(conn, person.get("location_id"))
     days = [ws + timedelta(days=i) for i in range(7)]
     nominal = [d for d in days if day_hours(d, settings) > 0]
@@ -230,11 +230,11 @@ def availability(conn, person: dict[str, Any], settings: dict[str, Any], ws: dat
 
 
 def week_plan(conn, settings: dict[str, Any], ws: date) -> dict[str, Any]:
-    """Planificación semanal. El esfuerzo solo se suma cuando está registrado:
-    - reparto explícito de esa semana, o
-    - estimación completa de una tarea planificada esa semana sin reparto explícito.
-    Nunca se reparte automáticamente. Las tareas sin estimación se listan aparte (no cuentan como cero).
-    Si una tarea principal tiene subtareas con estimación, se cuentan las subtareas y no la principal."""
+    """Weekly planning. Effort is only added when it is registered:
+    - explicit split for that week, or
+    - full estimate of a task planned that week without an explicit split.
+    Nothing is ever split automatically. Tasks without an estimate are listed apart (they do not count as zero).
+    If a parent task has estimated subtasks, the subtasks are counted instead of the parent."""
     ws = week_start(ws)
     we = ws + timedelta(days=6)
     s, e = ws.isoformat(), we.isoformat()

@@ -21,8 +21,8 @@ interface PersonView extends Person {
 
 export function TeamView({ personId }: { personId?: number }) {
   const app = useApp();
-  const [tab, setTab] = useState<"personas" | "plan">("personas");
-  const [editing, setEditing] = useState<Person | "nueva" | null>(null);
+  const [tab, setTab] = useState<"people" | "plan">("people");
+  const [editing, setEditing] = useState<Person | "new" | null>(null);
   const people = app.boot.people;
   const sel = personId ?? people.find((p) => p.is_me)?.id ?? people[0]?.id;
   return (
@@ -30,14 +30,14 @@ export function TeamView({ personId }: { personId?: number }) {
       <header className="view-head row">
         <h1>{t("Equipo")}</h1>
         <div role="tablist" className="tabs-inline" aria-label={t("Secciones de equipo")}>
-          <button role="tab" aria-selected={tab === "personas"} className={tab === "personas" ? "active" : ""} onClick={() => setTab("personas")}>{t("Personas")}</button>
+          <button role="tab" aria-selected={tab === "people"} className={tab === "people" ? "active" : ""} onClick={() => setTab("people")}>{t("Personas")}</button>
           <button role="tab" aria-selected={tab === "plan"} className={tab === "plan" ? "active" : ""} onClick={() => setTab("plan")}>{t("Planificación semanal")}</button>
         </div>
         <span className="spacer" />
-        <button className="primary" onClick={() => setEditing("nueva")}>{t("Nueva persona")}</button>
+        <button className="primary" onClick={() => setEditing("new")}>{t("Nueva persona")}</button>
       </header>
       <p className="hint">{t("Vista operativa de los datos registrados. No se muestran rankings, puntuaciones ni valoraciones de desempeño.")}</p>
-      {tab === "personas" ? (
+      {tab === "people" ? (
         <div className="split">
           <nav className="side-list" aria-label={t("Personas")}><ul className="plain">{people.map((p) => (
             <li key={p.id}><button className={"side-item" + (p.id === sel ? " active" : "")} aria-current={p.id === sel} onClick={() => app.navigate(`#/equipo/${p.id}`)}>
@@ -45,7 +45,7 @@ export function TeamView({ personId }: { personId?: number }) {
           {sel ? <PersonDetail id={sel} onEdit={(p) => setEditing(p)} /> : <Empty>{t("Añade personas del equipo.")}</Empty>}
         </div>
       ) : <WeekPlan />}
-      {editing && <PersonForm person={editing === "nueva" ? null : editing} onClose={() => setEditing(null)} />}
+      {editing && <PersonForm person={editing === "new" ? null : editing} onClose={() => setEditing(null)} />}
     </div>
   );
 }
@@ -171,6 +171,7 @@ function PersonForm({ person, onClose }: { person: Person | null; onClose: () =>
   const [loc, setLoc] = useState<number | null>(person?.location_id ?? null);
   const [active, setActive] = useState(person ? !!person.active : true);
   const [error, setError] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const submit = async () => {
     const body = { name: name.trim(), role, weekly_capacity_hours: cap === "" ? null : Number(cap), location_id: loc, active };
     try { if (person) await api.patch(`/api/people/${person.id}`, body); else await api.post("/api/people", body); await app.reloadBoot(); app.changed(); onClose(); }
@@ -186,8 +187,66 @@ function PersonForm({ person, onClose }: { person: Person | null; onClose: () =>
           <input type="number" min="0" max="168" value={cap} onChange={(e: any) => setCap(e.target.value)} /></Field>
         {person && <label className="check"><input type="checkbox" checked={active} onChange={(e: any) => setActive(e.target.checked)} /> {t("Activa (desmarca para ocultarla sin borrar su historial)")}</label>}
         <ErrorBox error={error} />
-        <div className="modal-foot"><button className="primary" type="submit" disabled={!name.trim()}>{t("Guardar")}</button><button type="button" onClick={onClose}>{t("Cancelar")}</button></div>
+        <div className="modal-foot"><button className="primary" type="submit" disabled={!name.trim()}>{t("Guardar")}</button><button type="button" onClick={onClose}>{t("Cancelar")}</button>
+          {person && !person.is_me && <><span className="spacer" /><button type="button" className="danger" onClick={() => setDeleting(true)}>{t("Eliminar persona…")}</button></>}</div>
       </form>
+      {deleting && person && <DeletePersonDialog person={person} onClose={() => setDeleting(false)} onDone={onClose} />}
+    </Modal>
+  );
+}
+
+interface DeletePreview { id: number; name: string; is_me: boolean; open_tasks: number; closed_tasks: number; review_tasks: number;
+  waiting_tasks: number; recurrences: number; absences: number; projects: number }
+
+/** Permanent deletion of a team member (0.4): summary of what is affected, optional explicit reassignment, backup first. */
+export function DeletePersonDialog({ person, onClose, onDone }: { person: Person; onClose: () => void; onDone: () => void }) {
+  const app = useApp();
+  const { data: pre, error: loadError } = useApi<DeletePreview>(`/api/people/${person.id}/delete-preview`);
+  const [mode, setMode] = useState<"unassign" | "reassign">("unassign");
+  const [target, setTarget] = useState<number | null>(null);
+  const [error, setError] = useState("");
+  const others = app.boot.people.filter((p) => p.id !== person.id && p.active);
+  const run = async () => {
+    if (mode === "reassign" && target === null) return;
+    const to = mode === "reassign" ? app.person(target)?.name || "" : "";
+    if (!window.confirm(mode === "reassign"
+      ? t("¿Eliminar definitivamente a «{nombre}»? Sus tareas abiertas y series pasarán a «{destino}». Antes se creará una copia de seguridad. No se puede deshacer.", { nombre: person.name, destino: to })
+      : t("¿Eliminar definitivamente a «{nombre}»? Sus tareas quedarán sin responsable. Antes se creará una copia de seguridad. No se puede deshacer.", { nombre: person.name }))) return;
+    try {
+      const r = await api.post<{ previous_backup: string; reassigned: number }>(`/api/people/${person.id}/delete`, { confirm: true, reassign_to: mode === "reassign" ? target : null });
+      await app.reloadBoot(); app.changed();
+      app.toast(t("Persona eliminada. Copia previa: {copia}", { copia: r.previous_backup }), "ok");
+      app.navigate("#/equipo"); onDone();
+    } catch (e: any) { setError(e.message); }
+  };
+  const line = (n: number | undefined, text: string) => (n ? <li>{text}</li> : null);
+  return (
+    <Modal title={t("Eliminar persona")} onClose={onClose}>
+      <p><strong>{person.name}</strong></p>
+      <ErrorBox error={loadError || error} />
+      {pre && <>
+        <p>{t("Se verá afectado:")}</p>
+        <ul className="delete-summary">
+          {line(pre.open_tasks, t("{n} tarea(s) abierta(s) de las que es responsable", { n: pre.open_tasks }))}
+          {line(pre.closed_tasks, t("{n} tarea(s) terminada(s): quedarán sin responsable", { n: pre.closed_tasks }))}
+          {line(pre.review_tasks, t("{n} tarea(s) en las que es revisora: quedarán sin revisor", { n: pre.review_tasks }))}
+          {line(pre.waiting_tasks, t("{n} tarea(s) que dependen de ella: se quita esa referencia", { n: pre.waiting_tasks }))}
+          {line(pre.recurrences, t("{n} serie(s) recurrente(s) de las que es responsable", { n: pre.recurrences }))}
+          {line(pre.absences, t("{n} ausencia(s) registrada(s): se eliminan", { n: pre.absences }))}
+          {line(pre.projects, t("Dedicación en {n} proyecto(s): se elimina", { n: pre.projects }))}
+          {!pre.open_tasks && !pre.closed_tasks && !pre.review_tasks && !pre.waiting_tasks && !pre.recurrences && !pre.absences && !pre.projects &&
+            <li>{t("Nada: no tiene tareas, series, ausencias ni proyectos registrados.")}</li>}
+        </ul>
+        {(pre.open_tasks > 0 || pre.recurrences > 0) && <fieldset className="plain-fieldset"><legend>{t("¿Qué hacer con sus tareas abiertas y series?")}</legend>
+          <label className="check"><input type="radio" name="pdel-mode" checked={mode === "unassign"} onChange={() => setMode("unassign")} /> {t("Dejarlas sin responsable")}</label>
+          <label className="check"><input type="radio" name="pdel-mode" checked={mode === "reassign"} onChange={() => setMode("reassign")} disabled={!others.length} /> {t("Reasignarlas a:")}{" "}
+            <select aria-label={t("Persona a la que reasignar")} value={target ?? ""} disabled={mode !== "reassign"} onChange={(e: any) => setTarget(e.target.value ? Number(e.target.value) : null)}>
+              <option value="">{t("Elegir persona…")}</option>{others.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+        </fieldset>}
+        <p className="hint">{t("Si solo quieres ocultarla y conservar su historial, desmarca «Activa» en lugar de eliminarla. Las tareas terminadas nunca se reasignan.")}</p>
+      </>}
+      <div className="modal-foot"><button className="danger" disabled={!pre || (mode === "reassign" && target === null)} onClick={run}>{t("Eliminar persona")}</button>
+        <button onClick={onClose}>{t("Cancelar")}</button></div>
     </Modal>
   );
 }

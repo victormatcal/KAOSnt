@@ -1,11 +1,11 @@
--- KAOSnt 0.3 · plantilla completa de series recurrentes, registro de «deshacer» y horario laboral por día.
--- Migración aditiva: no elimina datos.
+-- KAOSnt 0.3 · full template for recurring series, «undo» log and working hours per day.
+-- Additive migration: no data is deleted.
 
--- Plantilla JSON de la serie (campos heredados, etiquetas, pasos, recordatorios y desplazamientos de fechas).
--- NULL = serie de la 0.2 (solo título, descripción, proyecto, responsable, prioridad y estimación).
+-- JSON template of the series (inherited fields, tags, steps, reminders and date offsets).
+-- NULL = 0.2 series (only title, description, project, assignee, priority and estimate).
 ALTER TABLE recurrences ADD COLUMN template TEXT;
 
--- Instantáneas para «Deshacer» tras acciones directas. Efímero: no forma parte de la exportación.
+-- Snapshots for «Undo» after direct actions. Ephemeral: not part of the export.
 CREATE TABLE undo_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   created_at TEXT NOT NULL,
@@ -14,7 +14,7 @@ CREATE TABLE undo_log (
   used INTEGER NOT NULL DEFAULT 0
 );
 
--- Horario laboral por día ISO (1 = lunes … 7 = domingo; null = no laborable) a partir de los ajustes de la 0.2
+-- Working hours per ISO day (1 = Monday … 7 = Sunday; null = non-working) from the 0.2 settings
 INSERT OR IGNORE INTO settings(key, value)
 SELECT 'work_schedule', (
   SELECT json_group_object(CAST(d.n AS TEXT),

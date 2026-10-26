@@ -1,4 +1,4 @@
-"""Pruebas de los criterios de aceptación (lado servidor). Numeradas según la especificación."""
+"""Acceptance-criteria tests (server side). Numbered as in the specification."""
 from datetime import datetime, timedelta, timezone
 
 from conftest import make_client
@@ -26,11 +26,11 @@ def project(c, name, **kw):
     return r.json()["id"]
 
 
-def test_01_nota_sin_titulo_persiste_y_restaura_pestanas(cfg, clock):
+def test_01_untitled_note_persists_and_restores_tabs(cfg, clock):
     with make_client(cfg, clock) as c:
         n = c.post("/api/notes", json={}).json()
         assert n["title_manual"] is None and n["project_id"] is None
-        assert n["display_title"].startswith("Nota del ")
+        assert n["display_title"].startswith("Note of ")  # English by default (0.4)
         n2 = c.post("/api/notes", json={}).json()
         r = c.patch(f"/api/notes/{n['id']}", json={"content": "\n\n## Llamada con soporte\nrevisar logs", "base_version": n["version"]})
         assert r.status_code == 200 and r.json()["display_title"] == "Llamada con soporte"
@@ -42,14 +42,14 @@ def test_01_nota_sin_titulo_persiste_y_restaura_pestanas(cfg, clock):
         assert c.get(f"/api/notes/{n['id']}").json()["state"] == "activa"
 
 
-def test_01b_titulo_manual_no_se_sobrescribe(client):
+def test_01b_manual_title_is_never_overwritten(client):
     n = client.post("/api/notes", json={}).json()
     client.patch(f"/api/notes/{n['id']}", json={"title_manual": "Mi título"})
     assert client.patch(f"/api/notes/{n['id']}", json={"content": "Otra primera línea"}).json()["display_title"] == "Mi título"
     assert client.patch(f"/api/notes/{n['id']}", json={"title_manual": ""}).json()["display_title"] == "Otra primera línea"
 
 
-def test_02_conflicto_de_version_no_pierde_texto(client):
+def test_02_version_conflict_keeps_the_text(client):
     n = client.post("/api/notes", json={"content": "versión A"}).json()
     assert client.patch(f"/api/notes/{n['id']}", json={"content": "versión B", "base_version": n["version"]}).status_code == 200
     stale = client.patch(f"/api/notes/{n['id']}", json={"content": "versión C", "base_version": n["version"]})
@@ -59,7 +59,7 @@ def test_02_conflicto_de_version_no_pierde_texto(client):
     assert client.get(f"/api/notes/{n['id']}").json()["content"] == "versión B"
 
 
-def test_03_tarea_solo_titulo_y_asignacion_posterior(client):
+def test_03_task_with_title_only_and_later_assignment(client):
     t = mk_task(client, title="Revisar propuesta")
     assert t["assignee_id"] is None and t["project_id"] is None and t["due_date"] is None
     assert t["status"] == "pendiente" and t["priority"] == "normal"
@@ -70,7 +70,7 @@ def test_03_tarea_solo_titulo_y_asignacion_posterior(client):
     assert client.post("/api/tasks", json={}).status_code == 422
 
 
-def test_04_persona_en_varios_proyectos(client):
+def test_04_person_in_several_projects(client):
     a = person(client, "Ana")
     p1, p2 = project(client, "P1"), project(client, "P2")
     for p in (p1, p2):
@@ -80,7 +80,7 @@ def test_04_persona_en_varios_proyectos(client):
     assert sorted(x["name"] for x in client.get(f"/api/people/{a}/view").json()["projects"]) == ["P1", "P2"]
 
 
-def test_05_backlog_con_vencimiento_en_hoy(client):
+def test_05_backlog_with_due_date_in_today(client):
     t = mk_task(client, title="Idea con fecha", status="backlog", due_date="2026-10-14")
     today = client.get("/api/today").json()
     item = next(x for x in today["sections"]["vence"] if x["id"] == t["id"])
@@ -90,7 +90,7 @@ def test_05_backlog_con_vencimiento_en_hoy(client):
     assert t["id"] in [x["id"] for x in client.get("/api/tasks?include_backlog=1").json()]
 
 
-def test_06_en_revision_y_bloqueada(client):
+def test_06_in_review_and_blocked(client):
     t = mk_task(client, title="Entregable", status="en_revision")
     r = client.patch(f"/api/tasks/{t['id']}", json={"condition": "bloqueada", "wait_on": "Cliente", "wait_reason": "Falta acceso"}).json()
     assert r["status"] == "en_revision" and r["condition"] == "bloqueada" and r["wait_since"]
@@ -101,7 +101,7 @@ def test_06_en_revision_y_bloqueada(client):
     assert r["status"] == "en_revision" and r["condition"] is None
 
 
-def test_07_dependencia_de_mi_en_hoy(client):
+def test_07_dependency_on_me_in_today(client):
     yo, otra = me(client), person(client, "Luis")
     mia = mk_task(client, title="Definir matriz", assignee_id=yo)
     suya = mk_task(client, title="Cargar matriz", assignee_id=otra)
@@ -110,12 +110,12 @@ def test_07_dependencia_de_mi_en_hoy(client):
     assert item["open_dependents"] == 1 and "bloquea_otras" in item["signals"]
     det = client.get(f"/api/tasks/{suya['id']}").json()
     assert det["blocked_by"][0]["id"] == mia["id"]
-    assert any("«Definir matriz»" in h["text"] for h in det["history"])  # sin identificadores numéricos
+    assert any("«Definir matriz»" in h["text"] for h in det["history"])  # no numeric identifiers
     client.patch(f"/api/tasks/{mia['id']}", json={"status": "hecha"})
     assert client.get(f"/api/tasks/{suya['id']}").json()["status"] == "pendiente"
 
 
-def test_08_dependencias_circulares(client):
+def test_08_circular_dependencies(client):
     a, b, c = (mk_task(client, title=x)["id"] for x in "ABC")
     assert client.post(f"/api/tasks/{a}/dependencies", json={"depends_on_id": a}).status_code == 422
     assert client.post(f"/api/tasks/{a}/dependencies", json={"depends_on_id": b}).status_code == 200
@@ -127,14 +127,14 @@ def test_08_dependencias_circulares(client):
     assert client.patch(f"/api/tasks/{b}", json={"parent_id": a}).status_code == 422
 
 
-def test_09_sin_horas_trabajadas(client):
+def test_09_no_hours_worked(client):
     t = mk_task(client, title="X", status="en_curso")
     assert t["started_at"]
     keys = " ".join(t.keys()).lower()
     assert "worked" not in keys and "trabajad" not in keys and "dedicacion" not in keys
 
 
-def test_10_abrir_no_reinicia_seguimiento(client):
+def test_10_opening_does_not_reset_follow_up(client):
     t = mk_task(client, title="Seguimiento", review_after_idle_hours=24)
     before = client.get(f"/api/tasks/{t['id']}").json()
     for _ in range(3):
@@ -146,13 +146,13 @@ def test_10_abrir_no_reinicia_seguimiento(client):
     assert client.get(f"/api/tasks/{t['id']}").json()["last_significant_update"] == before["last_significant_update"]
 
 
-def test_10b_cambio_significativo_si_reinicia(client, clock):
+def test_10b_significant_change_does_reset(client, clock):
     t = mk_task(client, title="S")
     clock.dt += timedelta(minutes=5)
     assert client.patch(f"/api/tasks/{t['id']}", json={"status": "en_curso"}).json()["last_significant_update"] > t["last_significant_update"]
 
 
-def test_11_recordatorio_sin_duplicados(cfg, clock):
+def test_11_reminder_without_duplicates(cfg, clock):
     with make_client(cfg, clock) as c:
         t = mk_task(c, title="Entrega", due_date="2026-10-14")
         assert len([r for r in c.get("/api/reminders").json()["active"] if r["task_id"] == t["id"]]) == 1
@@ -167,7 +167,7 @@ def test_11_recordatorio_sin_duplicados(cfg, clock):
         assert not [r for r in c.get("/api/reminders").json()["active"] if r["task_id"] == t2["id"]]
 
 
-def test_11b_seguimiento_recurrente_sin_avalancha(cfg, clock):
+def test_11b_recurring_follow_up_without_avalanche(cfg, clock):
     with make_client(cfg, clock) as c:
         t = mk_task(c, title="Esperando cliente", condition="espera", follow_up_every_days=2, wait_since="2026-09-01T08:00:00Z")
         act = [r for r in c.get("/api/reminders").json()["active"] if r["task_id"] == t["id"]]
@@ -182,7 +182,7 @@ def test_11b_seguimiento_recurrente_sin_avalancha(cfg, clock):
         assert len([r for r in c.get("/api/reminders").json()["active"] if r["task_id"] == t["id"]]) == 1
 
 
-def test_11c_posponer(client, clock):
+def test_11c_snooze(client, clock):
     t = mk_task(client, title="Revisar", next_review_at="2026-10-13T09:00:00Z")
     r = [x for x in client.get("/api/reminders").json()["active"] if x["task_id"] == t["id"]][0]
     client.post(f"/api/reminders/{r['id']}/action", json={"action": "posponer", "until": "2026-10-13T12:00:00Z"})
@@ -191,7 +191,7 @@ def test_11c_posponer(client, clock):
     assert [x for x in client.get("/api/reminders").json()["active"] if x["task_id"] == t["id"]]
 
 
-def test_12_recurrencias(cfg, clock):
+def test_12_recurrences(cfg, clock):
     with make_client(cfg, clock) as c:
         r = c.post("/api/recurrences", json={"title": "Parte diario", "rule": "laborables", "start_date": "2026-10-12"}).json()
         occ = c.get(f"/api/tasks?recurrence_id={r['id']}&include_closed=1").json()
@@ -215,7 +215,7 @@ def test_12_recurrencias(cfg, clock):
         assert fut and all(x["title"] == "Parte diario v2" for x in fut)
 
 
-def test_12b_recurrencia_semanal_festivo(client):
+def test_12b_weekly_recurrence_holiday(client):
     client.post("/api/holidays", json={"date": "2026-10-14"})
     r = client.post("/api/recurrences", json={"title": "Semanal", "rule": "semanal", "weekdays": [3],
                                               "start_date": "2026-10-13", "non_working": "siguiente_laborable"}).json()
@@ -223,7 +223,7 @@ def test_12b_recurrencia_semanal_festivo(client):
     assert o["due_date"] == "2026-10-15"
 
 
-def test_13_planificacion_estimaciones(client):
+def test_13_planning_estimates(client):
     a = person(client, "Ana", weekly_capacity_hours=40)
     sin = mk_task(client, title="Sin estimar", assignee_id=a, planned_date="2026-10-14")
     pa = next(p for p in client.get("/api/planning?week=2026-10-13").json()["people"] if p["person_id"] == a)
@@ -241,7 +241,7 @@ def test_13_planificacion_estimaciones(client):
     assert client.put(f"/api/tasks/{otra['id']}/allocations", json={"week_start": "2026-10-13", "hours": 1}).status_code == 422
 
 
-def test_14_ausencias(client):
+def test_14_absences(client):
     a = person(client, "Ana")
     t = mk_task(client, title="Taller", assignee_id=a, planned_date="2026-10-15")
     assert client.post("/api/absences", json={"person_id": a, "start_date": "2026-10-15", "end_date": "2026-10-16"}).status_code == 201
@@ -255,7 +255,7 @@ def test_14_ausencias(client):
                                             "due_this_week", "absences", "holidays"}
 
 
-def test_15_nota_a_tarea(client):
+def test_15_note_to_task(client):
     p = project(client, "Alfa")
     n = client.post("/api/notes", json={"content": "Acta\n- enviar plantilla de roles al cliente\n- otro punto", "project_id": p}).json()
     t = client.post(f"/api/notes/{n['id']}/to-task", json={"title": "Enviar plantilla de roles", "excerpt": "enviar plantilla de roles al cliente"}).json()
@@ -265,7 +265,7 @@ def test_15_nota_a_tarea(client):
     assert nd["content"] == n["content"] and nd["tasks"][0]["id"] == t["id"] and t["description"] == ""
 
 
-def test_16_busqueda_por_contenido(client):
+def test_16_content_search(client):
     n = client.post("/api/notes", json={"content": "apuntes\nla ventana de corte será el sábado por la noche"}).json()
     hit = next(x for x in client.get("/api/search", params={"q": '"ventana de corte"'}).json()["results"] if x["type"] == "nota")
     assert hit["id"] == n["id"] and "ventana de corte" in hit["snippet"] and hit["title"] == "apuntes"
@@ -277,7 +277,7 @@ def test_16_busqueda_por_contenido(client):
     assert client.get("/api/search", params={"q": "ventana de corte"}).json()["results"]
 
 
-def test_17_vistas_sin_duplicar(client):
+def test_17_views_without_duplicates(client):
     t = mk_task(client, title="Única", due_date="2026-10-15", planned_date="2026-10-14", next_review_at="2026-10-16T08:00:00Z")
     assert [x["id"] for x in client.get("/api/tasks").json()].count(t["id"]) == 1
     assert [x["id"] for x in client.get("/api/tasks?date_from=2026-10-12&date_to=2026-10-18").json()].count(t["id"]) == 1
@@ -285,7 +285,7 @@ def test_17_vistas_sin_duplicar(client):
     assert len(client.get("/api/tasks?include_backlog=1&include_closed=1&include_archived=1").json()) == 1
 
 
-def test_18_exportar_restaurar(client, cfg):
+def test_18_export_restore(client, cfg):
     p, a = project(client, "Alfa"), person(client, "Ana")
     client.post(f"/api/projects/{p}/people", json={"person_id": a, "dedication_pct": 50})
     t1 = mk_task(client, title="A", project_id=p, assignee_id=a, tags=["cliente"])
@@ -319,7 +319,7 @@ def test_18_exportar_restaurar(client, cfg):
     assert client.get(f"/api/projects/{p}").json()["people"][0]["dedication_pct"] == 50
 
 
-def test_18b_restauracion_rechaza_datos_invalidos(client):
+def test_18b_restore_rejects_invalid_data(client):
     assert client.post("/api/restore/preview", json={"format": "otro"}).status_code == 422
     export = client.get("/api/export/full").json()
     broken = {**export, "tables": {**export["tables"], "task_dependencies": [{"task_id": 99, "depends_on_id": 98}]}}
@@ -332,7 +332,7 @@ def test_18b_restauracion_rechaza_datos_invalidos(client):
     assert client.post("/api/restore/preview", json=client.get(f"/api/export/project/{proj['id']}").json()).status_code == 422
 
 
-def test_18c_copia_y_restauracion_desde_copia(client):
+def test_18c_backup_and_restore_from_backup(client):
     mk_task(client, title="Antes")
     name = client.post("/api/backups").json()["name"]
     assert name.startswith("kaosnt-")

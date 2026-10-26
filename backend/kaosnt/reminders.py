@@ -1,8 +1,8 @@
-"""Centro interno de recordatorios.
+"""Internal reminder centre.
 
-Se recalculan al abrir la aplicación y periódicamente mientras está en marcha. Cada aviso tiene una clave
-de deduplicación persistente: reiniciar no los duplica y un aviso descartado no reaparece en el mismo ciclo.
-Para seguimientos recurrentes solo existe el aviso del ciclo actual (sin avalancha tras una ausencia).
+Recalculated when the application opens and periodically while it runs. Each notice has a persistent
+deduplication key: restarting does not duplicate them and a dismissed notice does not come back in the same cycle.
+For recurring follow-ups only the notice of the current cycle exists (no avalanche after an absence).
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from typing import Any
 
 from .agenda import holidays_for
 from .db import now_utc, rows
-from .errors import invalid, not_found
+from .errors import invalid, missing_ref, not_found
 from .timeutil import add_hours, fmt_utc, local_midnight_utc, parse_dt
 
 RULE_LABEL = {
@@ -37,7 +37,7 @@ def refresh(conn: sqlite3.Connection, settings: dict[str, Any], clock: datetime 
     hol_cache: dict[Any, set[str]] = {}
     created = 0
     open_tasks = rows(conn.execute("SELECT * FROM tasks WHERE archived = 0 AND status NOT IN ('hecha','cancelada')"))
-    # Series recurrentes: solo avisa la ocurrencia abierta más antigua de cada serie (0.3)
+    # Recurring series: only the oldest open occurrence of each series gets notices (0.3)
     oldest: dict[int, tuple[str, int]] = {}
     for t in open_tasks:
         if t["recurrence_id"] is not None:
@@ -101,7 +101,7 @@ def list_active(conn: sqlite3.Connection, clock: datetime | None = None) -> list
              AND (r.snoozed_until IS NULL OR r.snoozed_until <= ?)
              AND (r.task_id IS NULL OR (t.archived = 0 AND t.status NOT IN ('hecha','cancelada')))
            ORDER BY r.due_at""", (now, now)))
-    # Avisos automáticos repetidos de una misma serie recurrente: se agrupan en uno (el más antiguo)
+    # Repeated automatic notices of the same recurring series are grouped into one (the oldest)
     out: list[dict[str, Any]] = []
     groups: dict[tuple[str, int], dict[str, Any]] = {}
     for r in items:
@@ -130,7 +130,7 @@ def _decorated(conn, where: str, params: list[Any], order: str, limit: int = 200
 
 
 def list_scheduled(conn, clock: datetime | None = None, task_id: int | None = None) -> list[dict[str, Any]]:
-    """Programados: pendientes con fecha futura o pospuestos hasta una fecha futura."""
+    """Scheduled: pending with a future date or snoozed until a future date."""
     now = fmt_utc(clock or datetime.now(timezone.utc))
     where = "r.status IN ('pendiente','pospuesto') AND (r.due_at > ? OR (r.snoozed_until IS NOT NULL AND r.snoozed_until > ?))"
     params: list[Any] = [now, now]
@@ -149,7 +149,7 @@ def list_resolved(conn, task_id: int | None = None, limit: int = 100) -> list[di
 
 
 def scheduled_between(conn, start: datetime, end: datetime) -> list[dict[str, Any]]:
-    """Recordatorios manuales programados en un intervalo futuro (para «Programados esta semana» en Hoy)."""
+    """Manual reminders scheduled in a future interval (for «Scheduled this week» in Today)."""
     return _decorated(conn, "r.rule = 'manual' AND r.status IN ('pendiente','pospuesto') AND COALESCE(r.snoozed_until, r.due_at) > ? "
                       "AND COALESCE(r.snoozed_until, r.due_at) <= ?", [fmt_utc(start), fmt_utc(end)], "COALESCE(r.snoozed_until, r.due_at)")
 
@@ -182,9 +182,9 @@ def upcoming_manual(conn) -> list[dict[str, Any]]:
 
 def create_manual(conn, title: str, due_at: str, task_id: int | None, project_id: int | None) -> int:
     if task_id is not None and not conn.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone():
-        raise invalid("Tarea no existe")
+        raise missing_ref("Tarea")
     if project_id is not None and not conn.execute("SELECT 1 FROM projects WHERE id = ?", (project_id,)).fetchone():
-        raise invalid("Proyecto no existe")
+        raise missing_ref("Proyecto")
     return conn.execute(
         "INSERT INTO reminders(dedup_key, rule, task_id, project_id, title, due_at, created_at) VALUES (?,?,?,?,?,?,?)",
         (f"manual:{uuid.uuid4().hex}", "manual", task_id, project_id, title, fmt_utc(parse_dt(due_at)), now_utc())).lastrowid

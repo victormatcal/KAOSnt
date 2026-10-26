@@ -9,8 +9,8 @@ import type { DayContext, Filters, Task, TaskStatus } from "../lib/types";
 import { TaskCard } from "./TaskCard";
 import { Empty, PersonSelect, ProjectSelect } from "./ui";
 
-/** Mueve/reordena una tarea; si la aprobación está pendiente pide confirmación explícita.
- * Con cambio de columna devuelve el identificador para «Deshacer». */
+/** Move/reorder a task; if the approval is pending, asks for explicit confirmation.
+ * When the column changes, returns the identifier for «Undo». */
 export async function moveTask(id: number, body: { status?: TaskStatus; before_id?: number; after_id?: number }): Promise<false | { undo_id?: number | null }> {
   const url = `/api/tasks/${id}/reorder${body.status ? "?undo=1" : ""}`;
   try {
@@ -155,7 +155,7 @@ export function TaskTable({ tasks: allTasks, archived, groupRecurring = false }:
   );
 }
 
-/** Texto compacto para festivos y ausencias registrados de un día. */
+/** Compact text for the registered holidays and absences of a day. */
 export function dayContextText(c: DayContext | undefined): { holiday: string; absent: string; title: string } {
   if (!c) return { holiday: "", absent: "", title: "" };
   const holiday = c.holidays.map((h) => h.location ? t("Festivo {oficina}", { oficina: h.location }) : t("Festivo")).join(" · ");
@@ -165,30 +165,30 @@ export function dayContextText(c: DayContext | undefined): { holiday: string; ab
   return { holiday, absent, title };
 }
 
-interface CalItem { task: Task; kind: "vence" | "plan" | "revision" }
-const CAL_LABEL = { vence: "📅", plan: "🗓", revision: "🔎" };
-const CAL_TEXT = { vence: () => t("Vence"), plan: () => t("Planificada"), revision: () => t("Revisión") };
+interface CalItem { task: Task; kind: "due" | "plan" | "review" }
+const CAL_LABEL = { due: "📅", plan: "🗓", review: "🔎" };
+const CAL_TEXT = { due: () => t("Vence"), plan: () => t("Planificada"), review: () => t("Revisión") };
 
 export function Calendar({ tasks, mode, anchor, setAnchor, setMode }: {
-  tasks: Task[]; mode: "semana" | "mes"; anchor: string; setAnchor: (d: string) => void; setMode: (m: "semana" | "mes") => void;
+  tasks: Task[]; mode: "week" | "month"; anchor: string; setAnchor: (d: string) => void; setMode: (m: "week" | "month") => void;
 }) {
   const app = useApp();
   const today = todayIn(app.tz);
-  const days = mode === "semana" ? Array.from({ length: 7 }, (_, i) => addDays(viewWeekStart(anchor), i)) : monthGrid(anchor);
+  const days = mode === "week" ? Array.from({ length: 7 }, (_, i) => addDays(viewWeekStart(anchor), i)) : monthGrid(anchor);
   const { data: ctx } = useApi<{ days: Record<string, DayContext> }>(`/api/calendar-context?start=${days[0]}&end=${days[days.length - 1]}`);
   const byDay = useMemo(() => {
     const m = new Map<string, CalItem[]>();
     const put = (d: string | null, it: CalItem) => { if (d) m.set(d, [...(m.get(d) || []), it]); };
     for (const x of tasks) {
-      put(x.due_date, { task: x, kind: "vence" });
+      put(x.due_date, { task: x, kind: "due" });
       if (x.planned_date && x.planned_date !== x.due_date) put(x.planned_date, { task: x, kind: "plan" });
-      if (x.next_review_at) put(utcToZonedInput(x.next_review_at, app.tz).slice(0, 10), { task: x, kind: "revision" });
+      if (x.next_review_at) put(utcToZonedInput(x.next_review_at, app.tz).slice(0, 10), { task: x, kind: "review" });
     }
     return m;
   }, [tasks]);
   const undated = tasks.filter((x) => !x.due_date && !x.planned_date && !x.next_review_at).length;
   const shift = (dir: number) => {
-    if (mode === "semana") setAnchor(addDays(anchor, dir * 7));
+    if (mode === "week") setAnchor(addDays(anchor, dir * 7));
     else { const d = new Date(anchor.slice(0, 8) + "15T12:00:00Z"); d.setUTCMonth(d.getUTCMonth() + dir); setAnchor(d.toISOString().slice(0, 10)); }
   };
   const month = anchor.slice(0, 7);
@@ -199,11 +199,11 @@ export function Calendar({ tasks, mode, anchor, setAnchor, setMode }: {
         <button onClick={() => shift(-1)} aria-label={t("Anterior")}>◀</button>
         <button onClick={() => setAnchor(today)}>{t("Hoy")}</button>
         <button onClick={() => shift(1)} aria-label={t("Siguiente")}>▶</button>
-        <strong>{mode === "semana" ? t("Semana del {desde} al {hasta}", { desde: fmtDate(days[0]), hasta: fmtDate(days[6]) }) : `${monthName(md.getUTCMonth())} ${md.getUTCFullYear()}`}</strong>
+        <strong>{mode === "week" ? t("Semana del {desde} al {hasta}", { desde: fmtDate(days[0]), hasta: fmtDate(days[6]) }) : `${monthName(md.getUTCMonth())} ${md.getUTCFullYear()}`}</strong>
         <span className="spacer" />
         <div role="group" aria-label={t("Escala del calendario")} className="tabs-inline">
-          <button aria-pressed={mode === "semana"} className={mode === "semana" ? "active" : ""} onClick={() => setMode("semana")}>{t("Semana")}</button>
-          <button aria-pressed={mode === "mes"} className={mode === "mes" ? "active" : ""} onClick={() => setMode("mes")}>{t("Mes")}</button>
+          <button aria-pressed={mode === "week"} className={mode === "week" ? "active" : ""} onClick={() => setMode("week")}>{t("Semana")}</button>
+          <button aria-pressed={mode === "month"} className={mode === "month" ? "active" : ""} onClick={() => setMode("month")}>{t("Mes")}</button>
         </div>
       </div>
       <p className="hint">{t("📅 Vence · 🗓 Planificada · 🔎 Revisión · ↻ en cursiva, ocurrencias de series recurrentes · en gris, festivos y ausencias registrados (pasa el ratón para ver a quién afectan).")} {undated > 0 && t("{n} tarea(s) sin fecha no se muestran.", { n: undated })}</p>
@@ -214,7 +214,7 @@ export function Calendar({ tasks, mode, anchor, setAnchor, setMode }: {
           const c = dayContextText(ctx?.days[d]);
           const globalHoliday = ctx?.days[d]?.holidays.some((h) => !h.location);
           return (
-            <div key={d} className={`cal-day${d === today ? " today" : ""}${mode === "mes" && d.slice(0, 7) !== month ? " out" : ""}${isoDow(d) >= 6 || globalHoliday ? " weekend" : ""}`}>
+            <div key={d} className={`cal-day${d === today ? " today" : ""}${mode === "month" && d.slice(0, 7) !== month ? " out" : ""}${isoDow(d) >= 6 || globalHoliday ? " weekend" : ""}`}>
               <div className="cal-date">{Number(d.slice(8))}{d === today && <span className="sr"> {t("(hoy)")}</span>}</div>
               {(c.holiday || c.absent) && <div className="cal-ctx" title={c.title}>{c.holiday && <span>{c.holiday}</span>}{c.absent && <span>{c.absent}</span>}</div>}
               {items.map((it) => (
@@ -229,7 +229,7 @@ export function Calendar({ tasks, mode, anchor, setAnchor, setMode }: {
   );
 }
 
-/** Línea discreta con festivos y ausencias registrados en la semana actual. */
+/** Discreet line with the registered holidays and absences of the current week. */
 export function WeekAvailabilityStrip() {
   const app = useApp();
   const ws = weekStart(todayIn(app.tz));

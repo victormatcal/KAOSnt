@@ -157,7 +157,7 @@ export function SettingsView() {
   );
 }
 
-/** Aspecto: claro / oscuro / según el sistema y temas declarativos (integrados o importados). Se aplica al momento. */
+/** Appearance: light / dark / follow the system and declarative themes (built-in or imported). Applied immediately. */
 function AppearanceSection() {
   const app = useApp();
   const s = app.boot.settings;
@@ -219,12 +219,12 @@ function AppearanceSection() {
         <label className="button">{t("Importar tema (JSON)")}<input type="file" accept="application/json,.json" className="sr" aria-label={t("Importar tema (JSON)")} onChange={importFile} /></label>
         <button onClick={download}>{t("Descargar plantilla del tema actual")}</button>
       </div>
-      <p className="hint">{t("Los temas solo admiten colores (#hex, rgb[a], hsl[a]), una fuente de la lista (sistema, serif, mono, redondeada) y el radio de las esquinas. Nada de CSS libre, URLs ni fuentes remotas. Consulta docs/TEMAS.md.")}</p>
+      <p className="hint">{t("Los temas solo admiten colores (#hex, rgb[a], hsl[a]), una fuente de la lista (sistema, serif, mono, redondeada) y el radio de las esquinas. Nada de CSS libre, URLs ni fuentes remotas. Consulta docs/THEMES.md.")}</p>
     </Section>
   );
 }
 
-/** Oficinas y festivos: comunes (todas las oficinas) o de una oficina concreta. Se guardan al momento. */
+/** Offices and holidays: common (all offices) or for a specific office. Saved immediately. */
 function OfficesAndHolidays() {
   const app = useApp();
   const [year, setYear] = useState(Number(todayIn(app.tz).slice(0, 4)));
@@ -278,7 +278,7 @@ const IMPORT_REASON: Record<string, (l: ImportLine) => string> = {
   columnas: () => t("Demasiadas columnas: usa día;nombre;oficina"), nueva_oficina: () => t("Se creará la oficina"),
 };
 
-/** Festivos en bloque: pegar texto o subir CSV «día;nombre;oficina»; vista previa por línea antes de guardar. */
+/** Bulk holidays: paste text or upload a CSV «day;name;office»; per-line preview before saving. */
 function HolidayImport({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const app = useApp();
   const [text, setText] = useState("");
@@ -349,7 +349,7 @@ function TagsManager() {
   );
 }
 
-/** Zona de peligro: borrar todo el entorno (copia previa automática y confirmación muy explícita). */
+/** Danger zone: delete the whole environment (automatic previous backup and very explicit confirmation). */
 function DangerZone() {
   const app = useApp();
   const name = app.boot.settings.app_name || "KAOSnt";

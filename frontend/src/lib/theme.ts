@@ -1,5 +1,5 @@
-// Temas declarativos y modo claro/oscuro. Solo colores (#hex, rgb[a], hsl[a]), fuente de una lista cerrada y radio.
-// Se aplican por CSSOM (style.setProperty), compatible con la CSP estricta (sin estilos en línea en el HTML).
+// Declarative themes and light/dark mode. Only colours (#hex, rgb[a], hsl[a]), a font from a closed list and a radius.
+// Applied through CSSOM (style.setProperty), compatible with the strict CSP (no inline styles in the HTML).
 import { t } from "./i18n";
 import { BUILTIN_THEMES } from "./themes-data";
 
@@ -29,7 +29,7 @@ const COLOR_RE = new RegExp(String.raw`^(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{4}|#[0-9a-
 
 export function isColor(v: unknown): boolean { return typeof v === "string" && v.length <= 60 && COLOR_RE.test(v.trim()); }
 
-/** Validación en el cliente (la misma que backend/kaosnt/themes.py). Devuelve el mensaje de error o "". */
+/** Client-side validation (the same as backend/kaosnt/themes.py). Returns the error message or "". */
 export function validateTheme(x: any): string {
   if (!x || typeof x !== "object" || Array.isArray(x)) return t("El tema debe ser un objeto JSON");
   const allowed = ["format", "version", "id", "name", "description", "font", "radius", "light", "dark"];
@@ -66,7 +66,7 @@ export function effectiveMode(mode: ThemeMode, systemDark = prefersDark()): "lig
 
 export interface Appearance { mode: "light" | "dark"; vars: Record<string, string>; font: string; radius: string }
 
-/** Variables completas: base del modo + las del tema (las ausentes se toman del tema base). */
+/** Full variables: base of the mode + the theme ones (missing ones are taken from the base theme). */
 export function resolveAppearance(theme: ThemeDef, mode: "light" | "dark"): Appearance {
   const vars: Record<string, string> = { ...BASE[mode], ...(theme[mode] || {}) };
   return { mode, vars, font: FONTS[theme.font] || FONTS.sistema, radius: `${theme.radius ?? 6}px` };
@@ -81,15 +81,15 @@ export function applyAppearance(a: Appearance, cache = true): void {
   st.setProperty("--font", a.font);
   st.setProperty("--radius", a.radius);
   document.documentElement.setAttribute("data-mode", a.mode);
-  if (cache) { try { localStorage.setItem(CACHE, JSON.stringify(a)); } catch { /* sin almacenamiento local */ } }
+  if (cache) { try { localStorage.setItem(CACHE, JSON.stringify(a)); } catch { /* no local storage */ } }
 }
 
-/** Al arrancar: aplica el último aspecto conocido antes del primer render. */
+/** On start: apply the last known appearance before the first render. */
 export function applyCachedAppearance(): void {
   try { const a = JSON.parse(localStorage.getItem(CACHE) || "null"); if (a && a.vars) applyAppearance(a, false); } catch { /* */ }
 }
 
-/** Plantilla descargable del tema actual (todas las variables explícitas). */
+/** Downloadable template of the current theme (all variables explicit). */
 export function themeTemplate(theme: ThemeDef): ThemeDef {
   return {
     format: "kaosnt-theme", version: 1, id: theme.id === "predeterminado" ? "mi-tema" : theme.id + "-copia",
@@ -98,7 +98,7 @@ export function themeTemplate(theme: ThemeDef): ThemeDef {
   };
 }
 
-// Contraste WCAG (para avisar al importar)
+// WCAG contrast (to warn when importing)
 function rgb(c: string): number[] | null {
   c = c.trim();
   if (c.startsWith("#")) {

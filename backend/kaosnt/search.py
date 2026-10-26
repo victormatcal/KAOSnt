@@ -1,7 +1,7 @@
-"""Búsqueda por contenido en tareas (incluidos sus pasos), proyectos y notas.
+"""Content search in tasks (including their steps), projects and notes.
 
-Insensible a mayúsculas y acentos. Todas las palabras deben aparecer; las frases entre comillas se buscan
-literalmente. Pensada para el volumen de un único usuario.
+Ignores case and accents. Every word must appear; quoted phrases are searched
+literally. Sized for a single user's volume.
 """
 from __future__ import annotations
 
@@ -47,7 +47,8 @@ def search(conn: sqlite3.Connection, q: str, include_archived: bool = False, inc
     terms = parse_query(q)
     if not terms:
         return {"query": q, "results": [], "total": 0}
-    tz_name = get_all(conn)["timezone"]
+    _st = get_all(conn)
+    tz_name, lang = _st["timezone"], _st["language"]
     projects = {r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM projects")}
     steps: dict[int, str] = {}
     for r in conn.execute("SELECT task_id, text FROM task_steps"):
@@ -61,13 +62,14 @@ def search(conn: sqlite3.Connection, q: str, include_archived: bool = False, inc
     states = ["'activa'"] + (["'archivada'"] if include_archived else []) + (["'papelera'"] if include_trash else [])
     for n in conn.execute(f"SELECT * FROM notes WHERE state IN ({','.join(states)}) ORDER BY updated_at DESC"):
         n = dict(n)
-        title = display_title(n, tz_name)
+        title = display_title(n, tz_name, lang)
         if match(title, n["content"]):
             results.append({
                 "type": "nota", "id": n["id"], "title": title, "state": n["state"],
                 "context": " · ".join(x for x in [projects.get(n["project_id"]), n["kind"],
                                                    "archivada" if n["state"] == "archivada" else "",
                                                    "en papelera" if n["state"] == "papelera" else ""] if x) or "Sin clasificar",
+                "project": projects.get(n["project_id"]), "kind": n["kind"], "archived": n["state"] == "archivada",
                 "snippet": snippet(n["content"], terms), "updated_at": n["updated_at"]})
     for t in conn.execute("SELECT * FROM tasks" + ("" if include_archived else " WHERE archived = 0") + " ORDER BY updated_at DESC"):
         st = steps.get(t["id"], "")
@@ -76,12 +78,13 @@ def search(conn: sqlite3.Connection, q: str, include_archived: bool = False, inc
                 "type": "tarea", "id": t["id"], "title": t["title"], "state": t["status"],
                 "context": " · ".join(x for x in [projects.get(t["project_id"]), t["status"].replace("_", " "),
                                                    "archivada" if t["archived"] else ""] if x),
+                "project": projects.get(t["project_id"]), "archived": bool(t["archived"]),
                 "snippet": snippet(t["description"] or t["wait_reason"] or st, terms), "updated_at": t["updated_at"]})
     for p in conn.execute("SELECT * FROM projects" + ("" if include_archived else " WHERE status <> 'archivado'")):
         if match(p["name"], p["summary"], p["next_action"], p["objective"], p["phase"], p["health_note"]):
             results.append({
                 "type": "proyecto", "id": p["id"], "title": p["name"], "state": p["status"],
-                "context": f"Proyecto · {p['type']} · {p['status']}",
+                "context": f"Proyecto · {p['type']} · {p['status']}", "project_type": p["type"],
                 "snippet": snippet(p["summary"] or p["next_action"], terms), "updated_at": p["updated_at"]})
     results.sort(key=lambda r: (0 if all(t in norm(r["title"]) for t in terms) else 1, -_ts(r["updated_at"])))
     return {"query": q, "results": results[:limit], "total": len(results)}

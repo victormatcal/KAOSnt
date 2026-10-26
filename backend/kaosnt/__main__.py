@@ -1,4 +1,4 @@
-"""Punto de entrada: python -m kaosnt [--demo] [--port N] [--data-dir RUTA] [--no-browser]"""
+"""Entry point: python -m kaosnt [--demo] [--port N] [--data-dir PATH] [--no-browser]"""
 from __future__ import annotations
 
 import argparse
@@ -18,7 +18,7 @@ from .config import load_config
 
 
 def _running(url: str) -> bool:
-    """Comprobación de instancia única (solo contra 127.0.0.1)."""
+    """Single-instance check (only against 127.0.0.1)."""
     try:
         with urllib.request.urlopen(url + "/api/health", timeout=1.5) as r:
             return json.loads(r.read().decode()).get("app") == APP_ID
@@ -28,24 +28,24 @@ def _running(url: str) -> bool:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="kaosnt", description="KAOSnt (local)")
-    ap.add_argument("--demo", action="store_true", help="Datos ficticios en una carpeta y puerto separados")
-    ap.add_argument("--port", type=int)
-    ap.add_argument("--data-dir")
-    ap.add_argument("--no-browser", action="store_true")
+    ap.add_argument("--demo", action="store_true", help="Fictitious data in a separate folder and port")
+    ap.add_argument("--port", type=int, help="Port (default 8765; demo 8766)")
+    ap.add_argument("--data-dir", help="Data folder (default %%LOCALAPPDATA%%\\KAOSnt)")
+    ap.add_argument("--no-browser", action="store_true", help="Do not open the browser")
     args = ap.parse_args(argv)
 
     logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     cfg, note = load_config(demo=args.demo, data_dir=args.data_dir, port=args.port)
     url = f"http://127.0.0.1:{cfg.port}"
     if _running(url):
-        print(f"KAOSnt ya está en marcha en {url}")
+        print(f"KAOSnt is already running on {url}")
         if not args.no_browser:
             webbrowser.open(url)
         return 0
     if note:
         print(note)
     cfg.ensure_dirs()
-    app = create_app(cfg)  # aplica migraciones (con copia previa si la base ya tenía datos)
+    app = create_app(cfg)  # apply migrations (with a previous backup if the database already had data)
     if args.demo:
         from .demo import seed_if_empty
         seed_if_empty(cfg)
@@ -59,13 +59,13 @@ def main(argv: list[str] | None = None) -> int:
                 return
             time.sleep(0.2)
 
-    print(f"KAOSnt {'(DEMO) ' if args.demo else ''}en {url}")
-    print(f"Datos: {cfg.data_dir}")
-    print("Para cerrar: «Cerrar aplicación» en Configuración, detener.bat o Ctrl+C en esta ventana.")
+    print(f"KAOSnt {'(DEMO) ' if args.demo else ''}on {url}")
+    print(f"Data: {cfg.data_dir}")
+    print("To close it: «Close application» in Settings, stop.bat or Ctrl+C in this window.")
     if not args.no_browser:
         threading.Thread(target=open_browser, daemon=True).start()
     server.run()
-    print("KAOSnt cerrado correctamente.")
+    print("KAOSnt closed correctly.")
     return 0
 
 

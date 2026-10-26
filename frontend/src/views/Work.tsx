@@ -15,7 +15,7 @@ export function WorkView() {
   const [mode, setMode] = useState<Mode>("kanban");
   const [filters, setFilters] = useState<Filters>({});
   const [groupBy, setGroupBy] = useState<GroupBy>("ninguna");
-  const [calMode, setCalMode] = useState<"semana" | "mes">("semana");
+  const [calMode, setCalMode] = useState<"week" | "month">("week");
   const [anchor, setAnchor] = useState(todayIn(app.tz));
   const [viewId, setViewId] = useState("");
   const [recurrences, setRecurrences] = useState(false);
@@ -24,7 +24,7 @@ export function WorkView() {
 
   let url = mode === "archivadas" ? "/api/tasks?archived=only" : "/api/tasks" + filtersToQuery(filters);
   if (mode === "calendario") {
-    const days = calMode === "semana" ? [viewWeekStart(anchor), addDays(viewWeekStart(anchor), 6)] : [monthGrid(anchor)[0], monthGrid(anchor)[41]];
+    const days = calMode === "week" ? [viewWeekStart(anchor), addDays(viewWeekStart(anchor), 6)] : [monthGrid(anchor)[0], monthGrid(anchor)[41]];
     url += (url.includes("?") ? "&" : "?") + `date_from=${days[0]}&date_to=${days[1]}`;
   }
   const { data, error, reload } = useApi<Task[]>(url);

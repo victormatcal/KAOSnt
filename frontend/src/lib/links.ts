@@ -1,4 +1,4 @@
-// Validación de enlaces: solo esquemas seguros. Nunca se abren automáticamente.
+// Link validation: safe schemes only. Links are never opened automatically.
 const SAFE = /^(https?:\/\/|mailto:|file:)/i;
 
 export function isSafeUrl(url: string | null | undefined): boolean {

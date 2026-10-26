@@ -1,5 +1,5 @@
-"""Oficinas, festivos por oficina y contexto de calendario (festivos y ausencias registrados).
-Nunca se infieren festivos ni vacaciones: solo se usan los registrados."""
+"""Offices, holidays per office and calendar context (registered holidays and absences).
+Holidays and leave are never inferred: only registered ones are used."""
 from __future__ import annotations
 
 import re
@@ -11,7 +11,7 @@ from .db import rows
 
 
 def holidays_for(conn: sqlite3.Connection, location_id: int | None) -> set[str]:
-    """Festivos comunes (todas las oficinas) + los de la oficina indicada."""
+    """Common holidays (all offices) + those of the given office."""
     q = "SELECT date FROM holidays WHERE location_id IS NULL"
     params: list[Any] = []
     if location_id is not None:
@@ -32,7 +32,7 @@ def settings_for_person(conn, settings: dict[str, Any], person_id: int | None) -
 
 
 def context(conn, start: date, end: date) -> dict[str, Any]:
-    """Por día: festivos (con oficina y personas afectadas) y personas ausentes."""
+    """Per day: holidays (with office and affected people) and absent people."""
     s, e = start.isoformat(), end.isoformat()
     people = rows(conn.execute("SELECT id, name, location_id FROM people WHERE active = 1 ORDER BY name"))
     days: dict[str, dict[str, list]] = {}
@@ -64,7 +64,7 @@ def person_holidays_between(conn, person_id: int, start: date, end: date) -> lis
     return rows(conn.execute(q + " ORDER BY h.date", params))
 
 
-# ---------- Importación de festivos en bloque (0.3) ----------
+# ---------- Bulk holiday import (0.3) ----------
 COMMON_WORDS = {"", "común", "comun", "todas", "todas las oficinas", "common", "all"}
 HEADER_WORDS = ("día", "dia", "fecha", "date", "day")
 _DMY = re.compile(r"^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$")
@@ -93,8 +93,8 @@ def _split(line: str) -> list[str]:
 
 
 def parse_holidays(conn: sqlite3.Connection, text: str, create_locations: bool) -> list[dict[str, Any]]:
-    """Analiza «día;nombre;oficina» por línea. Estado por línea: importar | duplicado | error (con motivo).
-    Una oficina desconocida nunca se convierte en festivo común: es un error salvo que se pida crearla."""
+    """Parse «day;name;office» per line. Status per line: importar | duplicado | error (with a reason).
+    An unknown office never becomes a common holiday: it is an error unless creating it was requested."""
     locs = {r["name"].lower(): (r["id"], r["name"]) for r in conn.execute("SELECT id, name FROM locations")}
     existing = {(r[0], r[1]) for r in conn.execute("SELECT date, IFNULL(location_id, 0) FROM holidays")}
     seen: set[tuple[str, str]] = set()

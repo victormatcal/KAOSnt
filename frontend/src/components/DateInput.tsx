@@ -1,6 +1,6 @@
-// Campos de fecha y hora propios: siguen el formato configurado (no el idioma del navegador).
-// DateInput: texto en el formato configurado + calendario emergente; el valor se aplica en cuanto la fecha es válida.
-// TimeInput: 24 h (HH:MM). DateTimeInput: fecha + hora en la zona configurada (valor local «AAAA-MM-DDTHH:MM»).
+// Own date and time fields: they follow the configured format (not the browser language).
+// DateInput: text in the configured format + pop-up calendar; the value is applied as soon as the date is valid.
+// TimeInput: 24 h (HH:MM). DateTimeInput: date + time in the configured time zone (local value «YYYY-MM-DDTHH:MM»).
 import { useEffect, useRef, useState } from "react";
 import { addDays, dateConfig, formatHint, formatIso, monthGrid, monthName, parseDateText, parseTimeText, todayIn, weekHeaders } from "../lib/dates";
 import { t } from "../lib/i18n";
@@ -106,7 +106,7 @@ export function TimeInput({ value, onChange, label }: { value: string | null | u
   );
 }
 
-/** Valor local «AAAA-MM-DDTHH:MM» en la zona configurada (el llamador convierte a UTC). */
+/** Local value «YYYY-MM-DDTHH:MM» in the configured time zone (the caller converts it to UTC). */
 export function DateTimeInput({ value, onChange, label, defaultTime = "09:00" }: {
   value: string | null | undefined; onChange: (v: string | null) => void; label: string; defaultTime?: string;
 }) {

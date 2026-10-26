@@ -1,13 +1,13 @@
 {
   "name": "kaosnt-frontend",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
-  "description": "Frontend de KAOSnt (React + TypeScript). Se compila a frontend/dist y lo sirve el backend.",
+  "description": "KAOSnt frontend (React + TypeScript). Compiled to frontend/dist and served by the backend.",
   "scripts": {
     "build": "node tools/gen-themes.mjs && tsc -p tsconfig.json && node tools/bundle.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node tools/i18n-keys.mjs && tsc -p tsconfig.test.json && node --test build-test/tests/*.test.js",
-    "i18n": "node tools/i18n-keys.mjs --listar --detectar"
+    "i18n": "node tools/i18n-keys.mjs --list --detect"
   },
   "dependencies": {
     "react": "19.2.1",

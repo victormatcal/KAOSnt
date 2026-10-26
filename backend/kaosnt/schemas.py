@@ -1,4 +1,4 @@
-"""Validación de entradas con Pydantic. Los PATCH usan exclude_unset: null explícito borra el campo."""
+"""Input validation with Pydantic. PATCH requests use exclude_unset: an explicit null clears the field."""
 from __future__ import annotations
 
 import re
@@ -29,13 +29,13 @@ SAFE_SCHEMES = ("http://", "https://", "mailto:", "file:")
 def validate_url(url: str) -> str:
     u = url.strip()
     if not u:
-        raise ValueError("Enlace vacío")
+        raise ValueError("Empty link")
     if len(u) > 2000:
         raise ValueError("Enlace demasiado largo")
     if re.search(r"[\x00-\x1f]", u):
-        raise ValueError("El enlace contiene caracteres de control")
+        raise ValueError("The link contains control characters")
     if not u.lower().startswith(SAFE_SCHEMES):
-        raise ValueError("Esquema de enlace no permitido (usa http, https, mailto o file)")
+        raise ValueError("Link scheme not allowed (use http, https, mailto or file)")
     return u
 
 
@@ -175,7 +175,7 @@ class MilestonePatch(Strict):
     _d = field_validator("date")(_check_date)
 
 
-# ---------- Tareas ----------
+# ---------- Tasks ----------
 class TaskFields(Strict):
     description: Optional[Text] = None
     kind: Optional[TaskKind] = None
@@ -219,7 +219,7 @@ class TaskCreate(TaskFields):
 
 class TaskPatch(TaskFields):
     title: Optional[Annotated[str, Field(min_length=1, max_length=300)]] = None
-    force: bool = False  # confirma iniciar ejecución con aprobación pendiente
+    force: bool = False  # confirms starting execution while approval is pending
 
 
 class TaskUpdateNote(Strict):
@@ -298,13 +298,13 @@ class RecurrencePatch(Strict):
     apply_to_future: bool = False
 
 
-# ---------- Notas ----------
+# ---------- Notes ----------
 class NoteCreate(Strict):
     content: Text = ""
     title_manual: Optional[Annotated[str, Field(max_length=300)]] = None
     project_id: Optional[int] = None
     kind: Optional[Literal["acta", "decision", "documentacion"]] = None
-    task_id: Optional[int] = None  # crea la nota ya vinculada a esta tarea
+    task_id: Optional[int] = None  # creates the note already linked to this task
 
 
 class NotePatch(Strict):
@@ -333,10 +333,10 @@ class NoteLinkIn(Strict):
 class NoteTabsIn(Strict):
     open: list[int]
     active: Optional[int] = None
-    split: Optional[int] = None  # nota del panel derecho en pantalla dividida (0.3)
+    split: Optional[int] = None  # note of the right pane in split screen (0.3)
 
 
-# ---------- Etiquetas, recordatorios, vistas, restauración ----------
+# ---------- Tags, reminders, views, restore ----------
 class TagPatch(Strict):
     name: TagName
 
@@ -351,7 +351,7 @@ class ManualReminderIn(Strict):
 class ReminderAction(Strict):
     action: Literal["posponer", "descartar", "atendido", "reabrir"]
     until: Optional[DateTimeStr] = None
-    also_ids: list[int] = Field(default_factory=list, max_length=500)  # avisos agrupados de la misma serie (0.3)
+    also_ids: list[int] = Field(default_factory=list, max_length=500)  # grouped notices of the same series (0.3)
 
 
 class ReminderPatch(Strict):
@@ -373,6 +373,11 @@ class HolidayImportIn(Strict):
 class ResetIn(Strict):
     confirm_text: Annotated[str, Field(max_length=200)]
     reseed_demo: bool = False
+
+
+class PersonDeleteIn(Strict):
+    confirm: bool = False
+    reassign_to: Optional[int] = None  # reassign open tasks and series to this person; None = leave unassigned
 
 
 class ProjectDeleteIn(Strict):

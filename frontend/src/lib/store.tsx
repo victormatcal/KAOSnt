@@ -10,27 +10,27 @@ export interface AppCtx {
   person: (id: number | null | undefined) => Person | undefined;
   project: (id: number | null | undefined) => ProjectListItem | undefined;
   reloadBoot: () => Promise<void>;
-  dataVersion: number;          // al cambiar, las vistas vuelven a consultar el servidor
+  dataVersion: number;          // when it changes, the views query the server again
   changed: () => void;
   openTask: (id: number) => void;
   quickTask: (preset?: Record<string, unknown>) => void;
   newNote: (preset?: Record<string, unknown>) => Promise<void>;
   navigate: (hash: string) => void;
   toast: (text: string, kind?: Toast["kind"], action?: Toast["action"]) => void;
-  /** Aviso con «Deshacer» durante unos segundos (configurable) tras una acción directa. */
+  /** Notice with «Undo» for a few seconds (configurable) after a direct action. */
   undoable: (text: string, undoId: number | null | undefined) => void;
-  openReminders: (tab?: "pendientes" | "programados" | "resueltos") => void;
+  openReminders: (tab?: "pending" | "scheduled" | "resolved") => void;
 }
 
 export const Ctx = createContext<AppCtx | null>(null);
 
 export function useApp(): AppCtx {
   const c = useContext(Ctx);
-  if (!c) throw new Error("Contexto de aplicación no disponible"); // error de programación, no se muestra al usuario
+  if (!c) throw new Error("Contexto de aplicación no disponible"); // programming error, never shown to the user
   return c;
 }
 
-// Caché por URL: muestra datos previos mientras se recargan y facilita las pruebas de renderizado.
+// Cache per URL: shows previous data while reloading and makes render tests easier.
 export const apiCache = new Map<string, unknown>();
 
 export function useApi<T>(url: string | null): { data: T | undefined; error: string; loading: boolean; reload: () => void } {

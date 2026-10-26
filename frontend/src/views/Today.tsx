@@ -41,10 +41,10 @@ export function TodayView() {
               <li key={m.id}><Chip>{MILESTONE_KIND[m.kind]}</Chip> {fmtDate(m.date)} · <button className="linklike" onClick={() => app.navigate(`#/proyectos/${m.project_id}`)}>{m.project_name}</button>: {m.title}</li>))}</ul></>}
         </Section>
         <Section title={t("Revisiones y recordatorios")} count={s.revisar.length + data.reminders.length} id="sec-rev"
-          actions={<button className="ghost small" onClick={() => app.openReminders("pendientes")}>{t("Centro de recordatorios")}</button>}>
+          actions={<button className="ghost small" onClick={() => app.openReminders("pending")}>{t("Centro de recordatorios")}</button>}>
           {s.revisar.length > 0 && <><h3>{t("Pendientes de mi revisión")}</h3>
             <div className="cards">{s.revisar.map((x) => card(x))}</div></>}
-          {data.reminders.length > 0 && <ReminderList items={data.reminders} mode="pendientes" onChange={reload} />}
+          {data.reminders.length > 0 && <ReminderList items={data.reminders} mode="pending" onChange={reload} />}
           {!s.revisar.length && !data.reminders.length && <Empty>{t("Sin revisiones ni recordatorios pendientes.")}</Empty>}
           <h3>{t("Programados esta semana")} <span className="count">({scheduled.length})</span></h3>
           {scheduled.length ? <ul className="plain scheduled">{scheduled.map((r) => (

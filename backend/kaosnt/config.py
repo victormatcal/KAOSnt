@@ -1,4 +1,4 @@
-"""Configuración de rutas y red. Código, datos y copias están separados."""
+"""Path and network configuration. Code, data and backups are kept apart."""
 from __future__ import annotations
 
 import os
@@ -22,21 +22,21 @@ def default_data_dir(demo: bool = False) -> Path:
 
 
 def legacy_data_dir(demo: bool = False) -> Path:
-    """Carpeta usada por la versión 0.1 («Centro de trabajo»)."""
+    """Folder used by version 0.1 («Centro de trabajo»)."""
     return _base_dir() / ("CentroTrabajo-demo" if demo else "CentroTrabajo")
 
 
 def adopt_legacy_dir(demo: bool = False) -> tuple[Path, str | None]:
-    """Si existe la carpeta de la 0.1 y no la nueva, la renombra (misma unidad, sin copiar datos).
-    Si no se puede (p. ej. la 0.1 sigue abierta), se sigue usando la carpeta antigua."""
+    """If the 0.1 folder exists and the new one does not, rename it (same drive, no data copied).
+    If that is not possible (e.g. 0.1 is still open), the old folder keeps being used."""
     new, old = default_data_dir(demo), legacy_data_dir(demo)
     if new.exists() or not old.exists():
         return new, None
     try:
         old.rename(new)
-        return new, f"Datos de la versión anterior trasladados de {old} a {new}"
+        return new, f"Data from the previous version moved from {old} to {new}"
     except OSError:
-        return old, f"No se pudo renombrar {old} (¿sigue abierta la versión anterior?). Se usa esa carpeta."
+        return old, f"Could not rename {old} (is the previous version still open?). That folder is used."
 
 
 @dataclass
@@ -59,7 +59,7 @@ class Config:
         self.backup_dir.mkdir(parents=True, exist_ok=True)
         legacy_db = self.data_dir / "centro.db"
         if legacy_db.exists() and not self.db_path.exists():
-            # base de la 0.1: se renombra junto con sus archivos WAL/SHM
+            # 0.1 database: renamed together with its WAL/SHM files
             for suffix in ("", "-wal", "-shm"):
                 src = self.data_dir / f"centro.db{suffix}"
                 if src.exists():

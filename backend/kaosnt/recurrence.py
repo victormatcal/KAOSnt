@@ -1,15 +1,15 @@
-"""Tareas recurrentes: plantilla separada de sus ocurrencias.
+"""Recurring tasks: a template kept apart from its occurrences.
 
-- Cada ocurrencia es una tarea normal con recurrence_id + occurrence_date (índice único → sin duplicados).
-- Se generan ocurrencias hasta hoy + horizonte configurable.
-- Si la aplicación estuvo cerrada, de las ocurrencias pasadas no generadas solo se crea la más reciente.
-- Días no laborables: regla explícita (saltar, mover al siguiente laborable o mantener). Solo cuentan los
-  días de la semana configurados y los festivos registrados (comunes + oficina del responsable).
-- 0.3: plantilla completa (recurrences.template, JSON). Al hacer recurrente una tarea se hereda todo
-  (proyecto, responsable, revisor, tipo, prioridad, estimación, descripción, agrupaciones, tarea principal,
-  aprobación, revisiones, enlaces, etiquetas, pasos sin marcar y recordatorios manuales). Las fechas
-  (planificada, revisión y recordatorios) se desplazan manteniendo su relación con la fecha límite.
-  Las referencias que ya no existan se descartan sin romper la generación.
+- Each occurrence is a normal task with recurrence_id + occurrence_date (unique index → no duplicates).
+- Occurrences are generated up to today + a configurable horizon.
+- If the application was closed, only the most recent of the missed past occurrences is created.
+- Non-working days: explicit rule (skip, move to the next working day or keep). Only the configured
+  working days and the registered holidays (common + the assignee's office) count.
+- 0.3: full template (recurrences.template, JSON). Making a task recurring inherits everything
+  (project, assignee, reviewer, type, priority, estimate, description, groupings, parent task,
+  approval, reviews, links, tags, unchecked steps and manual reminders). Dates (planned, review and
+  reminders) are shifted keeping their relation to the due date.
+  References that no longer exist are dropped without breaking the generation.
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from .errors import invalid, not_found
 from .tasks import add_history, add_step, create_task, get_task_row, set_tags, update_task
 from .timeutil import fmt_utc, is_working_day, next_working_day, parse_dt, today_local, tz_of
 
-# Campos de la tarea que hereda cada ocurrencia (además del título)
+# Task fields inherited by each occurrence (besides the title)
 TEMPLATE_FIELDS = (
     "description", "kind", "project_id", "assignee_id", "reviewer_id", "priority", "estimate_hours",
     "workstream_id", "phase_id", "deliverable_id", "parent_id", "approval", "review_after_start_hours",
@@ -135,8 +135,8 @@ def create(conn, data: dict[str, Any]) -> int:
 
 
 def make_recurring(conn, task_id: int, rule: dict[str, Any], settings: dict[str, Any], today: date) -> int:
-    """Convierte una tarea existente en la primera ocurrencia de una serie nueva con plantilla completa.
-    La fecha de inicio la indica el usuario (por defecto, la fecha límite de la tarea u hoy)."""
+    """Turn an existing task into the first occurrence of a new series with a full template.
+    The start date is chosen by the user (by default, the task due date or today)."""
     t = get_task_row(conn, task_id)
     if t["recurrence_id"]:
         raise invalid("Esta tarea ya pertenece a una serie recurrente")
@@ -177,7 +177,7 @@ def _from_offset(off: dict[str, Any] | None, due: date, settings: dict[str, Any]
 
 
 def build_template(conn, t: dict[str, Any], anchor: date, settings: dict[str, Any]) -> dict[str, Any]:
-    """Plantilla a partir de una tarea. Fechas relativas a `anchor` (fecha límite de la tarea)."""
+    """Template from a task. Dates relative to `anchor` (the task due date)."""
     tpl: dict[str, Any] = {k: t.get(k) for k in TEMPLATE_FIELDS}
     tpl["links"] = jload(t.get("links"), []) if isinstance(t.get("links"), str) else (t.get("links") or [])
     tpl["tags"] = [r[0] for r in conn.execute(
@@ -192,7 +192,7 @@ def build_template(conn, t: dict[str, Any], anchor: date, settings: dict[str, An
 
 
 def _clean_refs(conn, tpl: dict[str, Any]) -> dict[str, Any]:
-    """Descarta referencias que ya no existen (o agrupaciones de otro proyecto)."""
+    """Drop references that no longer exist (or groupings from another project)."""
     out = {k: tpl.get(k) for k in TEMPLATE_FIELDS if k in tpl}
     for k, table in REF_TABLES.items():
         if out.get(k) is not None and not conn.execute(f"SELECT 1 FROM {table} WHERE id = ?", (out[k],)).fetchone():
@@ -229,8 +229,8 @@ def _create_from_template(conn, rec: dict[str, Any], tpl: dict[str, Any], due: d
 
 
 def apply_task_to_series(conn, task_id: int, settings: dict[str, Any], today: date) -> int:
-    """«Aplicar estos datos a la serie»: la plantilla pasa a ser esta ocurrencia y se actualizan las
-    ocurrencias futuras pendientes (sin tocar las demás ni sus fechas límite)."""
+    """«Apply this data to the series»: the template becomes this occurrence and the pending future
+    occurrences are updated (without touching the others or their due dates)."""
     t = get_task_row(conn, task_id)
     if not t["recurrence_id"]:
         raise invalid("Esta tarea no pertenece a una serie recurrente")
@@ -259,9 +259,9 @@ def apply_task_to_series(conn, task_id: int, settings: dict[str, Any], today: da
 
 
 def delete_series(conn, rec_id: int, mode: str) -> dict[str, int]:
-    """Elimina una serie. mode='conservar': las ocurrencias pasan a ser tareas normales.
-    mode='eliminar_pendientes': se eliminan las no iniciadas (backlog, pendiente) y las saltadas (cancelada);
-    las hechas y las que están en curso o en revisión se conservan siempre como tareas normales."""
+    """Delete a series. mode='conservar': the occurrences become normal tasks.
+    mode='eliminar_pendientes': not started (backlog, pendiente) and skipped (cancelada) ones are deleted;
+    done ones and those in progress or in review are always kept as normal tasks."""
     if mode not in ("conservar", "eliminar_pendientes"):
         raise invalid("Opción de borrado no válida")
     if not conn.execute("SELECT 1 FROM recurrences WHERE id = ?", (rec_id,)).fetchone():

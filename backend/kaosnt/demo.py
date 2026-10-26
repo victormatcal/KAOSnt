@@ -1,4 +1,4 @@
-"""Datos ficticios para demostración. Solo se usan con --demo (carpeta de datos separada)."""
+"""Fictitious demo data. Only used with --demo (separate data folder)."""
 from __future__ import annotations
 
 from datetime import date, timedelta

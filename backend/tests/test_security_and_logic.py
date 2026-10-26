@@ -1,4 +1,4 @@
-"""Seguridad local, exportaciones, aprobación, zona horaria y criterios 19-20 (lado servidor)."""
+"""Local security, exports, approval, time zone and criteria 19-20 (server side)."""
 import io
 import re
 import zipfile
@@ -17,38 +17,38 @@ from kaosnt.timeutil import add_hours, business_hours_between
 S = {"timezone": "Europe/Madrid", "workdays": [1, 2, 3, 4, 5], "work_start": "09:00", "work_end": "18:00", "holidays": []}
 
 
-def test_host_no_permitido(cfg, clock):
+def test_host_not_allowed(cfg, clock):
     with TestClient(create_app(cfg, clock=clock, background=False)) as c:
         assert c.get("/api/health").status_code == 421
         assert c.get("/api/health", headers={"host": "127.0.0.1:8765"}).json()["app"] == "kaosnt"
         assert c.get("/api/health", headers={"host": "evil.example:8765"}).status_code == 421
 
 
-def test_escritura_requiere_cabecera_y_origen(client):
+def test_write_requires_header_and_origin(client):
     assert client.post("/api/tasks", json={"title": "x"}, headers={"X-KAOSnt": ""}).status_code == 403
     assert client.post("/api/tasks", json={"title": "x"}, headers={"Origin": "http://evil.example"}).status_code == 403
     assert client.post("/api/tasks", json={"title": "x"}, headers={"Sec-Fetch-Site": "cross-site"}).status_code == 403
     assert client.post("/api/tasks", json={"title": "x"}, headers={"Origin": "http://127.0.0.1:8765"}).status_code == 201
 
 
-def test_cabeceras_de_seguridad(client):
+def test_security_headers(client):
     r = client.get("/api/health")
     assert "default-src 'self'" in r.headers["content-security-policy"] and r.headers["x-frame-options"] == "DENY"
 
 
-def test_enlaces_peligrosos_rechazados(client):
+def test_dangerous_links_rejected(client):
     for url in ("javascript:alert(1)", "data:text/html,x", "vbscript:x", " JaVaScRiPt:alert(1)"):
         assert client.post("/api/tasks", json={"title": "x", "links": [{"label": "a", "url": url}]}).status_code == 422, url
     assert client.post("/api/projects", json={"name": "p", "links": [{"label": "doc", "url": "https://example.com/a"}]}).status_code == 201
 
 
-def test_campos_desconocidos_rechazados(client):
+def test_unknown_fields_rejected(client):
     assert client.post("/api/tasks", json={"title": "x", "hack": 1}).status_code == 422
     assert client.patch("/api/settings", json={"evil": 1}).status_code == 422
     assert client.patch("/api/settings", json={"app_name": "  "}).status_code == 422
 
 
-def test_aprobacion_pendiente_advierte(client):
+def test_pending_approval_warns(client):
     t = client.post("/api/tasks", json={"title": "Evolutivo", "kind": "evolutivo", "approval": "pendiente"}).json()
     r = client.patch(f"/api/tasks/{t['id']}", json={"status": "en_curso"})
     assert r.status_code == 409 and r.json()["code"] == "aprobacion_pendiente"
@@ -57,7 +57,7 @@ def test_aprobacion_pendiente_advierte(client):
     assert r.status_code == 200 and r.json()["approval"] == "pendiente"
 
 
-def test_exportaciones(client):
+def test_exports(client):
     client.post("/api/tasks", json={"title": "=HYPERLINK(\"http://x\")"})
     csv = client.get("/api/export/tasks.csv")
     assert csv.headers["content-disposition"].startswith("attachment") and "'=HYPERLINK" in csv.text
@@ -67,18 +67,18 @@ def test_exportaciones(client):
     assert name.startswith("notas/") and name.endswith(".md") and "texto" in z.read(name).decode()
 
 
-def test_copias_automaticas_y_retencion(cfg, client):
+def test_automatic_backups_and_retention(cfg, client):
     s = client.get("/api/settings").json()
     assert auto_backup_if_due(cfg, s) is not None
     assert auto_backup_if_due(cfg, s) is None
     for i in range(5):
-        (cfg.backup_dir / f"centro-2026010{i}-000000-auto.db").write_bytes(b"x")  # copias de la 0.1
+        (cfg.backup_dir / f"centro-2026010{i}-000000-auto.db").write_bytes(b"x")  # 0.1 backups
     prune(cfg, 3)
     assert len(list(cfg.backup_dir.glob("*-auto.db"))) == 3
-    assert any(f.name.startswith("kaosnt-") for f in cfg.backup_dir.glob("*-auto.db"))  # se conserva la más reciente
+    assert any(f.name.startswith("kaosnt-") for f in cfg.backup_dir.glob("*-auto.db"))  # the most recent one is kept
 
 
-def test_horas_laborables_y_cambio_de_hora():
+def test_working_hours_and_dst_change():
     start = datetime(2026, 10, 23, 15, 0, tzinfo=timezone.utc)  # viernes 17:00 CEST
     end = add_hours(start, 2, "laborable", S)
     assert end == datetime(2026, 10, 26, 9, 0, tzinfo=timezone.utc)  # lunes 10:00 CET
@@ -86,14 +86,14 @@ def test_horas_laborables_y_cambio_de_hora():
     assert abs(business_hours_between(start, end, S) - 2) < 1e-9
 
 
-def test_titulo_sugerido():
+def test_suggested_title():
     assert suggested_title("\n\n   \n# Reunión **Alfa**\nresto") == "Reunión Alfa"
     assert suggested_title("---\n- [ ] tarea pendiente") == "tarea pendiente"
     assert suggested_title("```\ncodigo\n```\n") is None
     assert suggested_title("[enlace](https://x.y) tras") == "enlace tras"
 
 
-def test_recordatorio_manual(client, clock):
+def test_manual_reminder(client, clock):
     assert client.post("/api/reminders", json={"title": "Llamar a sistemas", "due_at": "2026-10-13T15:00:00Z"}).status_code == 201
     assert not [x for x in client.get("/api/reminders").json()["active"] if x["rule"] == "manual"]
     clock.dt += timedelta(hours=6)
@@ -101,9 +101,9 @@ def test_recordatorio_manual(client, clock):
     assert len(act) == 1 and act[0]["title"] == "Llamar a sistemas"
 
 
-def test_19_20_sin_recursos_externos_y_solo_local():
-    assert Config(data_dir=Path(".")).host == "127.0.0.1"  # sin tocar carpetas reales
-    assert FRONTEND_DIST.exists(), "Compila el frontend antes de ejecutar esta prueba"
+def test_19_20_no_external_resources_and_local_only():
+    assert Config(data_dir=Path(".")).host == "127.0.0.1"  # without touching real folders
+    assert FRONTEND_DIST.exists(), "Build the frontend before running this test"
     html = (FRONTEND_DIST / "index.html").read_text(encoding="utf-8")
     assert not re.search(r'(src|href)\s*=\s*"(https?:)?//', html)
     for f in (FRONTEND_DIST / "assets").glob("*"):

@@ -1,5 +1,5 @@
-// Centro de recordatorios (🔔): Pendientes, Programados (futuros y pospuestos) y Resueltos.
-// Los manuales se pueden editar y cancelar; los resueltos se pueden reabrir. «Recordar contactar» no envía nada.
+// Reminder centre (🔔): Pending, Scheduled (future and snoozed) and Resolved.
+// Manual ones can be edited and cancelled; resolved ones can be reopened. «Remind to contact» sends nothing.
 import { useState } from "react";
 import { api } from "../lib/api";
 import { addDays, fmtDateTime, todayIn, utcToZonedInput, zonedToUtc } from "../lib/dates";
@@ -10,24 +10,24 @@ import type { Reminder, ReminderBuckets } from "../lib/types";
 import { DateTimeInput } from "./DateInput";
 import { Empty, ErrorBox, Modal } from "./ui";
 
-export type ReminderTab = "pendientes" | "programados" | "resueltos";
+export type ReminderTab = "pending" | "scheduled" | "resolved";
 
-export function ReminderCenter({ initial = "pendientes", onClose }: { initial?: ReminderTab; onClose: () => void }) {
+export function ReminderCenter({ initial = "pending", onClose }: { initial?: ReminderTab; onClose: () => void }) {
   const [tab, setTab] = useState<ReminderTab>(initial);
   const { data, error, reload } = useApi<ReminderBuckets>("/api/reminders");
   const tabs: [ReminderTab, string, number | undefined][] = [
-    ["pendientes", t("Pendientes"), data?.active.length], ["programados", t("Programados"), data?.scheduled.length], ["resueltos", t("Resueltos"), data?.resolved.length]];
-  const items = !data ? [] : tab === "pendientes" ? data.active : tab === "programados" ? data.scheduled : data.resolved;
+    ["pending", t("Pendientes"), data?.active.length], ["scheduled", t("Programados"), data?.scheduled.length], ["resolved", t("Resueltos"), data?.resolved.length]];
+  const items = !data ? [] : tab === "pending" ? data.active : tab === "scheduled" ? data.scheduled : data.resolved;
   return (
     <Modal title={t("Recordatorios")} onClose={onClose} wide>
       <div role="tablist" className="tabs-inline" aria-label={t("Bandejas de recordatorios")}>
         {tabs.map(([k, label, n]) => <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "active" : ""} onClick={() => setTab(k)}>{label}{n !== undefined ? ` (${n})` : ""}</button>)}
       </div>
-      <p className="hint">{tab === "pendientes" ? t("Avisos ya vencidos. Atiende, pospón o descarta.")
-        : tab === "programados" ? t("Recordatorios futuros y pospuestos. Los manuales se pueden editar o cancelar.")
+      <p className="hint">{tab === "pending" ? t("Avisos ya vencidos. Atiende, pospón o descarta.")
+        : tab === "scheduled" ? t("Recordatorios futuros y pospuestos. Los manuales se pueden editar o cancelar.")
           : t("Últimos atendidos o descartados. Puedes reabrirlos.")}</p>
       <ErrorBox error={error} onRetry={reload} />
-      {data && !items.length && <Empty>{tab === "pendientes" ? t("No hay recordatorios pendientes.") : tab === "programados" ? t("No hay recordatorios programados.") : t("No hay recordatorios resueltos.")}</Empty>}
+      {data && !items.length && <Empty>{tab === "pending" ? t("No hay recordatorios pendientes.") : tab === "scheduled" ? t("No hay recordatorios programados.") : t("No hay recordatorios resueltos.")}</Empty>}
       <ReminderList items={items} mode={tab} onChange={reload} />
     </Modal>
   );
@@ -69,21 +69,21 @@ export function ReminderList({ items, mode, onChange, hideTask }: { items: Remin
               <span className="chip">{reminderLabel(r)}</span>{" "}
               {r.task_id && !hideTask ? <button className="linklike" onClick={() => app.openTask(r.task_id!)}>{r.task_title}</button> : <strong>{translateServer(r.title)}</strong>}
               <span className="muted small"> · {r.task_id && !hideTask ? translateServer(r.title) + " · " : ""}{r.project_name ? `${r.project_name} · ` : ""}
-                {mode === "resueltos" ? t("{estado} el {fecha}", { estado: r.status === "atendido" ? t("Atendido") : t("Descartado"), fecha: fmtDateTime(r.resolved_at, app.tz) })
-                  : r.snoozed_until && mode === "programados" ? t("pospuesto hasta {fecha}", { fecha: fmtDateTime(r.snoozed_until, app.tz) })
-                    : mode === "programados" ? t("programado para {fecha}", { fecha: fmtDateTime(r.due_at, app.tz) })
+                {mode === "resolved" ? t("{estado} el {fecha}", { estado: r.status === "atendido" ? t("Atendido") : t("Descartado"), fecha: fmtDateTime(r.resolved_at, app.tz) })
+                  : r.snoozed_until && mode === "scheduled" ? t("pospuesto hasta {fecha}", { fecha: fmtDateTime(r.snoozed_until, app.tz) })
+                    : mode === "scheduled" ? t("programado para {fecha}", { fecha: fmtDateTime(r.due_at, app.tz) })
                       : t("desde {fecha}", { fecha: fmtDateTime(r.due_at, app.tz) })}
                 {(r.grouped || 1) > 1 ? " · " + t("{n} avisos agrupados de la misma serie", { n: r.grouped! }) : ""}
                 {r.task_shown_elsewhere ? " · " + t("también arriba") : ""}</span>
             </div>
             <div className="row tight">
-              {mode === "pendientes" && <>
+              {mode === "pending" && <>
                 <button className="small" onClick={() => act(r, "atendido")}>{t("Atendido")}</button>
                 <button className="small" onClick={() => act(r, "posponer", in2h)}>{t("+2 h")}</button>
                 <button className="small" onClick={() => act(r, "posponer", tomorrow9)}>{t("Mañana 9:00")}</button>
                 <button className="small ghost" onClick={() => act(r, "descartar")}>{t("Descartar")}</button></>}
-              {mode === "resueltos" && <button className="small" onClick={() => act(r, "reabrir")}>{t("Reabrir")}</button>}
-              {mode !== "resueltos" && r.rule === "manual" && <>
+              {mode === "resolved" && <button className="small" onClick={() => act(r, "reabrir")}>{t("Reabrir")}</button>}
+              {mode !== "resolved" && r.rule === "manual" && <>
                 <button className="small ghost" onClick={() => setEditing({ id: r.id, title: r.title, when: utcToZonedInput(r.snoozed_until || r.due_at, app.tz) })}>{t("Editar")}</button>
                 <button className="small ghost" onClick={async () => {
                   if (!window.confirm(t("¿Cancelar el recordatorio «{titulo}»? Se elimina y no se puede deshacer.", { titulo: r.title }))) return;
@@ -96,15 +96,15 @@ export function ReminderList({ items, mode, onChange, hideTask }: { items: Remin
   );
 }
 
-/** Recordatorios de una tarea (en su detalle). */
+/** Reminders of a task (in its details). */
 export function TaskReminders({ taskId }: { taskId: number }) {
   const { data, reload } = useApi<ReminderBuckets>(`/api/tasks/${taskId}/reminders`);
   if (!data) return null;
   const total = data.active.length + data.scheduled.length + data.resolved.length;
   if (!total) return <p className="muted small">{t("Esta tarea no tiene recordatorios.")}</p>;
   return <div className="task-reminders">
-    {data.active.length > 0 && <><h4>{t("Pendientes")}</h4><ReminderList items={data.active} mode="pendientes" onChange={reload} hideTask /></>}
-    {data.scheduled.length > 0 && <><h4>{t("Programados")}</h4><ReminderList items={data.scheduled} mode="programados" onChange={reload} hideTask /></>}
-    {data.resolved.length > 0 && <details className="mini"><summary>{t("Resueltos ({n})", { n: data.resolved.length })}</summary><ReminderList items={data.resolved} mode="resueltos" onChange={reload} hideTask /></details>}
+    {data.active.length > 0 && <><h4>{t("Pendientes")}</h4><ReminderList items={data.active} mode="pending" onChange={reload} hideTask /></>}
+    {data.scheduled.length > 0 && <><h4>{t("Programados")}</h4><ReminderList items={data.scheduled} mode="scheduled" onChange={reload} hideTask /></>}
+    {data.resolved.length > 0 && <details className="mini"><summary>{t("Resueltos ({n})", { n: data.resolved.length })}</summary><ReminderList items={data.resolved} mode="resolved" onChange={reload} hideTask /></details>}
   </div>;
 }

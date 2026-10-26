@@ -5,7 +5,7 @@ import { t } from "../lib/i18n";
 import { useApp } from "../lib/store";
 import { DateTimeInput } from "./DateInput";
 
-/** Recordatorio manual. «Recordar contactar» no envía nada: solo avisa dentro de la aplicación. */
+/** Manual reminder. «Remind to contact» sends nothing: it only notifies inside the application. */
 export function ReminderForm({ taskId, projectId, defaultTitle = "", onCreated }: { taskId?: number; projectId?: number; defaultTitle?: string; onCreated?: () => void }) {
   const app = useApp();
   const [title, setTitle] = useState(defaultTitle);
@@ -17,7 +17,7 @@ export function ReminderForm({ taskId, projectId, defaultTitle = "", onCreated }
       const due = zonedToUtc(when, app.tz);
       await api.post("/api/reminders", { title: title.trim(), due_at: due, task_id: taskId ?? null, project_id: projectId ?? null });
       app.toast(t("Recordatorio programado para el {fecha}. Lo verás en 🔔 → Programados (y en Hoy si es esta semana).", { fecha: fmtDateTime(due, app.tz) }), "ok",
-        { label: t("Ver"), run: () => app.openReminders("programados") });
+        { label: t("Ver"), run: () => app.openReminders("scheduled") });
       setErr(""); setTitle(defaultTitle); onCreated?.(); app.changed();
     } catch (e: any) { setErr(e.message); }
   };

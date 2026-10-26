@@ -91,7 +91,7 @@ export interface Settings {
   recurrence_horizon_days: number; project_types: string[];
   language: "es" | "en"; date_format: "dd/mm/aaaa" | "aaaa-mm-dd" | "mm/dd/aaaa"; week_start: 1 | 7;
   theme_mode: "sistema" | "claro" | "oscuro"; theme_id: string; custom_themes: import("./theme").ThemeDef[];
-  undo_seconds: number; group_recurring: boolean;
+  undo_seconds: number; group_recurring: boolean; task_panel_width: number | null;
 }
 export type WorkSchedule = Record<"1" | "2" | "3" | "4" | "5" | "6" | "7", { start: string; end: string } | null>;
 

@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { todayIn } from "../lib/dates";
 import { t } from "../lib/i18n";
+import { NOTE_KIND, PROJECT_STATUS, STATUS, projectTypeLabel } from "../lib/labels";
 import { useApp } from "../lib/store";
 import type { TaskDetail } from "../lib/types";
 import { emptyRule, RuleEditor, ruleIsValid, RuleValue } from "./Recurrences";
 import { DateInput } from "./DateInput";
 import { ErrorBox, Field, Modal, PersonSelect, ProjectSelect } from "./ui";
 
-/** Captura rápida de tarea: solo el título es obligatorio. Más campos (incluida la repetición) bajo demanda. */
+/** Quick task capture: only the title is required. More fields (including repetition) on demand. */
 export function QuickTask({ preset, onClose }: { preset: Record<string, any>; onClose: () => void }) {
   const app = useApp();
   const [title, setTitle] = useState(preset.title || "");
@@ -65,7 +66,19 @@ export function QuickTask({ preset, onClose }: { preset: Record<string, any>; on
   );
 }
 
-interface Result { type: "nota" | "tarea" | "proyecto"; id: number; title: string; context: string; snippet: string; state: string }
+interface Result {
+  type: "nota" | "tarea" | "proyecto"; id: number; title: string; context: string; snippet: string; state: string;
+  project?: string | null; kind?: string | null; archived?: boolean; project_type?: string;
+}
+
+/** Result context in the interface language (0.4). The server `context` text (Spanish) is only a fallback. */
+export function resultContext(r: Result): string {
+  if (r.type === "proyecto") return [t("Proyecto"), r.project_type ? projectTypeLabel(r.project_type) : "", PROJECT_STATUS[r.state] || r.state].filter(Boolean).join(" · ");
+  if (r.project === undefined) return r.context;
+  const parts = [r.project || "", r.type === "nota" && r.kind ? NOTE_KIND[r.kind] || r.kind : "", r.type === "tarea" ? STATUS[r.state as keyof typeof STATUS] || r.state : "",
+    r.archived ? t("archivada") : "", r.type === "nota" && r.state === "papelera" ? t("en papelera") : ""].filter(Boolean);
+  return parts.join(" · ") || (r.type === "nota" ? t("Sin clasificar") : "");
+}
 
 export function SearchDialog({ onClose }: { onClose: () => void }) {
   const app = useApp();
@@ -109,7 +122,7 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
           <li key={r.type + r.id} role="option" aria-selected={i === sel} className={i === sel ? "sel" : ""}>
             <button className="result" onClick={() => open(r)}>
               <span className="result-type">{r.type === "nota" ? t("Nota") : r.type === "tarea" ? t("Tarea") : t("Proyecto")}</span>
-              <strong>{r.title}</strong> <span className="muted">· {r.context}</span>
+              <strong>{r.title}</strong> <span className="muted">· {resultContext(r)}</span>
               {r.snippet && <span className="snippet">{r.snippet}</span>}
             </button>
           </li>))}

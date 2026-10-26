@@ -1,4 +1,4 @@
-"""Aplicación FastAPI: API local + frontend compilado. Escucha solo en 127.0.0.1."""
+"""FastAPI application: local API + compiled frontend. Listens only on 127.0.0.1."""
 from __future__ import annotations
 
 import json
@@ -13,13 +13,13 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import APP_ID, __version__, agenda, backup, notes, recurrence, reminders, search, tasks, themes, undo, views
+from . import APP_ID, __version__, agenda, backup, notes, people, recurrence, reminders, search, tasks, themes, undo, views
 from . import db as dbm
 from . import schemas as S
 from .config import FRONTEND_DIST, Config
 from .db import Tx, connect, init_db, jdump, now_utc, row, rows
-from .errors import AppError, invalid, not_found
-from .settings import EDITABLE, get_all, set_value, validate_patch
+from .errors import AppError, invalid, missing_ref, not_found
+from .settings import EDITABLE, get_all, me_name, set_value, validate_patch
 from .timeutil import today_local
 
 log = logging.getLogger("kaosnt")
@@ -43,7 +43,7 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
         return clock() if clock else datetime.now(timezone.utc)
 
     def maintenance() -> None:
-        """Recurrencias, recordatorios y copia diaria. Al abrir y cada 5 minutos."""
+        """Recurrences, reminders and daily backup. On start and every 5 minutes."""
         conn = connect(cfg.db_path)
         try:
             st = get_all(conn)
@@ -52,7 +52,7 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
                 reminders.refresh(conn, st, now())
             backup.auto_backup_if_due(cfg, st)
         except Exception:
-            log.exception("Error en mantenimiento periódico")
+            log.exception("Error in periodic maintenance")
         finally:
             conn.close()
 
@@ -67,12 +67,13 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
             with Tx(conn):
                 if not conn.execute("SELECT 1 FROM people WHERE is_me = 1").fetchone():
                     ts = now_utc()
-                    conn.execute("INSERT INTO people(name, role, is_me, created_at, updated_at) VALUES (?,?,?,?,?)", ("Yo", "", 1, ts, ts))
+                    conn.execute("INSERT INTO people(name, role, is_me, created_at, updated_at) VALUES (?,?,?,?,?)",
+                                 (me_name(get_all(conn)["language"]), "", 1, ts, ts))
         finally:
             conn.close()
         if background:
             maintenance()
-            threading.Thread(target=loop, daemon=True, name="mantenimiento").start()
+            threading.Thread(target=loop, daemon=True, name="maintenance").start()
         yield
         stop.set()
         c = connect(cfg.db_path)
@@ -94,12 +95,12 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
             origin = request.headers.get("origin")
             site = request.headers.get("sec-fetch-site")
             if (origin is not None and origin not in allowed_origins) or (site is not None and site not in ("same-origin", "none")):
-                return JSONResponse({"code": "origen", "message": "Origen no permitido"}, status_code=403)
+                return JSONResponse({"code": "origen", "message": "Origen no permitido", "message_key": "Origen no permitido"}, status_code=403)
             if request.headers.get(WRITE_HEADER) != "1":
-                return JSONResponse({"code": "cabecera", "message": "Falta la cabecera de protección"}, status_code=403)
+                return JSONResponse({"code": "cabecera", "message": "Falta la cabecera de protección", "message_key": "Falta la cabecera de protección"}, status_code=403)
             limit = 200 * 1024 * 1024 if request.url.path.startswith("/api/restore") else 5 * 1024 * 1024
             if int(request.headers.get("content-length") or 0) > limit:
-                return JSONResponse({"code": "tamano", "message": "Contenido demasiado grande"}, status_code=413)
+                return JSONResponse({"code": "tamano", "message": "Contenido demasiado grande", "message_key": "Contenido demasiado grande"}, status_code=413)
         resp: Response = await call_next(request)
         resp.headers["Content-Security-Policy"] = CSP
         resp.headers["X-Content-Type-Options"] = "nosniff"
@@ -113,13 +114,13 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
 
     @app.exception_handler(AppError)
     async def app_error(_req: Request, exc: AppError):
-        return JSONResponse({"code": exc.code, "message": exc.message, **exc.extra}, status_code=exc.status)
+        return JSONResponse(exc.body(), status_code=exc.status)
 
     @app.exception_handler(Exception)
     async def unexpected(_req: Request, exc: Exception):
-        log.error("Error inesperado: %s", type(exc).__name__, exc_info=exc)  # sin cuerpo de la petición
-        return JSONResponse({"code": "error_interno", "message": "Error interno: la operación no se ha completado. "
-                             "Reintenta y, si persiste, reinicia la aplicación y revisa la consola."}, status_code=500)
+        log.error("Unexpected error: %s", type(exc).__name__, exc_info=exc)  # without the request body
+        msg = "Error interno: la operación no se ha completado. Reintenta y, si persiste, reinicia la aplicación y revisa la consola."
+        return JSONResponse({"code": "error_interno", "message": msg, "message_key": msg}, status_code=500)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(_req: Request, exc: RequestValidationError):
@@ -127,7 +128,9 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
         for e in exc.errors()[:5]:
             loc = ".".join(str(x) for x in e.get("loc", [])[1:])
             msgs.append(f"{loc}: {e.get('msg')}" if loc else str(e.get("msg")))
-        return JSONResponse({"code": "validacion", "message": "Datos no válidos. " + "; ".join(msgs)}, status_code=422)
+        detail = "; ".join(msgs)
+        return JSONResponse({"code": "validacion", "message": "Datos no válidos. " + detail, "message_key": "Datos no válidos. {detalle}",
+                             "params": {"detalle": detail}}, status_code=422)
 
     def db():
         conn = connect(cfg.db_path)
@@ -144,7 +147,7 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
 
     def exists(conn, table: str, id_: Any, label: str) -> None:
         if id_ is not None and not conn.execute(f"SELECT 1 FROM {table} WHERE id = ?", (id_,)).fetchone():
-            raise invalid(f"{label} no existe")
+            raise missing_ref(label)
 
     def patch_simple(conn, table: str, id_: int, data: dict[str, Any], label: str, stamp: bool = True):
         if not conn.execute(f"SELECT 1 FROM {table} WHERE id = ?", (id_,)).fetchone():
@@ -183,11 +186,11 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
         if app.state.server is None:
             raise AppError(409, "sin_servidor", "El cierre controlado solo está disponible al ejecutar la aplicación")
         app.state.server.should_exit = True
-        return {"ok": True, "message": "La aplicación se está cerrando. Puedes cerrar esta pestaña."}
+        return {"ok": True, "message": "The application is closing. You can close this tab."}
 
     @app.post("/api/system/reset")
     def system_reset(body: S.ResetIn, conn=Depends(db)):
-        """Zona de peligro: borra todos los datos (copia previa obligatoria). Queda como recién instalada."""
+        """Danger zone: deletes all data (previous backup required). Leaves the app as freshly installed."""
         s = st(conn)
         accepted = {(s.get("app_name") or "KAOSnt").strip().lower(), "borrar todo"}
         if body.confirm_text.strip().lower() not in accepted:
@@ -209,7 +212,7 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
             raise invalid("Ese identificador corresponde a un tema integrado; usa otro «id»")
         current = [t for t in (st(conn).get("custom_themes") or []) if t.get("id") != th["id"]]
         if len(current) >= themes.MAX_CUSTOM:
-            raise invalid(f"Máximo {themes.MAX_CUSTOM} temas importados")
+            raise invalid("Máximo {n} temas importados", n=themes.MAX_CUSTOM)
         with Tx(conn):
             set_value(conn, "custom_themes", current + [th])
         return th
@@ -225,7 +228,7 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
 
     # ---------------- Deshacer (0.3) ----------------
     def with_undo(conn, enabled: bool, table: str, ids: list[int], label: str, fn):
-        """Ejecuta fn() en una transacción; si enabled, guarda antes una instantánea para «Deshacer»."""
+        """Run fn() in a transaction; if enabled, first store a snapshot for «Undo»."""
         with Tx(conn):
             snaps = undo.snapshot(conn, table, ids) if enabled else []
             result = fn()
@@ -246,7 +249,7 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
     def patch_settings(body: dict[str, Any], conn=Depends(db)):
         bad = set(body) - EDITABLE
         if bad:
-            raise invalid(f"Ajustes desconocidos: {', '.join(sorted(bad))}")
+            raise invalid("Ajustes desconocidos: {claves}", claves=", ".join(sorted(bad)))
         if "timezone" in body:
             from zoneinfo import ZoneInfo
             try:
@@ -255,9 +258,7 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
                 raise invalid("Zona horaria no válida")
         if "app_name" in body and not str(body["app_name"]).strip():
             raise invalid("El nombre de la aplicación no puede estar vacío")
-        err = validate_patch(body, {t["id"] for t in st(conn).get("custom_themes") or []})
-        if err:
-            raise invalid(err)
+        validate_patch(body, {t["id"] for t in st(conn).get("custom_themes") or []})
         with Tx(conn):
             for k, v in body.items():
                 set_value(conn, k, v)
@@ -289,12 +290,12 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
 
     @app.delete("/api/clients/{cid}")
     def delete_client(cid: int, conn=Depends(db)):
-        with Tx(conn):  # los proyectos se conservan sin cliente
+        with Tx(conn):  # projects are kept without a client
             if not conn.execute("DELETE FROM clients WHERE id = ?", (cid,)).rowcount:
                 raise not_found("Cliente")
         return {"ok": True}
 
-    # ---------------- Oficinas y festivos ----------------
+    # ---------------- Offices and holidays ----------------
     @app.get("/api/locations")
     def get_locations(conn=Depends(db)):
         return rows(conn.execute(
@@ -319,7 +320,7 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
 
     @app.delete("/api/locations/{lid}")
     def delete_location(lid: int, conn=Depends(db)):
-        with Tx(conn):  # sus festivos se eliminan; las personas quedan sin oficina
+        with Tx(conn):  # its holidays are deleted; its people are left without an office
             conn.execute("DELETE FROM locations WHERE id = ?", (lid,))
         return {"ok": True}
 
@@ -370,7 +371,7 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
             raise invalid("Rango de fechas no válido")
         return agenda.context(conn, a, b)
 
-    # ---------------- Personas y ausencias ----------------
+    # ---------------- People and absences ----------------
     @app.get("/api/people")
     def list_people(conn=Depends(db)):
         return rows(conn.execute("SELECT * FROM people ORDER BY is_me DESC, active DESC, name"))
@@ -393,6 +394,21 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
         if "active" in d:
             d["active"] = 1 if d["active"] else 0
         return patch_simple(conn, "people", pid, d, "Persona")
+
+    @app.get("/api/people/{pid}/delete-preview")
+    def person_delete_preview(pid: int, conn=Depends(db)):
+        return people.delete_preview(conn, pid)
+
+    @app.post("/api/people/{pid}/delete")
+    def delete_person(pid: int, body: S.PersonDeleteIn, conn=Depends(db)):
+        """Permanent deletion (0.4) with a previous backup. Deactivating keeps the history instead."""
+        if not body.confirm:
+            raise invalid("Confirma la eliminación de la persona")
+        people.check_delete(conn, pid, body.reassign_to)  # validate before creating the backup
+        name = backup.create_backup(cfg, "previa-borrado", st(conn)).name
+        with Tx(conn):
+            result = people.delete_person(conn, pid, body.reassign_to)
+        return {"ok": True, "previous_backup": name, **result}
 
     @app.get("/api/people/{pid}/view")
     def person_view(pid: int, conn=Depends(db)):
@@ -463,8 +479,8 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
 
     @app.post("/api/projects/{pid}/delete")
     def delete_project(pid: int, body: S.ProjectDeleteIn, conn=Depends(db)):
-        """Elimina un proyecto (con copia previa). desvincular: tareas, notas y recurrencias se conservan sin
-        proyecto. eliminar: se eliminan sus tareas y recurrencias; sus notas van a la papelera."""
+        """Delete a project (with a previous backup). desvincular: tasks, notes and recurrences are kept without
+        a project. eliminar: its tasks and recurrences are deleted; its notes go to the trash."""
         p = row(conn.execute("SELECT name FROM projects WHERE id = ?", (pid,)).fetchone())
         if not p:
             raise not_found("Proyecto")
@@ -483,7 +499,7 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
                 counts["tasks"] = conn.execute("SELECT COUNT(*) FROM tasks WHERE project_id = ?", (pid,)).fetchone()[0]
                 counts["notes"] = conn.execute("SELECT COUNT(*) FROM notes WHERE project_id = ?", (pid,)).fetchone()[0]
                 counts["recurrences"] = conn.execute("SELECT COUNT(*) FROM recurrences WHERE project_id = ?", (pid,)).fetchone()[0]
-            conn.execute("DELETE FROM projects WHERE id = ?", (pid,))  # el resto queda sin proyecto (ON DELETE SET NULL)
+            conn.execute("DELETE FROM projects WHERE id = ?", (pid,))  # the rest is left without a project (ON DELETE SET NULL)
         return {"ok": True, "previous_backup": name, "mode": body.mode, **counts}
 
     @app.post("/api/projects/{pid}/people")
@@ -551,7 +567,7 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
             conn.execute("DELETE FROM milestones WHERE id = ?", (mid,))
         return {"ok": True}
 
-    # ---------------- Tareas ----------------
+    # ---------------- Tasks ----------------
     @app.get("/api/tasks")
     def list_tasks(request: Request, conn=Depends(db)):
         f = dict(request.query_params)
@@ -571,7 +587,7 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
 
     @app.get("/api/tasks/{tid}")
     def get_task(tid: int, conn=Depends(db)):
-        return detail(conn, tid)  # solo lectura: abrir nunca modifica el seguimiento
+        return detail(conn, tid)  # read only: opening never changes the follow-up
 
     @app.patch("/api/tasks/{tid}")
     def patch_task(tid: int, body: S.TaskPatch, undo_: bool = Query(False, alias="undo"), conn=Depends(db)):
@@ -580,7 +596,7 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
 
     @app.post("/api/tasks/archive-bulk")
     def archive_bulk(body: S.BulkArchiveIn, conn=Depends(db)):
-        """Archiva varias tareas en una sola transacción (p. ej. «Archivar todas» en la columna Hecha)."""
+        """Archive several tasks in a single transaction (e.g. «Archive all» in the Done column)."""
         ids = sorted(set(body.ids))
         found = [r[0] for r in conn.execute(f"SELECT id FROM tasks WHERE archived = 0 AND id IN ({','.join('?' for _ in ids)})", ids)]
         if not found:
@@ -698,7 +714,7 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
 
     @app.delete("/api/tags/{tag_id}")
     def delete_tag(tag_id: int, conn=Depends(db)):
-        with Tx(conn):  # se quita de tareas y notas; estas no se modifican de otro modo
+        with Tx(conn):  # removed from tasks and notes; they are not changed otherwise
             conn.execute("DELETE FROM tags WHERE id = ?", (tag_id,))
         return tasks.list_tags(conn)
 
@@ -728,7 +744,7 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
             recurrence.generate(conn, s, today_local(s, now()))
         return next(r for r in recurrence.list_all(conn) if r["id"] == rid)
 
-    # ---------------- Notas ----------------
+    # ---------------- Notes ----------------
     @app.get("/api/notes")
     def list_notes(request: Request, conn=Depends(db)):
         return notes.list_notes(conn, dict(request.query_params))
@@ -785,7 +801,7 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
             set_value(conn, "note_tabs", {"open": body.open[:50], "active": body.active, "split": body.split})
         return notes.get_tabs(conn)
 
-    # ---------------- Vistas de lectura ----------------
+    # ---------------- Read views ----------------
     @app.get("/api/today")
     def today(conn=Depends(db)):
         s = st(conn)
@@ -869,7 +885,7 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
             conn.execute("DELETE FROM saved_views WHERE id = ?", (vid,))
         return {"ok": True}
 
-    # ---------------- Copias, exportación y restauración ----------------
+    # ---------------- Backups, export and restore ----------------
     @app.get("/api/backups")
     def get_backups():
         return {"dir": str(cfg.backup_dir), "items": backup.list_backups(cfg)}
@@ -930,6 +946,6 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
     else:
         @app.get("/")
         def no_front():
-            return PlainTextResponse("Falta el frontend compilado (frontend/dist). Consulta el README.", status_code=500)
+            return PlainTextResponse("The compiled frontend (frontend/dist) is missing. See the README.", status_code=500)
 
     return app
