@@ -60,7 +60,7 @@ English becomes the default interface language for new installations. Existing d
 - 0.3: `work_schedule`, `language` (`en`/`es`), `date_format`, `week_start` (1/7, display only), `theme_mode` (`sistema`/`claro`/`oscuro`),
   `theme_id`, `custom_themes` (only through `/api/themes`), `undo_seconds` (3–60), `group_recurring`. `note_tabs` includes `split`.
 - 0.4: `task_panel_width` (px, 320–2000, `null` = default width). `language` defaults to `en`.
-- 0.5: `group_subtasks` (bool, default `true`), `note_editor_mode` (`editar` / `vista_previa`). No schema change (still version 4).
+- 0.5: `group_subtasks` (bool, default `true`), `note_editor_mode` (`editar` / `vista_previa`; `live` since 0.6, default `editar`). No schema change in 0.5 or 0.6 (still version 4).
 
 ## API changes in 0.5
 - List filters (`/api/tasks`, `/api/notes`, `/api/projects`): comma-separated values and `none` (= without value) for

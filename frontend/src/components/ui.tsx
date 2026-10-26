@@ -246,8 +246,9 @@ export function Section({ title, count, children, actions, id }: { title: string
 export const splitMulti = (v: string | undefined | null): string[] => (v ? String(v).split(",").filter(Boolean) : []);
 export const joinMulti = (a: string[]): string => a.join(",");
 
-/** Multiple-choice filter (0.5): check boxes with a search box, chips of the chosen values and «Clear all».
- * The value is a comma-separated list, so a filter with a single value from 0.4 still works. */
+/** Multiple-choice filter (0.5): check boxes with a search box and «Clear all». The value is a comma-separated list,
+ * so a filter with a single value from 0.4 still works. Since 0.6 the button only shows a summary: the chosen values are
+ * shown (and removed) in an ActiveFilters row, so the control always keeps the same height. */
 export function MultiSelect({ label, options, value, onChange, allLabel }: {
   label: string; options: { value: string; label: string }[]; value: string | undefined; onChange: (v: string) => void; allLabel?: string;
 }) {
@@ -267,7 +268,7 @@ export function MultiSelect({ label, options, value, onChange, allLabel }: {
   const shown = options.filter((o) => !nq || o.label.toLowerCase().includes(nq));
   const summary = !chosen.length ? (allLabel ?? t("Todos")) : chosen.length === 1 ? labelOf(chosen[0]) : t("{n} seleccionados", { n: chosen.length });
   return (
-    <div className="multiselect" ref={box} onKeyDown={(e: any) => { if (e.key === "Escape" && open) { e.stopPropagation(); setOpen(false); } }}>
+    <div className={"multiselect" + (open ? " open" : "")} ref={box} onKeyDown={(e: any) => { if (e.key === "Escape" && open) { e.stopPropagation(); setOpen(false); } }}>
       <span className="ms-label">{label}</span>
       <button type="button" className={"ms-button" + (chosen.length ? " has-value" : "")} aria-haspopup="listbox" aria-expanded={open}
         aria-label={t("{filtro}: {valor}", { filtro: label, valor: summary })} title={chosen.map(labelOf).join(", ")} onClick={() => setOpen(!open)}>
@@ -277,7 +278,7 @@ export function MultiSelect({ label, options, value, onChange, allLabel }: {
         {options.length > 6 && <input type="search" className="ms-search" aria-label={t("Buscar en {filtro}", { filtro: label })} placeholder={t("Buscar…")}
           value={q} onChange={(e: any) => setQ(e.target.value)} autoFocus />}
         <ul className="plain ms-options">
-          {shown.map((o) => <li key={o.value}><label className="check"><input type="checkbox" checked={chosen.includes(o.value)} onChange={() => toggle(o.value)} /> {o.label}</label></li>)}
+          {shown.map((o) => <li key={o.value}><label className="ms-option"><input type="checkbox" checked={chosen.includes(o.value)} onChange={() => toggle(o.value)} /><span>{o.label}</span></label></li>)}
           {!shown.length && <li className="muted small">{t("Sin coincidencias")}</li>}
         </ul>
         <div className="ms-foot">
@@ -285,8 +286,58 @@ export function MultiSelect({ label, options, value, onChange, allLabel }: {
           <button type="button" className="small" onClick={() => setOpen(false)}>{t("Cerrar")}</button>
         </div>
       </div>}
-      {chosen.length > 1 && <span className="ms-chips">{chosen.map((v) => <span key={v} className="tagchip">{labelOf(v)}
-        <button type="button" className="ghost small" aria-label={t("Quitar {valor}", { valor: labelOf(v) })} onClick={() => toggle(v)}>×</button></span>)}</span>}
+    </div>
+  );
+}
+
+/** How many chips fit in one line: widths of the chips, available width and gap between them. */
+export function fitChips(widths: number[], available: number, gap: number): number {
+  let used = 0;
+  for (let i = 0; i < widths.length; i++) {
+    used += (i ? gap : 0) + widths[i];
+    if (used > available) return i;
+  }
+  return widths.length;
+}
+
+export interface ActiveChip { key: string; filter: string; value: string; remove: () => void }
+
+/** Row of active filters (0.6): «Filter: value ×» chips in a single line; the ones that do not fit are summarised in
+ * «+N more», which expands the row (and «Show less» folds it again). Hidden when there are no active filters. */
+export function ActiveFilters({ chips, onReset, expanded, setExpanded }: {
+  chips: ActiveChip[]; onReset?: () => void; expanded: boolean; setExpanded: (v: boolean) => void;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState(chips.length);
+  const sig = chips.map((c) => c.key).join("|");
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el || typeof getComputedStyle === "undefined") return;
+    const measure = () => {
+      const items = Array.from(el.children) as HTMLElement[];
+      const gap = parseFloat(getComputedStyle(el).columnGap || "4") || 4;
+      setFit(fitChips(items.map((x) => x.offsetWidth), el.clientWidth, gap));
+    };
+    measure();
+    const RO = (window as any).ResizeObserver;
+    if (RO) { const ro = new RO(measure); ro.observe(el); return () => ro.disconnect(); }
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [sig]);
+  if (!chips.length) return null;
+  const hidden = expanded ? 0 : Math.max(0, chips.length - fit);
+  return (
+    <div className="active-filters" role="group" aria-label={t("Filtros activos")}>
+      <div ref={box} className={"af-chips" + (expanded ? " expanded" : "")}>
+        {chips.map((c, i) => <span key={c.key} className={"tagchip af-chip" + (!expanded && i >= fit ? " af-overflow" : "")}
+          aria-hidden={!expanded && i >= fit ? true : undefined}>
+          <span className="af-text"><span className="af-filter">{c.filter}:</span> {c.value}</span>
+          <button type="button" className="ghost small" aria-label={t("Quitar el filtro {filtro}: {valor}", { filtro: c.filter, valor: c.value })}
+            tabIndex={!expanded && i >= fit ? -1 : undefined} onClick={c.remove}>×</button></span>)}
+      </div>
+      {hidden > 0 && <button type="button" className="ghost small af-more" aria-expanded={false} onClick={() => setExpanded(true)}>{t("+{n} más", { n: hidden })}</button>}
+      {expanded && <button type="button" className="ghost small af-more" aria-expanded={true} onClick={() => setExpanded(false)}>{t("Mostrar menos")}</button>}
+      {onReset && <button type="button" className="ghost small" onClick={onReset}>{t("Restablecer filtros")}</button>}
     </div>
   );
 }

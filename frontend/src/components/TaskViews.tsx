@@ -4,13 +4,13 @@ import { addDays, fmtDate, isoDow, monthGrid, monthName, todayIn, utcToZonedInpu
 import { t } from "../lib/i18n";
 import { groupSeries } from "../lib/series";
 import { foldSubtasks } from "../lib/subtasks";
-import { useViewSet } from "../lib/viewstate";
+import { useViewSet, useViewState } from "../lib/viewstate";
 import { BOARD_COLUMNS, CONDITION, GROUPING_KIND, PRIORITY, PRIORITY_MARK, STATUS } from "../lib/labels";
 import { useApi, useApp } from "../lib/store";
 import type { DayContext, Filters, Task, TaskStatus } from "../lib/types";
 import { askScope, OccurrenceScope } from "./ScopeDialog";
 import { TaskCard } from "./TaskCard";
-import { Empty, MultiSelect, splitMulti } from "./ui";
+import { ActiveChip, ActiveFilters, Empty, joinMulti, MultiSelect, splitMulti } from "./ui";
 
 export type GroupField = "assignee_id" | "project_id" | "workstream_id" | "phase_id" | "deliverable_id";
 export interface MoveBody { status?: TaskStatus; before_id?: number; after_id?: number; group?: { field: GroupField; value: number | null }; scope?: OccurrenceScope }
@@ -311,32 +311,56 @@ export function WeekAvailabilityStrip() {
   </p>;
 }
 
-/** Work filters (0.5: multiple choice in each filter; values combine with OR inside a filter and AND between filters). */
-export function FilterBar({ filters, setFilters, hideProject, onReset }: { filters: Filters; setFilters: (f: Filters) => void; hideProject?: boolean; onReset?: () => void }) {
+/** Options of each Work filter (shared by the filter bar and the active-filter chips). */
+function filterDefs(app: ReturnType<typeof useApp>, filters: Filters): { key: keyof Filters; label: string; options: { value: string; label: string }[]; allLabel?: string }[] {
+  return [
+    { key: "project_id", label: t("Proyecto"), options: [{ value: "none", label: t("Sin proyecto") }, ...app.boot.projects.map((p) => ({ value: String(p.id), label: p.name }))] },
+    { key: "client_id", label: t("Cliente"), options: [{ value: "none", label: t("Sin cliente") }, ...app.boot.clients.map((c) => ({ value: String(c.id), label: c.name }))] },
+    { key: "person_id", label: t("Persona"), allLabel: t("Todas"), options: [{ value: "none", label: t("Sin asignar") },
+      ...app.boot.people.filter((p) => p.active || splitMulti(filters.person_id).includes(String(p.id))).map((p) => ({ value: String(p.id), label: p.name }))] },
+    { key: "status", label: t("Estado"), allLabel: t("Operativas"), options: (Object.keys(STATUS) as TaskStatus[]).map((x) => ({ value: x, label: STATUS[x] })) },
+    { key: "condition", label: t("Condición"), allLabel: t("Cualquiera"), options: [{ value: "cualquiera", label: t("En espera o bloqueadas") }, { value: "espera", label: t("En espera") }, { value: "bloqueada", label: t("Bloqueadas") }, { value: "none", label: t("Sin condición") }] },
+    { key: "priority", label: t("Prioridad"), allLabel: t("Todas"), options: Object.entries(PRIORITY).map(([k, v]) => ({ value: k, label: v })) },
+    { key: "tag", label: t("Etiqueta"), allLabel: t("Todas"), options: app.boot.tags.map((x) => ({ value: x, label: "#" + x })) },
+  ];
+}
+
+/** Active filters as removable chips («Persona: Ana ×»), 0.6. Removing a chip removes only that value. */
+export function filterChips(app: ReturnType<typeof useApp>, filters: Filters, setFilters: (f: Filters) => void, hideProject?: boolean): ActiveChip[] {
+  const chips: ActiveChip[] = [];
+  for (const d of filterDefs(app, filters)) {
+    if (hideProject && (d.key === "project_id" || d.key === "client_id")) continue;
+    const vals = splitMulti(filters[d.key] as string | undefined);
+    for (const v of vals) chips.push({
+      key: `${d.key}:${v}`, filter: d.label, value: d.options.find((o) => o.value === v)?.label || v,
+      remove: () => setFilters({ ...filters, [d.key]: joinMulti(vals.filter((x) => x !== v)) }),
+    });
+  }
+  if (filters.include_backlog) chips.push({ key: "backlog", filter: t("Incluir"), value: t("Backlog"), remove: () => setFilters({ ...filters, include_backlog: false }) });
+  if (filters.include_closed) chips.push({ key: "closed", filter: t("Incluir"), value: t("Terminadas"), remove: () => setFilters({ ...filters, include_closed: false }) });
+  return chips;
+}
+
+/** Work filters (0.5: multiple choice; values combine with OR inside a filter and AND between filters).
+ * 0.6: compact bar — every control keeps the same height and the chosen values are shown below in a single
+ * expandable row of removable chips. */
+export function FilterBar({ filters, setFilters, hideProject, onReset, stateKey = "work" }: {
+  filters: Filters; setFilters: (f: Filters) => void; hideProject?: boolean; onReset?: () => void; stateKey?: string;
+}) {
   const app = useApp();
   const set = (k: keyof Filters, v: any) => setFilters({ ...filters, [k]: v });
-  const projects = [{ value: "none", label: t("Sin proyecto") }, ...app.boot.projects.map((p) => ({ value: String(p.id), label: p.name }))];
-  const people = [{ value: "none", label: t("Sin asignar") }, ...app.boot.people.filter((p) => p.active || splitMulti(filters.person_id).includes(String(p.id))).map((p) => ({ value: String(p.id), label: p.name }))];
-  const clients = [{ value: "none", label: t("Sin cliente") }, ...app.boot.clients.map((c) => ({ value: String(c.id), label: c.name }))];
-  const statuses = (Object.keys(STATUS) as TaskStatus[]).map((x) => ({ value: x, label: STATUS[x] }));
-  const conditions = [{ value: "cualquiera", label: t("En espera o bloqueadas") }, { value: "espera", label: t("En espera") }, { value: "bloqueada", label: t("Bloqueadas") }, { value: "none", label: t("Sin condición") }];
-  const prios = Object.entries(PRIORITY).map(([k, v]) => ({ value: k, label: v }));
-  const tags = app.boot.tags.map((x) => ({ value: x, label: "#" + x }));
-  const active = Object.entries(filters).some(([k, v]) => v && k !== "sort");
+  const [chipsOpen, setChipsOpen] = useViewState<boolean>(stateKey + ".chipsOpen", false);
+  const defs = filterDefs(app, filters).filter((d) => !hideProject || (d.key !== "project_id" && d.key !== "client_id"));
   return (
-    <div className="filters" role="group" aria-label={t("Filtros")}>
-      {!hideProject && <MultiSelect label={t("Proyecto")} options={projects} value={filters.project_id} onChange={(v) => set("project_id", v)} />}
-      {!hideProject && <MultiSelect label={t("Cliente")} options={clients} value={filters.client_id} onChange={(v) => set("client_id", v)} />}
-      <MultiSelect label={t("Persona")} options={people} value={filters.person_id} onChange={(v) => set("person_id", v)} allLabel={t("Todas")} />
-      <MultiSelect label={t("Estado")} options={statuses} value={filters.status} onChange={(v) => set("status", v)} allLabel={t("Operativas")} />
-      <MultiSelect label={t("Condición")} options={conditions} value={filters.condition} onChange={(v) => set("condition", v)} allLabel={t("Cualquiera")} />
-      <MultiSelect label={t("Prioridad")} options={prios} value={filters.priority} onChange={(v) => set("priority", v)} allLabel={t("Todas")} />
-      <MultiSelect label={t("Etiqueta")} options={tags} value={filters.tag} onChange={(v) => set("tag", v)} allLabel={t("Todas")} />
-      <label>{t("Orden")} <select value={filters.sort || ""} onChange={(e: any) => set("sort", e.target.value)}>
-        <option value="">{t("Manual")}</option><option value="fecha">{t("Fecha límite")}</option><option value="prioridad">{t("Prioridad")}</option></select></label>
-      <label className="check"><input type="checkbox" checked={!!filters.include_backlog} onChange={(e: any) => set("include_backlog", e.target.checked)} /> {t("Backlog")}</label>
-      <label className="check"><input type="checkbox" checked={!!filters.include_closed} onChange={(e: any) => set("include_closed", e.target.checked)} /> {t("Terminadas")}</label>
-      {onReset && <button type="button" className="ghost small" disabled={!active} onClick={onReset}>{t("Restablecer filtros")}</button>}
+    <div className="filter-area">
+      <div className="filters" role="group" aria-label={t("Filtros")}>
+        {defs.map((d) => <MultiSelect key={d.key} label={d.label} options={d.options} value={filters[d.key] as string | undefined} onChange={(v) => set(d.key, v)} allLabel={d.allLabel} />)}
+        <label className="filter-inline">{t("Orden")} <select value={filters.sort || ""} onChange={(e: any) => set("sort", e.target.value)}>
+          <option value="">{t("Manual")}</option><option value="fecha">{t("Fecha límite")}</option><option value="prioridad">{t("Prioridad")}</option></select></label>
+        <label className="check filter-inline"><input type="checkbox" checked={!!filters.include_backlog} onChange={(e: any) => set("include_backlog", e.target.checked)} /> {t("Backlog")}</label>
+        <label className="check filter-inline"><input type="checkbox" checked={!!filters.include_closed} onChange={(e: any) => set("include_closed", e.target.checked)} /> {t("Terminadas")}</label>
+      </div>
+      <ActiveFilters chips={filterChips(app, filters, setFilters, hideProject)} onReset={onReset} expanded={chipsOpen} setExpanded={setChipsOpen} />
     </div>
   );
 }

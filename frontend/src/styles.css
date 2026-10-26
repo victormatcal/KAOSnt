@@ -294,7 +294,7 @@ ul.signals { list-style: none; padding: 0; display: grid; grid-template-columns:
 
 .notes-view { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: var(--gap); }
 .notes-side { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; max-height: calc(100vh - 90px); overflow-y: auto; min-width: 0; }
-.notes-side select { flex: 1 1 8em; }
+.notes-side .row select { flex: 1 1 8em; }
 .scope-tabs { display: flex; flex-wrap: wrap; gap: 2px; margin: 8px 0; }
 .scope-tabs button { font-size: 0.85em; padding: 2px 6px; }
 .note-item { display: block; width: 100%; text-align: left; border-color: transparent; padding: 5px 6px; margin: 1px 0; }
@@ -386,7 +386,8 @@ pre.example { background: var(--code-bg); padding: 6px 8px; border-radius: var(-
 table.schedule td { vertical-align: middle; }
 /* 0.3 · notes: filters, draggable tabs and split screen */
 .note-filters { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
-.note-filters input, .note-filters select { width: 100%; }
+.note-filters > select, .note-search { width: 100%; }
+.note-filters > * { flex: none; }
 .note-item.split { border-color: var(--info); }
 .note-tabs-bar { display: flex; align-items: flex-end; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid var(--border); min-width: 0; }
 .note-tabs-bar .note-tabs { flex: 1 1 auto; border-bottom: none; min-width: 0; }
@@ -413,10 +414,10 @@ table.schedule td { vertical-align: middle; }
 .ms-popup { position: absolute; top: 100%; left: 0; z-index: 45; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 6px 18px var(--shadow); padding: 6px; width: 16em; max-width: 90vw; }
 .ms-search { width: 100%; margin-bottom: 4px; }
 .ms-options { max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
-.ms-options .check { overflow-wrap: anywhere; }
+
 .ms-foot { display: flex; justify-content: space-between; margin-top: 4px; }
-.ms-chips { display: flex; flex-wrap: wrap; gap: 2px; max-width: 16em; }
 .filters { align-items: flex-end; }
+.filters .multiselect, .filters .filter-inline { height: 3.1em; justify-content: flex-end; }
 /* 0.5 · subtasks folded under their parent */
 .sub-row.depth-1 { margin-left: 12px; } .sub-row.depth-2 { margin-left: 22px; } .sub-row.depth-3 { margin-left: 30px; } .sub-row.depth-4 { margin-left: 36px; }
 .sub-row > .card { border-left-style: dotted; }
@@ -464,4 +465,48 @@ td.indent-1 { padding-left: 1.4em; } td.indent-2 { padding-left: 2.6em; } td.ind
   .settings-layout { grid-template-columns: minmax(0, 1fr); }
   .settings-nav { display: none; }
   .settings-select { display: inline-flex; gap: 4px; align-items: center; }
+}
+/* 0.6 · multiple-choice pop-up: one option per line, check box on the left, words never split letter by letter */
+.multiselect.open { z-index: 60; }
+.ms-popup { z-index: 60; }
+.ms-option { display: flex; align-items: flex-start; gap: 6px; text-align: left; cursor: pointer; padding: 2px 0; font-size: 0.95em; }
+.ms-option input[type="checkbox"] { width: auto; flex: none; margin: 0.2em 0 0; }
+.ms-option span { min-width: 0; overflow-wrap: break-word; word-break: normal; }
+/* inside the notes side panel the control and its pop-up use the panel width */
+.note-filters .multiselect { display: flex; width: 100%; }
+.note-filters .ms-button { width: 100%; max-width: none; }
+.note-filters .ms-popup { left: 0; right: 0; width: auto; }
+/* 0.6 · notes side panel: hide it (Alt+B) or fold the filters */
+.notes-view.side-hidden { grid-template-columns: 34px minmax(0, 1fr); }
+.notes-side-strip { display: flex; justify-content: center; align-items: flex-start; padding-top: 4px; }
+.notes-side-strip button { padding: 6px 4px; font-size: 1.1em; }
+.side-head { margin-bottom: 4px; }
+.note-search { margin: 4px 0; }
+.filters-toggle { width: 100%; text-align: left; font-weight: 600; }
+@media (max-width: 1100px) { .notes-view.side-hidden { grid-template-columns: minmax(0, 1fr); } }
+/* 0.6 · Work: compact filter bar + one expandable line of active filters */
+.filter-area { margin-bottom: 6px; }
+.filter-area > .filters { margin-bottom: 0; }
+.active-filters { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 4px 8px; }
+.af-chips { display: flex; flex-wrap: nowrap; gap: 4px; overflow: hidden; min-width: 0; flex: 1 1 auto; }
+.af-chips.expanded { flex-wrap: wrap; }
+.af-chip { flex: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 2px; }
+.af-chips.expanded .af-chip { white-space: normal; max-width: 100%; }
+.af-filter { color: var(--muted); }
+.af-overflow { visibility: hidden; }
+.af-more { flex: none; white-space: nowrap; }
+/* 0.6 · Markdown «Live» mode: editor and result side by side, each with its own scroll */
+.md-live { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--gap); min-width: 0; }
+.md-live .note-text { height: 60vh; min-height: 12em; resize: vertical; }
+.md-live-preview { height: 60vh; min-height: 12em; overflow-y: auto; overflow-x: hidden; position: relative; border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 12px; overflow-wrap: anywhere; min-width: 0; }
+.md-live-preview [data-line] { cursor: text; }
+.md-live-preview .md-current { background: var(--accent-soft); box-shadow: -4px 0 0 var(--accent-soft); border-radius: 2px; }
+.md-live.compact { grid-template-columns: minmax(0, 1fr); }
+.md-live-preview.compact { height: auto; min-height: 4em; max-height: 40vh; }
+.note-panes.two .md-live { grid-template-columns: minmax(0, 1fr); }
+.note-panes.two .md-live .note-text, .note-panes.two .md-live-preview:not(.compact) { height: 32vh; }
+.md-sync { margin-left: auto; }
+@media (max-width: 1100px) {
+  .md-live { grid-template-columns: minmax(0, 1fr); }
+  .md-live .note-text, .md-live-preview:not(.compact) { height: 38vh; }
 }

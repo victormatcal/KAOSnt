@@ -8,7 +8,7 @@ import { useViewState } from "../lib/viewstate";
 import type { Client, NoteSummary, Project, ProjectListItem, Task } from "../lib/types";
 import { DateInput } from "../components/DateInput";
 import { Board, GroupBy } from "../components/TaskViews";
-import { AutoText, Chip, CommitText, Empty, ErrorBox, Field, LinksEditor, Modal, PersonSelect, SafeLink, Section, MultiSelect } from "../components/ui";
+import { AutoText, Chip, CommitText, Empty, ErrorBox, Field, LinksEditor, Modal, PersonSelect, SafeLink, Section, ActiveFilters, joinMulti, MultiSelect, splitMulti } from "../components/ui";
 
 const MILESTONE_STATUS = tr({ pendiente: "pendiente", cumplido: "cumplido", cancelado: "cancelado" } as Record<string, string>);
 
@@ -20,6 +20,7 @@ export function ProjectsView() {
   const [creating, setCreating] = useState(false);
   const q = [showAll ? "include_archived=true" : "", clientFilter ? `client_id=${encodeURIComponent(clientFilter)}` : ""].filter(Boolean).join("&");
   const { data, error, reload } = useApi<ProjectListItem[]>(`/api/projects${q ? "?" + q : ""}`);
+  const [chipsOpen, setChipsOpen] = useViewState<boolean>("projects.chipsOpen", false);
   const clientOptions = [{ value: "none", label: t("Sin cliente") }, ...app.boot.clients.map((c) => ({ value: String(c.id), label: c.name }))];
   return (
     <div className="view">
@@ -36,6 +37,9 @@ export function ProjectsView() {
           <button className="primary" onClick={() => setCreating(true)}>{t("Nuevo proyecto")}</button></>}
       </header>
       {tab === "clients" ? <ClientsPanel /> : <>
+        <ActiveFilters expanded={chipsOpen} setExpanded={setChipsOpen} onReset={() => setClientFilter("")}
+          chips={splitMulti(clientFilter).map((v) => ({ key: v, filter: t("Cliente"), value: clientOptions.find((o) => o.value === v)?.label || v,
+            remove: () => setClientFilter(joinMulti(splitMulti(clientFilter).filter((x) => x !== v))) }))} />
         <ErrorBox error={error} onRetry={reload} />
         {data && !data.length && <Empty>{t("Aún no hay proyectos. No son obligatorios: puedes capturar tareas y notas sin proyecto y vincularlas después.")}</Empty>}
         <div className="project-grid">

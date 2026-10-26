@@ -1,3 +1,14 @@
+# Changes in 0.6.0
+
+| Request | What was done |
+|---|---|
+| Notes: filter pop-up badly drawn | Cause: two rules of the notes side panel also reached the pop-up — every `input` was made 100 % wide (so each check box took the whole width and the option text was squeezed letter by letter) and every `select` got `flex: 1 1 8em` inside a vertical flex box (so «Title and content» became very tall). The rules now only target the search box, the scope select and the filter buttons. Options are a check box on the left and the text after it, aligned left, wrapping only between words. Inside the notes panel the pop-up uses the panel width and is drawn above the note list (no overlap with its «Clear all / Close» footer). The fix is in the shared component, so Work and Projects get it too. |
+| Notes: collapsible side panel | Two levels, as agreed: «⟨» (or `Alt+B`) hides the whole side panel and the note uses the full width, leaving a narrow strip with «⟩» to bring it back; and a «Filters» header folds only the filters, showing «Filters (n)» with the number of active filters (the text search stays visible). Both are kept for the browser session; on narrow screens the panel starts hidden. |
+| Work: filter bar growing with the chosen values | The filter buttons no longer draw chips under themselves: every control keeps the same height (if they do not fit they wrap to a second line of the same height). The chosen values are shown in **one line** below the bar as «Filter: value ×» chips (Backlog/Finished too); the ones that do not fit are summarised in «+N more», which expands the line («Show less» folds it again; remembered for the session). «Reset filters» is at the end of that line. The line is not shown without filters. Same row for the client filter of the Projects list. The project detail Kanban has no multiple-choice filters (only the Backlog/Finished switches), so nothing changes there. |
+| Markdown «Live» mode | Third editor mode next to Edit and Preview (Edit stays the default; the last mode used is remembered: `note_editor_mode = live`). Editor on the left and rendered result on the right, stacked on narrow screens, in split screen and in the task description. The result is rendered 150 ms after typing stops. Scrolling is synchronised in both directions (switch «Sync scrolling», remembered for the session): every rendered block carries its source line (`data-line`) and positions are interpolated between blocks. Clicking a block puts the caret at the start of its line; the block being edited is highlighted. Toolbar, keyboard (Tab, Enter in lists, Ctrl+B/I/K…) and checkboxes work as in the other modes; autosave unchanged. Same safety rules (React elements, no `innerHTML`). WYSIWYG inline formatting is still out of scope. |
+
+---
+
 # Changes in 0.5.0
 
 | Request | What was done |
