@@ -440,8 +440,8 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
 
     # ---------------- Proyectos ----------------
     @app.get("/api/projects")
-    def list_projects(include_archived: bool = False, conn=Depends(db)):
-        return views.list_projects(conn, include_archived)
+    def list_projects(include_archived: bool = False, client_id: str | None = None, conn=Depends(db)):
+        return views.list_projects(conn, include_archived, client_id)
 
     @app.post("/api/projects", status_code=201)
     def create_project(body: S.ProjectIn, conn=Depends(db)):
@@ -590,9 +590,16 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
         return detail(conn, tid)  # read only: opening never changes the follow-up
 
     @app.patch("/api/tasks/{tid}")
-    def patch_task(tid: int, body: S.TaskPatch, undo_: bool = Query(False, alias="undo"), conn=Depends(db)):
-        _, uid = with_undo(conn, undo_, "tasks", [tid], "Tarea actualizada", lambda: tasks.update_task(conn, tid, dump(body)))
-        return {**detail(conn, tid), "undo_id": uid} if undo_ else detail(conn, tid)
+    def patch_task(tid: int, body: S.TaskPatch, undo_: bool = Query(False, alias="undo"),
+                   scope: str = Query("this"), conn=Depends(db)):
+        """scope (0.5, recurring tasks): this | following | all. See recurrence.apply_scoped."""
+        s = st(conn)
+        ids = [tid, *recurrence.scope_targets(conn, tid, scope)]
+        n: list[int] = []
+        _, uid = with_undo(conn, undo_ or len(ids) > 1, "tasks", ids, "Tarea actualizada",
+                           lambda: n.append(recurrence.apply_scoped(conn, tid, dump(body), scope, s)))
+        out = {**detail(conn, tid), "updated_occurrences": n[0] if n else 0}
+        return {**out, "undo_id": uid} if (undo_ or len(ids) > 1) else out
 
     @app.post("/api/tasks/archive-bulk")
     def archive_bulk(body: S.BulkArchiveIn, conn=Depends(db)):
@@ -648,9 +655,17 @@ def create_app(cfg: Config, clock: Optional[Callable[[], datetime]] = None, back
 
     @app.post("/api/tasks/{tid}/reorder")
     def reorder(tid: int, body: S.ReorderIn, undo_: bool = Query(False, alias="undo"), conn=Depends(db)):
-        _, uid = with_undo(conn, undo_, "tasks", [tid], "Tarea movida",
-                           lambda: tasks.reorder(conn, tid, body.status, body.before_id, body.after_id, body.force))
-        return {**detail(conn, tid), "undo_id": uid} if undo_ else detail(conn, tid)
+        """Move within / between Kanban columns and, since 0.5, between groups (body.group) in one operation."""
+        s = st(conn)
+        ids = [tid, *(recurrence.scope_targets(conn, tid, body.scope) if body.group else [])]
+
+        def run():
+            # status first: if the commercial approval needs confirmation nothing is changed (409, rolled back)
+            tasks.reorder(conn, tid, body.status, body.before_id, body.after_id, body.force)
+            if body.group:
+                recurrence.apply_scoped(conn, tid, {body.group.field: body.group.value}, body.scope, s)
+        _, uid = with_undo(conn, undo_ or len(ids) > 1, "tasks", ids, "Tarea movida", run)
+        return {**detail(conn, tid), "undo_id": uid} if (undo_ or len(ids) > 1) else detail(conn, tid)
 
     @app.put("/api/tasks/{tid}/allocations")
     def put_alloc(tid: int, body: S.AllocationIn, conn=Depends(db)):

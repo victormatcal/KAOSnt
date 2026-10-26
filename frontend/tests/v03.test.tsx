@@ -122,7 +122,7 @@ test("schedule per day: «Working» text and Settings with appearance, danger zo
   const sch = { "1": { start: "09:00", end: "19:00" }, "2": { start: "09:00", end: "19:00" }, "3": { start: "09:00", end: "19:00" },
     "4": { start: "09:00", end: "19:00" }, "5": { start: "09:00", end: "15:00" }, "6": null, "7": null };
   assert.equal(describeSchedule(sch), "L–J 09:00–19:00 · V 09:00–15:00");
-  const html = render(<SettingsView />);
+  const html = ["general", "appearance", "hours", "holidays", "danger"].map((sec) => render(<SettingsView initialSection={sec as any} />)).join("");
   for (const s of ["Aspecto", "Según el sistema", "Descargar plantilla del tema actual", "Zona de peligro", "Idioma de la interfaz", "Importar festivos en bloque", "Horario laboral"]) assert.ok(html.includes(s), s);
   assert.doesNotMatch(html, / style="[^"]*(url|@import)/);
 });

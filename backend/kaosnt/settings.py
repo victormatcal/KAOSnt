@@ -32,7 +32,10 @@ DEFAULTS: dict[str, Any] = {
     "custom_themes": [],            # imported themes (validated in themes.py)
     "undo_seconds": 8,
     "group_recurring": True,
-    "task_panel_width": None,       # task detail panel width in px (0.4); None = default (42 % of the window)
+    "task_panel_width": None,
+    # 0.5
+    "group_subtasks": True,         # Kanban and List: fold subtasks under their parent (same column and group)
+    "note_editor_mode": "editar",   # editar | vista_previa (last mode used in the note editor)       # task detail panel width in px (0.4); None = default (42 % of the window)
     "project_types": ["implementacion", "mantenimiento", "id", "consultoria", "benchmark", "propuesta", "otro"],
 }
 EDITABLE = set(DEFAULTS.keys()) - {"custom_themes"}  # themes are managed through /api/themes
@@ -98,6 +101,10 @@ def validate_patch(body: dict[str, Any], custom_ids: set[str]) -> None:
         raise invalid("El tiempo para deshacer debe estar entre 3 y 60 segundos")
     if "group_recurring" in body and not isinstance(body["group_recurring"], bool):
         raise invalid("Valor no válido para agrupar series")
+    if "group_subtasks" in body and not isinstance(body["group_subtasks"], bool):
+        raise invalid("Valor no válido para agrupar subtareas")
+    if "note_editor_mode" in body and body["note_editor_mode"] not in ("editar", "vista_previa"):
+        raise invalid("Modo de editor no admitido")
     if "task_panel_width" in body:
         w = body["task_panel_width"]
         if w is not None and not (isinstance(w, int) and not isinstance(w, bool) and PANEL_MIN <= w <= PANEL_MAX):

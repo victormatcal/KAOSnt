@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { addDays, monthGrid, todayIn, viewWeekStart } from "../lib/dates";
 import { t } from "../lib/i18n";
 import { useApi, useApp } from "../lib/store";
+import { useViewState } from "../lib/viewstate";
 import type { Filters, SavedView, Task } from "../lib/types";
 import { RecurrencesModal } from "../components/Recurrences";
 import { Board, Calendar, FilterBar, filtersToQuery, GroupBy, TaskTable, WeekAvailabilityStrip } from "../components/TaskViews";
@@ -12,15 +13,18 @@ type Mode = "kanban" | "lista" | "calendario" | "archivadas";
 
 export function WorkView() {
   const app = useApp();
-  const [mode, setMode] = useState<Mode>("kanban");
-  const [filters, setFilters] = useState<Filters>({});
-  const [groupBy, setGroupBy] = useState<GroupBy>("ninguna");
-  const [calMode, setCalMode] = useState<"week" | "month">("week");
-  const [anchor, setAnchor] = useState(todayIn(app.tz));
-  const [viewId, setViewId] = useState("");
+  // Screen state kept when moving to another screen and back (0.5, browser session)
+  const [mode, setMode] = useViewState<Mode>("work.mode", "kanban");
+  const [filters, setFilters] = useViewState<Filters>("work.filters", {});
+  const [groupBy, setGroupBy] = useViewState<GroupBy>("work.groupBy", "ninguna");
+  const [calMode, setCalMode] = useViewState<"week" | "month">("work.calMode", "week");
+  const [anchor, setAnchor] = useViewState<string>("work.anchor", todayIn(app.tz));
+  const [viewId, setViewId] = useViewState<string>("work.viewId", "");
   const [recurrences, setRecurrences] = useState(false);
   const groupRec = app.boot.settings.group_recurring !== false;
-  const setGroupRec = async (v: boolean) => { try { await api.patch("/api/settings", { group_recurring: v }); await app.reloadBoot(); } catch (e: any) { app.toast(e.message, "error"); } };
+  const groupSubs = app.boot.settings.group_subtasks !== false;
+  const setSetting = async (k: string, v: boolean) => { try { await api.patch("/api/settings", { [k]: v }); await app.reloadBoot(); } catch (e: any) { app.toast(e.message, "error"); } };
+  const resetFilters = () => { setFilters({}); setViewId(""); };
 
   let url = mode === "archivadas" ? "/api/tasks?archived=only" : "/api/tasks" + filtersToQuery(filters);
   if (mode === "calendario") {
@@ -42,7 +46,12 @@ export function WorkView() {
       await app.reloadBoot(); setViewId(String(v.id)); app.toast(t("Vista guardada"), "ok");
     } catch (e: any) { app.toast(e.message, "error"); }
   };
-  useEffect(() => { if (filters.project_id && groupBy === "ninguna") setGroupBy("linea"); }, [filters.project_id]);
+  // a single project chosen → group by workstream (only when the filter changes, not when coming back to the screen)
+  const firstRun = useRef(true);
+  useEffect(() => {
+    if (firstRun.current) { firstRun.current = false; return; }
+    if (filters.project_id && !filters.project_id.includes(",") && filters.project_id !== "none" && groupBy === "ninguna") setGroupBy("linea");
+  }, [filters.project_id]);
 
   const tabs: [Mode, string][] = [["kanban", t("Kanban")], ["lista", t("Lista")], ["calendario", t("Calendario")], ["archivadas", t("Archivadas")]];
   return (
@@ -62,21 +71,24 @@ export function WorkView() {
         </>}
       </header>
       {mode === "archivadas" ? <p className="hint">{t("Tareas archivadas: restáuralas o elimínalas definitivamente. Archivar oculta una tarea de todas las vistas sin borrarla.")}</p> : <>
-        <FilterBar filters={filters} setFilters={(f) => { setFilters(f); setViewId(""); }} />
+        <FilterBar filters={filters} setFilters={(f) => { setFilters(f); setViewId(""); }} onReset={resetFilters} />
         <WeekAvailabilityStrip />
         {(mode === "kanban" || mode === "lista") && <div className="row">
           {mode === "kanban" && <label>{t("Agrupar por")} <select value={groupBy} onChange={(e: any) => setGroupBy(e.target.value)}>
             <option value="ninguna">{t("Sin agrupar")}</option><option value="proyecto">{t("Proyecto")}</option><option value="persona">{t("Persona")}</option>
             <option value="linea">{t("Línea de trabajo")}</option><option value="fase">{t("Fase")}</option><option value="entregable">{t("Entregable")}</option></select></label>}
           <label className="check" title={t("Una tarjeta por serie y estado (la ocurrencia abierta más antigua) con «↻ +N»; pulsa para desplegar la serie")}>
-            <input type="checkbox" checked={groupRec} onChange={(e: any) => setGroupRec(e.target.checked)} /> {t("Agrupar series recurrentes")}</label>
+            <input type="checkbox" checked={groupRec} onChange={(e: any) => setSetting("group_recurring", e.target.checked)} /> {t("Agrupar series recurrentes")}</label>
+          <label className="check" title={t("Las subtareas que están en la misma columna (y grupo) que su tarea principal se pliegan bajo ella con «⊞ +N»")}>
+            <input type="checkbox" checked={groupSubs} onChange={(e: any) => setSetting("group_subtasks", e.target.checked)} /> {t("Agrupar subtareas")}</label>
           {mode === "kanban" && <span className="hint">{t("Backlog y terminadas ocultos por defecto (actívalos en los filtros).")}</span>}
         </div>}
       </>}
       <ErrorBox error={error} onRetry={reload} />
       {!data ? <p className="muted">{t("Cargando…")}</p> :
-        mode === "kanban" ? <Board tasks={data} showBacklog={!!filters.include_backlog} showDone={!!filters.include_closed} groupBy={groupBy} groupRecurring={groupRec} /> :
-          mode === "lista" ? <TaskTable tasks={data} groupRecurring={groupRec} /> :
+        mode === "kanban" ? <Board tasks={data} showBacklog={!!filters.include_backlog} showDone={!!filters.include_closed} groupBy={groupBy}
+          groupRecurring={groupRec} groupSubtasks={groupSubs} stateKey="work.board" /> :
+          mode === "lista" ? <TaskTable tasks={data} groupRecurring={groupRec} groupSubtasks={groupSubs} stateKey="work.list" /> :
             mode === "archivadas" ? <TaskTable tasks={data} archived /> :
               <Calendar tasks={data} mode={calMode} setMode={setCalMode} anchor={anchor} setAnchor={setAnchor} />}
       {recurrences && <RecurrencesModal onClose={() => setRecurrences(false)} />}

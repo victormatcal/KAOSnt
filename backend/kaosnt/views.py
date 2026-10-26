@@ -157,15 +157,23 @@ def project_overview(conn, project_id: int, settings: dict[str, Any], clock: dat
     return p
 
 
-def list_projects(conn, include_archived: bool = False) -> list[dict[str, Any]]:
+def list_projects(conn, include_archived: bool = False, client_id: str | None = None) -> list[dict[str, Any]]:
     q = """SELECT p.*, c.name AS client_name,
              (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.archived = 0 AND t.status NOT IN ('hecha','cancelada','backlog')) AS open_tasks,
              (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.archived = 0 AND t.condition IS NOT NULL AND t.status NOT IN ('hecha','cancelada')) AS conditioned_tasks
            FROM projects p LEFT JOIN clients c ON c.id = p.client_id"""
+    where, params = [], []
     if not include_archived:
-        q += " WHERE p.status <> 'archivado'"
+        where.append("p.status <> 'archivado'")
+    if client_id:
+        from .db import multi_clause
+        c = multi_clause("p.client_id", client_id, params)
+        if c:
+            where.append(c)
+    if where:
+        q += " WHERE " + " AND ".join(where)
     q += " ORDER BY CASE p.status WHEN 'activo' THEN 0 WHEN 'pausado' THEN 1 WHEN 'cerrado' THEN 2 ELSE 3 END, p.name"
-    out = rows(conn.execute(q))
+    out = rows(conn.execute(q, params))
     for p in out:
         p["links"] = jload(p["links"], [])
     return out

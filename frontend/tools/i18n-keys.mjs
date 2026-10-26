@@ -5,6 +5,7 @@
 //  - «t» is used as a parameter or variable name (it would shadow the translation function).
 // Usage: node tools/i18n-keys.mjs [--list] [--detect]
 //   --list     prints the keys without a translation
+//   --unused   prints the translations that are no longer used
 //   --detect   reports (without failing) Spanish texts that do not seem to be wrapped in t()
 import fs from "node:fs";
 import path from "node:path";
@@ -99,6 +100,7 @@ for (const m of enSrc.matchAll(/^\s*("(?:\\.|[^"\\])*")\s*:/gm)) en.add(JSON.par
 const missing = [...keys.keys()].filter((k) => !en.has(k));
 const unused = [...en].filter((k) => !keys.has(k));
 
+if (process.argv.includes("--unused")) for (const k of unused) console.log("UNUSED " + JSON.stringify(k));
 if (process.argv.includes("--list")) for (const k of missing) console.log(JSON.stringify(k) + "  // " + keys.get(k));
 if (process.argv.includes("--detect")) {
   for (const file of files) {

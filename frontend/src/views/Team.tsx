@@ -4,6 +4,7 @@ import { addDays, fmtDate, fmtDateTime, todayIn, weekStart } from "../lib/dates"
 import { t } from "../lib/i18n";
 import { CONFLICT_REASON } from "../lib/labels";
 import { useApi, useApp } from "../lib/store";
+import { useViewState } from "../lib/viewstate";
 import type { Person, Task } from "../lib/types";
 import { TaskCard } from "../components/TaskCard";
 import { DateInput } from "../components/DateInput";
@@ -21,7 +22,7 @@ interface PersonView extends Person {
 
 export function TeamView({ personId }: { personId?: number }) {
   const app = useApp();
-  const [tab, setTab] = useState<"people" | "plan">("people");
+  const [tab, setTab] = useViewState<"people" | "plan">("team.tab", "people");
   const [editing, setEditing] = useState<Person | "new" | null>(null);
   const people = app.boot.people;
   const sel = personId ?? people.find((p) => p.is_me)?.id ?? people[0]?.id;
@@ -114,7 +115,7 @@ interface PlanPerson {
 
 function WeekPlan() {
   const app = useApp();
-  const [week, setWeek] = useState(weekStart(todayIn(app.tz)));
+  const [week, setWeek] = useViewState<string>("team.week", weekStart(todayIn(app.tz)));
   const { data, error, reload } = useApi<{ week_start: string; week_end: string; people: PlanPerson[] }>(`/api/planning?week=${week}`);
   return (
     <div>

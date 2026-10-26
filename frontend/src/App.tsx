@@ -3,10 +3,12 @@ import { api } from "./lib/api";
 import { inQuietHours } from "./lib/dates";
 import { t } from "./lib/i18n";
 import { applyPrefs } from "./lib/prefs";
+import { restoreScroll, saveScroll } from "./lib/viewstate";
 import { AppCtx, Ctx, Toast } from "./lib/store";
 import type { Bootstrap, Reminder } from "./lib/types";
 import { QuickTask, SearchDialog } from "./components/QuickCapture";
 import { PanelResizer } from "./components/PanelResizer";
+import { ScopeHost } from "./components/ScopeDialog";
 import { PANEL_SETTING_MAX, PANEL_SETTING_MIN } from "./lib/panel";
 import { ReminderCenter, ReminderTab } from "./components/ReminderCenter";
 import { TaskPanel } from "./components/TaskPanel";
@@ -77,11 +79,14 @@ export function App({ initialBoot }: { initialBoot?: Bootstrap }) {
     try { setBoot(await api.get<Bootstrap>("/api/bootstrap")); setBootError(""); } catch (e: any) { setBootError(e.message); }
   }, []);
   useEffect(() => { if (!initialBoot) void reloadBoot(); }, []);
+  // Each screen keeps its scroll position for the browser session (0.5)
+  const lastHash = useRef(typeof window !== "undefined" ? window.location.hash : "");
   useEffect(() => {
-    const on = () => setHash(window.location.hash);
+    const on = () => { saveScroll(lastHash.current); lastHash.current = window.location.hash; setHash(window.location.hash); };
     window.addEventListener("hashchange", on);
     return () => window.removeEventListener("hashchange", on);
   }, []);
+  useEffect(() => { restoreScroll(hash); }, [hash]);
   useEffect(() => { if (boot) document.title = boot.settings.app_name || "KAOSnt"; }, [boot?.settings.app_name]);
   useEffect(() => { if (boot && !window.location.hash) window.location.hash = homeHash(boot.settings); }, [boot === null]);
   const route = parseRoute(hash);
@@ -123,6 +128,7 @@ export function App({ initialBoot }: { initialBoot?: Bootstrap }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.altKey) return; // AltGr on Spanish keyboards
+      if (e.defaultPrevented) return; // already handled (e.g. Ctrl+K = link inside the Markdown editor)
       if (e.altKey && !e.shiftKey && (e.key === "t" || e.key === "T")) { e.preventDefault(); setQuick({}); }
       else if (e.altKey && (e.key === "n" || e.key === "N")) { e.preventDefault(); void newNote(); }
       else if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); setSearch(true); }
@@ -203,6 +209,7 @@ export function App({ initialBoot }: { initialBoot?: Bootstrap }) {
       </div>
       {quick && <QuickTask preset={quick} onClose={() => setQuick(null)} />}
       {search && <SearchDialog onClose={() => setSearch(false)} />}
+      <ScopeHost />
       {remCenter && <ReminderCenter initial={remCenter} onClose={() => { setRemCenter(null); setDataVersion((v: number) => v + 1); }} />}
       <div className="toasts" aria-live="polite" role="status">
         {toasts.map((x) => <div key={x.id} className={`toast toast-${x.kind}${x.undo ? " toast-undo" : ""}`}><span>{x.text}</span>

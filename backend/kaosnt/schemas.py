@@ -240,11 +240,19 @@ class AllocationIn(Strict):
     _d = field_validator("week_start")(_check_date)
 
 
+class GroupMove(Strict):
+    """Kanban group change (0.5): the field of the grouping and its new value (None = «Without …»)."""
+    field: Literal["assignee_id", "project_id", "workstream_id", "phase_id", "deliverable_id"]
+    value: Optional[int] = None
+
+
 class ReorderIn(Strict):
     status: Optional[TaskStatus] = None
     before_id: Optional[int] = None
     after_id: Optional[int] = None
     force: bool = False
+    group: Optional[GroupMove] = None
+    scope: Literal["this", "following", "all"] = "this"
 
 
 class StepIn(Strict):
@@ -295,7 +303,8 @@ class RecurrencePatch(Strict):
     end_date: Optional[DateStr] = None
     non_working: Optional[NonWorking] = None
     active: Optional[bool] = None
-    apply_to_future: bool = False
+    apply_to_future: bool = False  # 0.4 compatibility: true = scope «from_today»
+    scope: Optional[Literal["new", "from_today", "all"]] = None
 
 
 # ---------- Notes ----------

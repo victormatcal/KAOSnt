@@ -124,7 +124,8 @@ test("Team: office, allocation and availability without performance judgements",
 test("Notes and Settings: manageable offices/holidays and tags", () => {
   const n = render(<NotesView />);
   assert.ok(n.includes("Sin clasificar") && n.includes("Papelera"));
-  const s = render(<SettingsView />);
+  // 0.5: one Settings section at a time (side index)
+  const s = ["holidays", "tags", "backups", "system"].map((sec) => render(<SettingsView initialSection={sec as any} />)).join("");
   for (const x of ["Oficinas y festivos", "Oficina Norte (ficticia)", "Añadir festivo", "Etiquetas", "Renombrar", "no protegen ante pérdida", "Cerrar aplicación"]) assert.ok(s.includes(x), x);
   assert.doesNotMatch(s, /uno por línea/);
 });

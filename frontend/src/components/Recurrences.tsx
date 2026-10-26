@@ -6,6 +6,7 @@ import { DAYS_SHORT, NONWORK, PRIORITY, RULE, describeRule } from "../lib/labels
 import { useApi, useApp } from "../lib/store";
 import type { Rule } from "../lib/types";
 import { DateInput } from "./DateInput";
+import { askScope } from "./ScopeDialog";
 import { ErrorBox, Field, Modal, PersonSelect, ProjectSelect } from "./ui";
 
 export interface RuleValue { rule: Rule; weekdays: number[]; interval_days: number | null; start_date: string; end_date: string | null; non_working: string }
@@ -67,9 +68,10 @@ export function RecurrencesModal({ onClose }: { onClose: () => void }) {
     const { r, ...f } = form;
     try {
       if (f.id) {
-        const applyFuture = window.confirm(t("¿Aplicar también a las ocurrencias futuras ya generadas que sigan pendientes?\n\nAceptar = también las futuras · Cancelar = solo las nuevas"));
+        const scope = await askScope("series");  // which occurrences already created also change (0.5)
+        if (!scope) return;
         await api.patch(`/api/recurrences/${f.id}`, { title: f.title, project_id: f.project_id ?? null, assignee_id: f.assignee_id ?? null,
-          priority: f.priority, estimate_hours: f.estimate_hours ?? null, end_date: r.end_date, non_working: r.non_working, apply_to_future: applyFuture });
+          priority: f.priority, estimate_hours: f.estimate_hours ?? null, end_date: r.end_date, non_working: r.non_working, scope });
       } else {
         await api.post("/api/recurrences", { title: f.title, project_id: f.project_id ?? null, assignee_id: f.assignee_id ?? null,
           priority: f.priority || "normal", estimate_hours: f.estimate_hours ?? null, ...r, interval_days: r.rule === "cada_n_dias" ? r.interval_days : null });

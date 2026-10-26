@@ -35,8 +35,45 @@ const isTableSep = (l: string) => /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?
 const cells = (l: string) => l.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
 const LIST_RE = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
 const startsTable = (lines: string[], i: number) => lines[i].includes("|") && i + 1 < lines.length && isTableSep(lines[i + 1]);
+/** Indentation width (a tab counts as 4 spaces). */
+const width = (ws: string) => ws.replace(/\t/g, "    ").length;
+/** Column alignment from the separator row (:--- left, :---: centre, ---: right). */
+export function tableAlign(sep: string): ("left" | "center" | "right" | undefined)[] {
+  return cells(sep).map((c) => (c.startsWith(":") && c.endsWith(":") ? "center" : c.endsWith(":") ? "right" : c.startsWith(":") ? "left" : undefined));
+}
 
-export function renderMarkdown(src: string): ReactNode[] {
+export interface MarkdownOptions {
+  /** Called with the 0-based source line of a checkbox the user clicked (only when given: editable notes). */
+  onToggleTask?: (line: number) => void;
+}
+
+interface ListLine { indent: number; ordered: boolean; text: string; line: number }
+
+/** Nested lists: a deeper indentation starts a sub-list inside the previous item. */
+function renderList(items: ListLine[], opts: MarkdownOptions): ReactNode {
+  const out: ReactNode[] = [];
+  let i = 0;
+  const base = items[0].indent;
+  while (i < items.length) {
+    const it = items[i];
+    const children: ListLine[] = [];
+    let j = i + 1;
+    while (j < items.length && items[j].indent > base) children.push(items[j++]);
+    const task = /^\[([ xX])\]\s+(.*)$/.exec(it.text);
+    const done = !!task && !!task[1].trim();
+    const content = task
+      ? <>{opts.onToggleTask
+        ? <input type="checkbox" className="md-check" checked={done} aria-label={done ? t("completado") : t("pendiente")}
+            onChange={() => opts.onToggleTask!(it.line)} />
+        : <span aria-label={done ? t("completado") : t("pendiente")}>{done ? "☑" : "☐"}</span>} {inline(task[2])}</>
+      : inline(it.text);
+    out.push(<li key={k()} className={task ? "md-task" + (done ? " done" : "") : undefined}>{content}{children.length ? renderList(children, opts) : null}</li>);
+    i = j;
+  }
+  return items[0].ordered ? <ol key={k()}>{out}</ol> : <ul key={k()}>{out}</ul>;
+}
+
+export function renderMarkdown(src: string, opts: MarkdownOptions = {}): ReactNode[] {
   const lines = (src || "").replace(/\r\n?/g, "\n").split("\n");
   const out: ReactNode[] = [];
   let i = 0;
@@ -61,12 +98,14 @@ export function renderMarkdown(src: string): ReactNode[] {
     if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { out.push(<hr key={k()} />); i++; continue; }
     if (startsTable(lines, i)) {
       const head = cells(line);
+      const align = tableAlign(lines[i + 1]);
       i += 2;
       const body: string[][] = [];
       while (i < lines.length && lines[i].includes("|") && lines[i].trim()) body.push(cells(lines[i++]));
+      const cls = (c: number) => (align[c] ? `al-${align[c]}` : undefined);
       out.push(<div className="md-table" key={k()}><table>
-        <thead><tr>{head.map((c) => <th key={k()}>{inline(c)}</th>)}</tr></thead>
-        <tbody>{body.map((r) => <tr key={k()}>{r.map((c) => <td key={k()}>{inline(c)}</td>)}</tr>)}</tbody>
+        <thead><tr>{head.map((c, ci) => <th key={k()} className={cls(ci)}>{inline(c)}</th>)}</tr></thead>
+        <tbody>{body.map((r) => <tr key={k()}>{r.map((c, ci) => <td key={k()} className={cls(ci)}>{inline(c)}</td>)}</tr>)}</tbody>
       </table></div>);
       continue;
     }
@@ -77,18 +116,14 @@ export function renderMarkdown(src: string): ReactNode[] {
       continue;
     }
     if (LIST_RE.test(line)) {
-      const ordered = /^\s*\d/.test(line);
-      const items: ReactNode[] = [];
+      const items: ListLine[] = [];
+      const first = width(LIST_RE.exec(line)![1]);
       while (i < lines.length && LIST_RE.test(lines[i])) {
         const m = LIST_RE.exec(lines[i])!;
-        const task = /^\[([ xX])\]\s+(.*)$/.exec(m[3]);
-        const content = task
-          ? <><span aria-label={task[1].trim() ? t("completado") : t("pendiente")}>{task[1].trim() ? "☑" : "☐"}</span> {inline(task[2])}</>
-          : inline(m[3]);
-        items.push(<li key={k()} style={m[1].length ? { marginLeft: `${Math.min(m[1].length, 12) * 0.6}em` } : undefined}>{content}</li>);
+        items.push({ indent: Math.max(width(m[1]), first), ordered: /^\d/.test(m[2]), text: m[3], line: i });
         i++;
       }
-      out.push(ordered ? <ol key={k()}>{items}</ol> : <ul key={k()}>{items}</ul>);
+      out.push(renderList(items, opts));
       continue;
     }
     const buf: string[] = [];
@@ -99,6 +134,6 @@ export function renderMarkdown(src: string): ReactNode[] {
   return out;
 }
 
-export function Markdown({ text }: { text: string }) {
-  return <div className="markdown">{renderMarkdown(text)}</div>;
+export function Markdown({ text, onToggleTask }: { text: string; onToggleTask?: (line: number) => void }) {
+  return <div className="markdown">{renderMarkdown(text, { onToggleTask })}</div>;
 }

@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { fmtDate, fmtDateTime } from "../lib/dates";
 import { t } from "../lib/i18n";
-import { NOTE_KIND, STATUS } from "../lib/labels";
-import { Markdown } from "../lib/markdown";
+import { NOTE_KIND, PROJECT_STATUS, STATUS } from "../lib/labels";
 import { NoteSaver, SAVE_LABEL, SaveState } from "../lib/saver";
 import { useApi, useApp } from "../lib/store";
+import { useViewState } from "../lib/viewstate";
 import type { Note, NoteSummary, Task } from "../lib/types";
 import { DateInput } from "../components/DateInput";
-import { Chip, Empty, ErrorBox, Field, Modal, PersonSelect, ProjectSelect, TagPicker, TaskPicker } from "../components/ui";
+import { EditorMode, MarkdownEditor } from "../components/MarkdownEditor";
+import { consumeNoteFocus, focusAtEnd } from "../lib/focus";
+import { Chip, Empty, ErrorBox, Field, Modal, PersonSelect, ProjectSelect, TagPicker, TaskPicker, MultiSelect } from "../components/ui";
 
 type Scope = "sin_clasificar" | "todas" | "fijadas" | "archivo" | "papelera";
 const SCOPES: [Scope, () => string][] = [["sin_clasificar", () => t("Sin clasificar")], ["todas", () => t("Todas")], ["fijadas", () => t("Fijadas")], ["archivo", () => t("Archivo")], ["papelera", () => t("Papelera")]];
@@ -19,11 +21,12 @@ export const activeSavers = new Set<NoteSaver>();
 interface Tabs { open: number[]; active: number | null; split?: number | null }
 
 /** Note list filters → /api/notes parameters. */
-export function notesQuery(f: { scope: string; kind: string; tag: string; project: string; q: string; field: string }): string {
+export function notesQuery(f: { scope: string; kind: string; tag: string; project: string; client?: string; q: string; field: string }): string {
   const p = [`scope=${f.scope}`];
-  if (f.kind) p.push(`kind=${f.kind}`);
+  if (f.kind) p.push(`kind=${encodeURIComponent(f.kind)}`);
   if (f.tag) p.push(`tag=${encodeURIComponent(f.tag)}`);
-  if (f.project) p.push(`project_id=${f.project}`);
+  if (f.project) p.push(`project_id=${encodeURIComponent(f.project)}`);
+  if (f.client) p.push(`client_id=${encodeURIComponent(f.client)}`);
   if (f.q.trim()) { p.push(`q=${encodeURIComponent(f.q.trim())}`); if (f.field !== "todo") p.push(`in=${f.field}`); }
   return `/api/notes?${p.join("&")}`;
 }
@@ -38,20 +41,22 @@ export function reorderTabs(open: number[], id: number, target: number): number[
 
 export function NotesView({ routeId }: { routeId?: number }) {
   const app = useApp();
-  const [scope, setScope] = useState<Scope>("todas");
-  const [kind, setKind] = useState("");
-  const [tag, setTag] = useState("");
-  const [project, setProject] = useState("");
-  const [q, setQ] = useState("");
-  const [qDebounced, setQDebounced] = useState("");
-  const [field, setField] = useState("todo");
+  // Screen state kept when moving to another screen and back (0.5, browser session)
+  const [scope, setScope] = useViewState<Scope>("notes.scope", "todas");
+  const [kind, setKind] = useViewState<string>("notes.kind", "");
+  const [tag, setTag] = useViewState<string>("notes.tag", "");
+  const [project, setProject] = useViewState<string>("notes.project", "");
+  const [client, setClient] = useViewState<string>("notes.client", "");
+  const [q, setQ] = useViewState<string>("notes.q", "");
+  const [qDebounced, setQDebounced] = useState(q);
+  const [field, setField] = useViewState<string>("notes.field", "todo");
   useEffect(() => { const timer = setTimeout(() => setQDebounced(q), 250); return () => clearTimeout(timer); }, [q]);
-  const { data: list, error, reload } = useApi<NoteSummary[]>(notesQuery({ scope, kind, tag, project, q: qDebounced, field }));
+  const { data: list, error, reload } = useApi<NoteSummary[]>(notesQuery({ scope, kind, tag, project, client, q: qDebounced, field }));
   const [tabs, setTabs] = useState<Tabs | null>(null);
   const [titles, setTitles] = useState<Record<number, string>>({});
   const [tabsError, setTabsError] = useState("");
   const [dragTab, setDragTab] = useState<number | null>(null);
-  const filtered = !!(kind || tag || project || q.trim());
+  const filtered = !!(kind || tag || project || client || q.trim());
 
   useEffect(() => { api.get<Tabs>("/api/session/note-tabs").then(setTabs, (e) => setTabsError(e.message)); }, []);
   useEffect(() => {
@@ -118,14 +123,14 @@ export function NotesView({ routeId }: { routeId?: number }) {
           <input type="search" aria-label={t("Buscar en las notas")} placeholder={t("Buscar texto…")} value={q} onChange={(e: any) => setQ(e.target.value)} />
           <select aria-label={t("Buscar en")} value={field} onChange={(e: any) => setField(e.target.value)}>
             <option value="todo">{t("Título y contenido")}</option><option value="titulo">{t("Solo título")}</option><option value="contenido">{t("Solo contenido")}</option></select>
-          <select aria-label={t("Proyecto")} value={project} onChange={(e: any) => setProject(e.target.value)}>
-            <option value="">{t("Todos los proyectos")}</option><option value="none">{t("Sin proyecto")}</option>
-            {app.boot.projects.map((p) => <option key={p.id} value={p.id}>{p.name}{p.status !== "activo" ? ` (${p.status})` : ""}</option>)}</select>
-          <select aria-label={t("Tipo de nota")} value={kind} onChange={(e: any) => setKind(e.target.value)}>
-            <option value="">{t("Todos los tipos")}</option>{Object.entries(NOTE_KIND).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
-          <select aria-label={t("Etiqueta")} value={tag} onChange={(e: any) => setTag(e.target.value)}>
-            <option value="">{t("Todas las etiquetas")}</option>{app.boot.tags.map((x) => <option key={x} value={x}>#{x}</option>)}</select>
-          {filtered && <button className="ghost small" onClick={() => { setKind(""); setTag(""); setProject(""); setQ(""); setField("todo"); }}>{t("Quitar filtros")}</button>}
+          <MultiSelect label={t("Proyecto")} value={project} onChange={setProject}
+            options={[{ value: "none", label: t("Sin proyecto") }, ...app.boot.projects.map((p) => ({ value: String(p.id), label: p.name + (p.status !== "activo" ? ` (${PROJECT_STATUS[p.status] || p.status})` : "") }))]} />
+          <MultiSelect label={t("Cliente")} value={client} onChange={setClient}
+            options={[{ value: "none", label: t("Sin cliente") }, ...app.boot.clients.map((c) => ({ value: String(c.id), label: c.name }))]} />
+          <MultiSelect label={t("Tipo de nota")} value={kind} onChange={setKind}
+            options={[{ value: "none", label: t("Nota") }, ...Object.entries(NOTE_KIND).map(([k, v]) => ({ value: k, label: v }))]} />
+          <MultiSelect label={t("Etiqueta")} value={tag} onChange={setTag} allLabel={t("Todas")} options={app.boot.tags.map((x) => ({ value: x, label: "#" + x }))} />
+          {filtered && <button className="ghost small" onClick={() => { setKind(""); setTag(""); setProject(""); setClient(""); setQ(""); setField("todo"); }}>{t("Restablecer filtros")}</button>}
         </div>
         <ErrorBox error={error} onRetry={reload} />
         {list && !list.length && <Empty>{filtered ? t("Ninguna nota coincide con los filtros.") : scope === "papelera" ? t("La papelera está vacía.") : scope === "sin_clasificar" ? t("No hay notas sin clasificar.") : t("Sin notas aquí. Crea una con Alt+N: no necesita título ni proyecto.")}</Empty>}
@@ -182,7 +187,12 @@ function NoteEditor({ id, pane, onTitle, onListChange, onGone }: { id: number; p
   const [state, setState] = useState<SaveState>("saved");
   const [saveErr, setSaveErr] = useState("");
   const [loadErr, setLoadErr] = useState("");
-  const [preview, setPreview] = useState(false);
+  const [mode, setModeState] = useState<EditorMode>(app.boot.settings.note_editor_mode === "vista_previa" ? "vista_previa" : "editar");
+  const setMode = (m: EditorMode) => {  // the last mode used is remembered in the settings
+    setModeState(m);
+    if (m !== app.boot.settings.note_editor_mode) api.patch("/api/settings", { note_editor_mode: m }).then(() => app.reloadBoot(), () => undefined);
+  };
+  const [focusReq, setFocusReq] = useState(false);
   const [recovered, setRecovered] = useState<string | null>(null);
   const [toTask, setToTask] = useState<{ title: string; excerpt: string } | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -193,6 +203,8 @@ function NoteEditor({ id, pane, onTitle, onListChange, onGone }: { id: number; p
     try {
       const n = await api.get<Note>(`/api/notes/${id}`);
       setNote(n); setText(n.content); onTitle(n.display_title); setLoadErr("");
+      // Opened from the search (Ctrl+K): edit mode and caret at the end, ready to type (not for notes in the trash)
+      if (pane === "left" && consumeNoteFocus(id) && n.state !== "papelera") { setModeState("editar"); setFocusReq(true); }
       saver.current?.dispose();
       if (saver.current) activeSavers.delete(saver.current);
       saver.current = new NoteSaver(n.content, n.version, {
@@ -214,6 +226,7 @@ function NoteEditor({ id, pane, onTitle, onListChange, onGone }: { id: number; p
       setLoadErr(e.message);
     }
   };
+  useEffect(() => { if (focusReq && note) { focusAtEnd(area.current); setFocusReq(false); } }, [focusReq, note, mode]);
   useEffect(() => {
     void load();
     api.get<Task[]>("/api/tasks?include_backlog=1").then(setTasks, () => undefined);
@@ -274,7 +287,6 @@ function NoteEditor({ id, pane, onTitle, onListChange, onGone }: { id: number; p
           <option value="">{t("Nota")}</option>{Object.entries(NOTE_KIND).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
         <label>{t("Proyecto")} <ProjectSelect value={note.project_id} onChange={(v) => meta({ project_id: v }, v ? t("Nota vinculada al proyecto") : t("Nota sin proyecto"))} /></label>
         <button aria-pressed={note.pinned} onClick={() => meta({ pinned: !note.pinned })}>{note.pinned ? "📌 " + t("Fijada") : t("Fijar")}</button>
-        <button aria-pressed={preview} onClick={() => setPreview(!preview)}>{preview ? t("Editar") : t("Vista previa")}</button>
         <button onClick={startToTask} title="Alt+Shift+T">{t("Crear tarea desde selección")}</button>
         <span className="spacer" />
         {note.state === "activa" && <button onClick={() => meta({ state: "archivada" }, t("Nota archivada"), true)}>{t("Archivar")}</button>}
@@ -292,10 +304,10 @@ function NoteEditor({ id, pane, onTitle, onListChange, onGone }: { id: number; p
         }}>{t("Eliminar definitivamente")}</button>}
       </div>
       {note.state !== "activa" && <p className="hint">{note.state === "archivada" ? t("Esta nota está archivada.") : t("Esta nota está en la papelera.")}</p>}
-      {preview ? <div className="note-preview"><Markdown text={text} /></div> :
-        <textarea ref={area} className="note-text" aria-label={t("Contenido de la nota")} value={text} spellCheck
-          placeholder={t("Escribe libremente. Se guarda solo. Admite Markdown (# títulos, - listas, ``` código, | tablas |), pero no es necesario.")}
-          onChange={(e: any) => { setText(e.target.value); saver.current?.edit(e.target.value); }} onBlur={() => void saver.current?.flush()} />}
+      <MarkdownEditor value={text} mode={mode} onModeChange={setMode} label={t("Contenido de la nota")} textareaRef={area}
+        readOnly={note.state === "papelera"}
+        placeholder={t("Escribe libremente. Se guarda solo. Admite Markdown (# títulos, - listas, ``` código, | tablas |), pero no es necesario.")}
+        onChange={(v) => { setText(v); saver.current?.edit(v); }} onBlur={() => void saver.current?.flush()} />
       <div className="note-foot">
         <span className="muted">{t("Creada {creada} · Actualizada {actualizada}", { creada: fmtDateTime(note.created_at, app.tz), actualizada: fmtDateTime(note.updated_at, app.tz) })}</span>
         <div className="note-tags"><span className="field-label">{t("Etiquetas")}</span>

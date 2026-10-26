@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
-import { fmtDate, fmtDateTime, todayIn } from "../lib/dates";
+import { fmtDate, fmtDateTime, monthName, todayIn } from "../lib/dates";
 import { t } from "../lib/i18n";
 import { DAYS_LONG, describeSchedule } from "../lib/labels";
 import { useApi, useApp } from "../lib/store";
+import { useViewState } from "../lib/viewstate";
 import { BASE, BUILTIN_THEMES, contrastIssues, effectiveMode, findTheme, resolveAppearance, themeTemplate, validateTheme } from "../lib/theme";
 import type { ThemeDef } from "../lib/theme";
 import type { Holiday, Location, Settings, Tag, WorkSchedule } from "../lib/types";
@@ -12,7 +13,21 @@ import { Empty, ErrorBox, Field, LocationSelect, Modal, Section } from "../compo
 
 const DAY_KEYS = ["1", "2", "3", "4", "5", "6", "7"] as const;
 
-export function SettingsView() {
+// Settings sections (0.5): a side index, one section at a time. FORM_KEYS = sections with their own «Save» button.
+export type SectionKey = "general" | "appearance" | "hours" | "reminders" | "holidays" | "tags" | "backups" | "export" | "system" | "danger";
+const SECTIONS: [SectionKey, () => string][] = [
+  ["general", () => t("General")], ["appearance", () => t("Aspecto")], ["hours", () => t("Horario laboral")],
+  ["reminders", () => t("Recordatorios y notificaciones")], ["holidays", () => t("Oficinas y festivos")], ["tags", () => t("Etiquetas")],
+  ["backups", () => t("Copias y restauración")], ["export", () => t("Exportar")], ["system", () => t("Sistema")], ["danger", () => t("Zona de peligro")],
+];
+const FORM_KEYS: Partial<Record<SectionKey, (keyof Settings)[]>> = {
+  general: ["app_name", "language", "start_view", "timezone", "date_format", "week_start", "recurrence_horizon_days", "undo_seconds"],
+  hours: ["work_schedule"],
+  reminders: ["due_soon_days", "quiet_start", "quiet_end", "notifications_discreet"],
+  backups: ["backup_retention"],
+};
+
+export function SettingsView({ initialSection }: { initialSection?: SectionKey } = {}) {
   const app = useApp();
   const s = app.boot.settings;
   const [draft, setDraft] = useState<Settings>(s);
@@ -22,18 +37,45 @@ export function SettingsView() {
   const [preview, setPreview] = useState<any>(null);
   const [notifMsg, setNotifMsg] = useState("");
   const set = (k: keyof Settings, v: any) => setDraft({ ...draft, [k]: v });
-  const save = async () => {
-    try {
-      await api.patch("/api/settings", {
-        app_name: draft.app_name.trim(), start_view: draft.start_view, timezone: draft.timezone, due_soon_days: Number(draft.due_soon_days),
-        work_schedule: draft.work_schedule, backup_retention: Number(draft.backup_retention),
-        quiet_start: draft.quiet_start, quiet_end: draft.quiet_end, notifications_discreet: draft.notifications_discreet,
-        recurrence_horizon_days: Number(draft.recurrence_horizon_days), language: draft.language, date_format: draft.date_format,
-        week_start: Number(draft.week_start), undo_seconds: Number(draft.undo_seconds),
-      });
-      await app.reloadBoot(); app.changed(); app.toast(t("Configuración guardada"), "ok"); setErr("");
-    } catch (e: any) { setErr(e.message); }
+  // Each form section saves its own keys (0.5); the other sections save immediately
+  const [section, setSection] = useViewState<SectionKey>("settings.section", initialSection || "general");
+  const dirty = (sec: SectionKey) => (FORM_KEYS[sec] || []).some((k) => JSON.stringify(draft[k]) !== JSON.stringify(s[k]));
+  const anyDirty = SECTIONS.some(([k]) => dirty(k));
+  const discard = (sec: SectionKey) => { const d: any = { ...draft }; for (const k of FORM_KEYS[sec] || []) d[k] = s[k]; setDraft(d); };
+  const NUMERIC = new Set(["due_soon_days", "backup_retention", "recurrence_horizon_days", "week_start", "undo_seconds"]);
+  const saveSection = async (sec: SectionKey) => {
+    const body: Record<string, unknown> = {};
+    for (const k of FORM_KEYS[sec] || []) body[k] = NUMERIC.has(k) ? Number(draft[k]) : k === "app_name" ? String(draft[k]).trim() : draft[k];
+    try { await api.patch("/api/settings", body); await app.reloadBoot(); app.changed(); app.toast(t("Configuración guardada"), "ok"); setErr(""); }
+    catch (e: any) { setErr(e.message); }
   };
+  useEffect(() => {  // keep the draft in sync when other sections save (the dirty fields are kept)
+    setDraft((d: Settings) => { const n: any = { ...s }; for (const [k] of SECTIONS) for (const f of FORM_KEYS[k] || []) if (JSON.stringify(d[f]) !== JSON.stringify(prev.current[f])) n[f] = d[f]; return n; });
+    prev.current = s;
+  }, [s]);
+  const prev = useRef(s);
+  const go = (k: SectionKey) => {
+    if (k !== section && dirty(section) && !window.confirm(t("La sección «{seccion}» tiene cambios sin guardar. ¿Salir sin guardarlos?", { seccion: SECTIONS.find((x) => x[0] === section)![1]() }))) return;
+    if (k !== section && dirty(section)) discard(section);
+    setSection(k);
+  };
+  // Warn before leaving the screen (or the browser tab) with unsaved changes
+  useEffect(() => {
+    if (!anyDirty) return;
+    const msg = t("Hay cambios sin guardar en Configuración. ¿Salir sin guardarlos?");
+    const onClick = (e: MouseEvent) => {
+      const a = (e.target as HTMLElement)?.closest?.("a[href^='#/']") as HTMLAnchorElement | null;
+      if (a && !a.getAttribute("href")!.startsWith("#/config") && !window.confirm(msg)) { e.preventDefault(); e.stopPropagation(); }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.altKey && !e.ctrlKey && /^[1-5]$/.test(e.key) && !window.confirm(msg)) { e.preventDefault(); e.stopImmediatePropagation(); }
+    };
+    const onUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    document.addEventListener("click", onClick, true);
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("beforeunload", onUnload);
+    return () => { document.removeEventListener("click", onClick, true); window.removeEventListener("keydown", onKey, true); window.removeEventListener("beforeunload", onUnload); };
+  }, [anyDirty]);
   const enableNotifications = async () => {
     if (!("Notification" in window)) { setNotifMsg(t("Este navegador no admite notificaciones del sistema. Los recordatorios siguen disponibles dentro de la aplicación.")); return; }
     if (Notification.permission === "denied") { setNotifMsg(t("El permiso está denegado en el navegador. No se volverá a solicitar; puedes cambiarlo en la configuración del sitio.")); return; }
@@ -64,12 +106,15 @@ export function SettingsView() {
     catch (e: any) { setErr(e.message); }
   };
   const setDay = (k: typeof DAY_KEYS[number], v: { start: string; end: string } | null) => set("work_schedule", { ...draft.work_schedule, [k]: v } as WorkSchedule);
-  return (
-    <div className="view settings">
-      <header className="view-head row"><h1>{t("Configuración")}</h1><span className="spacer" /><button className="primary" onClick={save}>{t("Guardar configuración")}</button></header>
-      <ErrorBox error={err} />
-      <div className="settings-grid">
-        <Section title={t("General")}>
+  const formBar = (sec: SectionKey) => FORM_KEYS[sec] ? (
+    <div className="section-save row">
+      {dirty(sec) ? <span className="chip chip-warn">{t("Cambios sin guardar")}</span> : <span className="muted small">{t("Sin cambios pendientes")}</span>}
+      <span className="spacer" />
+      {dirty(sec) && <button onClick={() => discard(sec)}>{t("Descartar")}</button>}
+      <button className="primary" disabled={!dirty(sec)} onClick={() => saveSection(sec)}>{t("Guardar")}</button>
+    </div>) : <p className="hint section-save">{t("Los cambios de esta sección se guardan al momento.")}</p>;
+  const pages: Record<SectionKey, () => any> = {
+    general: () => <>
           <Field label={t("Nombre de la aplicación")}><input value={draft.app_name} maxLength={40} onChange={(e: any) => set("app_name", e.target.value)} /></Field>
           <Field label={t("Idioma de la interfaz")} hint={t("Los datos que escribes no se traducen.")}>
             <select value={draft.language} onChange={(e: any) => set("language", e.target.value)}><option value="es">Español</option><option value="en">English</option></select></Field>
@@ -88,9 +133,9 @@ export function SettingsView() {
           <Field label={t("Generar ocurrencias recurrentes con antelación (días)")}><input type="number" min="0" max="60" value={draft.recurrence_horizon_days} onChange={(e: any) => set("recurrence_horizon_days", e.target.value)} /></Field>
           <Field label={t("Tiempo para «Deshacer» (segundos)")} hint={t("Duración del aviso con «Deshacer» tras una acción directa (3–60 s).")}>
             <input type="number" min="3" max="60" value={draft.undo_seconds} onChange={(e: any) => set("undo_seconds", e.target.value)} /></Field>
-        </Section>
-        <AppearanceSection />
-        <Section title={t("Horario laboral")}>
+    </>,
+    appearance: () => <AppearanceSection />,
+    hours: () => <>
           <p className="hint">{t("Horario de cada día. Se usa en las horas laborables de las revisiones, en las recurrencias de días laborables y en la disponibilidad de la planificación.")}</p>
           <div className="table-wrap"><table className="list compact schedule">
             <thead><tr><th>{t("Día")}</th><th>{t("Laborable")}</th><th>{t("Inicio")}</th><th>{t("Fin")}</th></tr></thead>
@@ -103,8 +148,8 @@ export function SettingsView() {
             })}</tbody></table></div>
           <p className="hint">{t("Resumen: {horario}", { horario: describeSchedule(draft.work_schedule) })}</p>
           <p className="hint">{t("Los festivos se gestionan por oficina en la sección «Oficinas y festivos».")}</p>
-        </Section>
-        <Section title={t("Recordatorios y notificaciones")}>
+    </>,
+    reminders: () => <>
           <Field label={t("Avisar de vencimientos con (días) de antelación")}><input type="number" min="0" max="30" value={draft.due_soon_days} onChange={(e: any) => set("due_soon_days", e.target.value)} /></Field>
           <div className="row">
             <Field label={t("Horario silencioso desde")}><TimeInput label={t("Horario silencioso desde")} value={draft.quiet_start} onChange={(v) => v && set("quiet_start", v)} /></Field>
@@ -115,10 +160,10 @@ export function SettingsView() {
           {s.notifications_enabled ? <button onClick={async () => { await api.patch("/api/settings", { notifications_enabled: false }); await app.reloadBoot(); setNotifMsg(t("Notificaciones desactivadas.")); }}>{t("Desactivar notificaciones")}</button>
             : <button onClick={enableNotifications}>{t("Activar notificaciones del sistema")}</button>}
           {notifMsg && <p className="hint" role="status">{notifMsg}</p>}
-        </Section>
-        <OfficesAndHolidays />
-        <TagsManager />
-        <Section title={t("Copias de seguridad")}>
+    </>,
+    holidays: () => <OfficesAndHolidays />,
+    tags: () => <TagsManager />,
+    backups: () => <>
           <dl className="paths"><dt>{t("Datos")}</dt><dd><code>{app.boot.data_dir}</code></dd><dt>{t("Copias")}</dt><dd><code>{backups?.dir}</code></dd></dl>
           <Field label={t("Copias automáticas diarias a conservar")}><input type="number" min="1" max="365" value={draft.backup_retention} onChange={(e: any) => set("backup_retention", e.target.value)} /></Field>
           <button onClick={async () => { try { const r: any = await api.post("/api/backups"); app.toast(t("Copia creada: {copia}", { copia: r.name }), "ok"); reloadBackups(); } catch (e: any) { setErr(e.message); } }}>{t("Crear copia ahora")}</button>
@@ -126,16 +171,7 @@ export function SettingsView() {
             <li key={b.name}><code>{b.name}</code> <span className="muted small">{(b.size / 1024).toFixed(0)} KB · {fmtDateTime(b.modified, app.tz)}</span>
               <button className="small ghost" onClick={() => restoreBackup(b.name)}>{t("Restaurar")}</button></li>))}</ul>
           <p className="warn-box">{t("Las copias locales están en el mismo equipo: no protegen ante pérdida, robo o avería del portátil. Guarda periódicamente la exportación completa en una ubicación autorizada por tu organización.")}</p>
-        </Section>
-        <Section title={t("Exportar")}>
-          <ul className="plain export-list">
-            <li><a className="button" href="/api/export/full" download>{t("Exportación completa (JSON)")}</a> <span className="hint">{t("Única exportación restaurable.")}</span></li>
-            <li><a className="button" href="/api/export/notes.zip" download>{t("Notas en Markdown (ZIP)")}</a></li>
-            <li><a className="button" href="/api/export/tasks.csv" download>{t("Tareas en CSV")}</a> <span className="hint">{t("Para consulta; no es copia completa.")}</span></li>
-          </ul>
-          <p className="hint">{t("La exportación por proyecto está en la pantalla de cada proyecto.")}</p>
-        </Section>
-        <Section title={t("Restaurar desde exportación completa")}>
+      <h3>{t("Restaurar desde exportación completa")}</h3>
           <p className="hint">{t("Restauración completa (sin fusión). Se valida el archivo, se muestra qué se restaurará y se crea una copia previa. Se admiten exportaciones de esta versión y de la 0.2.")}</p>
           <input type="file" accept="application/json,.json" aria-label={t("Archivo de exportación completa")} onChange={pickFile} />
           {preview && <div className="subtle-box">
@@ -144,15 +180,42 @@ export function SettingsView() {
               <tbody>{Object.keys(preview.incoming).map((k) => <tr key={k}><td>{k}</td><td>{preview.current[k]}</td><td>{preview.incoming[k]}</td></tr>)}</tbody></table></div>
             <button className="danger" onClick={doRestore}>{t("Restaurar (sustituye todos los datos)")}</button>
           </div>}
-        </Section>
-        <Section title={t("Sistema")}>
+    </>,
+    export: () => <>
+          <ul className="plain export-list">
+            <li><a className="button" href="/api/export/full" download>{t("Exportación completa (JSON)")}</a> <span className="hint">{t("Única exportación restaurable.")}</span></li>
+            <li><a className="button" href="/api/export/notes.zip" download>{t("Notas en Markdown (ZIP)")}</a></li>
+            <li><a className="button" href="/api/export/tasks.csv" download>{t("Tareas en CSV")}</a> <span className="hint">{t("Para consulta; no es copia completa.")}</span></li>
+          </ul>
+          <p className="hint">{t("La exportación por proyecto está en la pantalla de cada proyecto.")}</p>
+    </>,
+    system: () => <>
           <p>{t("Versión {version}", { version: app.boot.version })}{app.boot.demo ? " · " + t("MODO DEMO (datos ficticios)") : ""}. {t("Escucha solo en 127.0.0.1. Sin conexiones externas ni telemetría.")}</p>
           <p className="hint">{t("Sin inicio de sesión: cualquier persona con acceso a tu sesión de Windows puede abrir la aplicación. Protege tu equipo con las medidas de tu organización.")}</p>
           <button className="danger" onClick={shutdown}>{t("Cerrar aplicación")}</button>
-        </Section>
-        <DangerZone />
+    </>,
+    danger: () => <DangerZone />,
+  };
+  const current = SECTIONS.find((x) => x[0] === section) ? section : "general";
+  const label = SECTIONS.find((x) => x[0] === current)![1]();
+  return (
+    <div className="view settings">
+      <header className="view-head row"><h1>{t("Configuración")}</h1>
+        <label className="settings-select">{t("Sección")} <select value={current} onChange={(e: any) => go(e.target.value)}>
+          {SECTIONS.map(([k, l]) => <option key={k} value={k}>{l()}{dirty(k) ? " •" : ""}</option>)}</select></label></header>
+      <ErrorBox error={err} />
+      <div className="settings-layout">
+        <nav className="settings-nav" aria-label={t("Secciones de configuración")}>
+          <ul className="plain">{SECTIONS.map(([k, l]) => <li key={k}>
+            <button className={(current === k ? "active" : "") + (k === "danger" ? " danger-link" : "")} aria-current={current === k ? "page" : undefined} onClick={() => go(k)}>
+              {l()}{dirty(k) && <span className="dirty-dot" aria-label={t("Cambios sin guardar")}> •</span>}</button></li>)}</ul>
+        </nav>
+        <section className={"settings-page settings-" + current} aria-label={label}>
+          <h2>{label}</h2>
+          {current !== "danger" && formBar(current)}
+          {pages[current]()}
+        </section>
       </div>
-      <div className="sticky-save"><button className="primary" onClick={save}>{t("Guardar configuración")}</button></div>
     </div>
   );
 }
@@ -234,6 +297,10 @@ function OfficesAndHolidays() {
   const [h, setH] = useState<{ date: string | null; name: string; location_id: number | null }>({ date: null, name: "", location_id: null });
   const [err, setErr] = useState("");
   const [bulk, setBulk] = useState(false);
+  const [office, setOffice] = useViewState<string>("settings.holidayOffice", "");
+  const shown = (holidays || []).filter((x) => !office || (office === "common" ? !x.location_id : String(x.location_id) === office));
+  const byMonth: [string, Holiday[]][] = [];
+  for (const x of shown) { const m = x.date.slice(5, 7); const last = byMonth[byMonth.length - 1]; if (last && last[0] === m) last[1].push(x); else byMonth.push([m, [x]]); }
   const call = async (fn: () => Promise<unknown>) => { try { await fn(); reloadLoc(); reloadHol(); await app.reloadBoot(); app.changed(); setErr(""); return true; } catch (e: any) { setErr(e.message); return false; } };
   return (
     <Section title={t("Oficinas y festivos")}>
@@ -249,21 +316,32 @@ function OfficesAndHolidays() {
         <input className="grow" aria-label={t("Nueva oficina")} placeholder={t("Nueva oficina (p. ej. Zaragoza)")} value={locName} onChange={(e: any) => setLocName(e.target.value)} />
         <button type="submit" disabled={!locName.trim()}>{t("Añadir oficina")}</button>
       </form>
-      <h3 className="row">{t("Festivos")} <span className="spacer" />
-        <button className="ghost small" onClick={() => setYear(year - 1)} aria-label={t("Año anterior")}>◀</button><span>{year}</span>
-        <button className="ghost small" onClick={() => setYear(year + 1)} aria-label={t("Año siguiente")}>▶</button></h3>
-      {holidays && !holidays.length && <Empty>{t("Sin festivos registrados en {anio}.", { anio: year })}</Empty>}
-      <ul className="plain holidays">{holidays?.map((x) => (
-        <li key={x.id} className="row"><span className="nowrap">{fmtDate(x.date)}</span><span className="grow">{x.name || t("Festivo")}</span>
-          <span className={"chip " + (x.location ? "chip-info" : "chip-neutral")}>{x.location || t("Común")}</span>
-          <button className="ghost small" aria-label={t("Eliminar festivo {fecha}", { fecha: fmtDate(x.date) })} onClick={() => call(() => api.del(`/api/holidays/${x.id}`))}>✕</button></li>))}</ul>
-      <form className="row" onSubmit={async (e: any) => { e.preventDefault(); if (h.date && await call(() => api.post("/api/holidays", { date: h.date, name: h.name.trim(), location_id: h.location_id }))) setH({ ...h, date: null, name: "" }); }}>
+      <h3>{t("Festivos")}</h3>
+      <form className="row holiday-add" onSubmit={async (e: any) => { e.preventDefault(); if (h.date && await call(() => api.post("/api/holidays", { date: h.date, name: h.name.trim(), location_id: h.location_id }))) setH({ ...h, date: null, name: "" }); }}>
         <DateInput label={t("Fecha del festivo")} value={h.date} onChange={(v) => setH({ ...h, date: v })} />
         <input className="grow" aria-label={t("Nombre del festivo")} placeholder={t("Nombre (opcional)")} value={h.name} onChange={(e: any) => setH({ ...h, name: e.target.value })} />
         <LocationSelect value={h.location_id} onChange={(v) => setH({ ...h, location_id: v })} emptyLabel={t("Común (todas)")} />
         <button type="submit" disabled={!h.date}>{t("Añadir festivo")}</button>
+        <button type="button" onClick={() => setBulk(true)}>{t("Importar festivos en bloque…")}</button>
       </form>
-      <button onClick={() => setBulk(true)}>{t("Importar festivos en bloque…")}</button>
+      <div className="row holiday-bar">
+        <button className="ghost small" onClick={() => setYear(year - 1)} aria-label={t("Año anterior")}>◀</button><strong>{year}</strong>
+        <button className="ghost small" onClick={() => setYear(year + 1)} aria-label={t("Año siguiente")}>▶</button>
+        <label>{t("Oficina")} <select value={office} onChange={(e: any) => setOffice(e.target.value)}>
+          <option value="">{t("Todas")}</option><option value="common">{t("Común")}</option>
+          {locations?.map((l) => <option key={l.id} value={String(l.id)}>{l.name}</option>)}</select></label>
+        <span className="spacer" /><span className="muted small">{t("{n} festivo(s)", { n: shown.length })}</span>
+      </div>
+      {holidays && !shown.length && <Empty>{t("Sin festivos registrados en {anio}.", { anio: year })}</Empty>}
+      {shown.length > 0 && <div className="holiday-list" tabIndex={0} aria-label={t("Festivos de {anio}", { anio: year })}>
+        {byMonth.map(([m, items]) => <div key={m} className="holiday-month">
+          <h4>{monthName(Number(m) - 1)}</h4>
+          <ul className="plain holidays">{items.map((x) => (
+            <li key={x.id} className="row"><span className="nowrap">{fmtDate(x.date)}</span><span className="grow">{x.name || t("Festivo")}</span>
+              <span className={"chip " + (x.location ? "chip-info" : "chip-neutral")}>{x.location || t("Común")}</span>
+              <button className="ghost small" aria-label={t("Eliminar festivo {fecha}", { fecha: fmtDate(x.date) })} onClick={() => call(() => api.del(`/api/holidays/${x.id}`))}>✕</button></li>))}</ul>
+        </div>)}
+      </div>}
       {bulk && <HolidayImport onClose={() => setBulk(false)} onDone={() => { setBulk(false); reloadLoc(); reloadHol(); void app.reloadBoot(); app.changed(); }} />}
     </Section>
   );

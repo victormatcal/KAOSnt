@@ -92,11 +92,14 @@ export interface Settings {
   language: "es" | "en"; date_format: "dd/mm/aaaa" | "aaaa-mm-dd" | "mm/dd/aaaa"; week_start: 1 | 7;
   theme_mode: "sistema" | "claro" | "oscuro"; theme_id: string; custom_themes: import("./theme").ThemeDef[];
   undo_seconds: number; group_recurring: boolean; task_panel_width: number | null;
+  group_subtasks: boolean; note_editor_mode: "editar" | "vista_previa";
 }
 export type WorkSchedule = Record<"1" | "2" | "3" | "4" | "5" | "6" | "7", { start: string; end: string } | null>;
 
+/** Work filters. Since 0.5 every value is a comma-separated list («3,7,none»; «none» = without value),
+ * so saved views from 0.4 (single values) keep working. */
 export interface Filters {
-  project_id?: string; person_id?: string; status?: string; priority?: string; tag?: string;
+  project_id?: string; person_id?: string; client_id?: string; status?: string; priority?: string; tag?: string;
   condition?: string; include_backlog?: boolean; include_closed?: boolean; sort?: string;
 }
 export interface SavedView { id: number; name: string; view: "kanban" | "lista" | "calendario"; filters: Filters }

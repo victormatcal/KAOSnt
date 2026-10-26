@@ -4,19 +4,23 @@ import { fmtDate, fmtDateTime, sinceLabel } from "../lib/dates";
 import { t, tr } from "../lib/i18n";
 import { GROUPING_KIND, HEALTH, MILESTONE_KIND, NOTE_KIND, PROJECT_STATUS, projectTypeLabel } from "../lib/labels";
 import { useApi, useApp } from "../lib/store";
+import { useViewState } from "../lib/viewstate";
 import type { Client, NoteSummary, Project, ProjectListItem, Task } from "../lib/types";
 import { DateInput } from "../components/DateInput";
 import { Board, GroupBy } from "../components/TaskViews";
-import { AutoText, Chip, CommitText, Empty, ErrorBox, Field, LinksEditor, Modal, PersonSelect, SafeLink, Section } from "../components/ui";
+import { AutoText, Chip, CommitText, Empty, ErrorBox, Field, LinksEditor, Modal, PersonSelect, SafeLink, Section, MultiSelect } from "../components/ui";
 
 const MILESTONE_STATUS = tr({ pendiente: "pendiente", cumplido: "cumplido", cancelado: "cancelado" } as Record<string, string>);
 
 export function ProjectsView() {
   const app = useApp();
-  const [tab, setTab] = useState<"projects" | "clients">("projects");
-  const [showAll, setShowAll] = useState(false);
+  const [tab, setTab] = useViewState<"projects" | "clients">("projects.tab", "projects");
+  const [showAll, setShowAll] = useViewState<boolean>("projects.showAll", false);
+  const [clientFilter, setClientFilter] = useViewState<string>("projects.client", "");
   const [creating, setCreating] = useState(false);
-  const { data, error, reload } = useApi<ProjectListItem[]>(`/api/projects${showAll ? "?include_archived=true" : ""}`);
+  const q = [showAll ? "include_archived=true" : "", clientFilter ? `client_id=${encodeURIComponent(clientFilter)}` : ""].filter(Boolean).join("&");
+  const { data, error, reload } = useApi<ProjectListItem[]>(`/api/projects${q ? "?" + q : ""}`);
+  const clientOptions = [{ value: "none", label: t("Sin cliente") }, ...app.boot.clients.map((c) => ({ value: String(c.id), label: c.name }))];
   return (
     <div className="view">
       <header className="view-head row">
@@ -27,6 +31,7 @@ export function ProjectsView() {
         </div>
         <span className="spacer" />
         {tab === "projects" && <>
+          <MultiSelect label={t("Cliente")} options={clientOptions} value={clientFilter} onChange={setClientFilter} />
           <label className="check"><input type="checkbox" checked={showAll} onChange={(e: any) => setShowAll(e.target.checked)} /> {t("Incluir archivados")}</label>
           <button className="primary" onClick={() => setCreating(true)}>{t("Nuevo proyecto")}</button></>}
       </header>
@@ -138,12 +143,12 @@ function ProjectForm({ onClose, onSaved }: { onClose: () => void; onSaved: (id: 
 export function ProjectDetail({ id }: { id: number }) {
   const app = useApp();
   const { data: p, error, reload } = useApi<Project>(`/api/projects/${id}`);
-  const [showBacklog, setShowBacklog] = useState(false);
-  const [showDone, setShowDone] = useState(false);
+  const [showBacklog, setShowBacklog] = useViewState<boolean>(`project.${id}.backlog`, false);
+  const [showDone, setShowDone] = useViewState<boolean>(`project.${id}.done`, false);
   const { data: tasks } = useApi<Task[]>(`/api/tasks?project_id=${id}${showBacklog ? "&include_backlog=1" : ""}${showDone ? "&include_closed=1" : ""}`);
   const { data: notes } = useApi<NoteSummary[]>(`/api/notes?project_id=${id}`);
   const [summary, setSummary] = useState("");
-  const [groupBy, setGroupBy] = useState<GroupBy>("linea");
+  const [groupBy, setGroupBy] = useViewState<GroupBy>(`project.${id}.groupBy`, "linea");
   const [err, setErr] = useState("");
   const [ms, setMs] = useState<{ kind: string; title: string; date: string | null }>({ kind: "hito", title: "", date: null });
   const [deleting, setDeleting] = useState(false);
@@ -226,7 +231,8 @@ export function ProjectDetail({ id }: { id: number }) {
         <label className="check"><input type="checkbox" checked={showDone} onChange={(e: any) => setShowDone(e.target.checked)} /> {t("Terminadas")}</label>
         <button className="primary" onClick={() => app.quickTask({ project_id: p.id })}>{t("Nueva tarea")}</button>
       </div>}>
-        {tasks ? <Board tasks={tasks} showBacklog={showBacklog} showDone={showDone} groupBy={groupBy} showProject={false} /> : <p className="muted">{t("Cargando…")}</p>}
+        {tasks ? <Board tasks={tasks} showBacklog={showBacklog} showDone={showDone} groupBy={groupBy} showProject={false}
+          groupRecurring={app.boot.settings.group_recurring !== false} groupSubtasks={app.boot.settings.group_subtasks !== false} stateKey={`project.${id}.board`} /> : <p className="muted">{t("Cargando…")}</p>}
       </Section>
 
       <div className="project-bottom">

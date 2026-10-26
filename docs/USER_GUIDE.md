@@ -14,9 +14,15 @@
 | Close a panel or dialog | `Esc` |
 | Create a task from the selected text of a note | `Alt+Shift+T` |
 | Close a note tab (does not delete it) | `Alt+W` |
+| Markdown editor | `Tab`/`Shift+Tab` indent, `Enter` continues lists, `Ctrl+B`/`Ctrl+I`/`Ctrl+K` bold, italic and link, `Ctrl+Shift+C` code, `Ctrl+Shift+X` strikethrough, `Esc` then `Tab` leaves the text |
 | Resize the task panel (handle focused) | `←` / `→` (`Shift` for bigger steps), `Home` / `End`, `Enter` = default width |
 
-On the Kanban board, each card has ◀ ▲ ▼ ▶ buttons besides drag and drop.
+On the Kanban board, each card has ◀ ▲ ▼ ▶ buttons besides drag and drop. With the board grouped, drag a card to another
+group (or use «⇄ Move to another group…») to change its assignee, project or grouping.
+
+**Filters**: each filter accepts several values (e.g. two projects); values combine with «or» inside a filter and «and»
+between filters. Filter by **client** in Work, Notes and Projects. Every screen keeps its filters and options while you move
+to another screen and back (until the browser is closed); «Reset filters» clears them.
 
 **Undo**: after marking done, cancelling, archiving, moving between columns, promoting, skipping an occurrence, resolving a wait,
 handling/snoozing/dismissing a reminder, archiving or trashing a note, «Archive all» or meeting a milestone, the notice at the
@@ -37,7 +43,9 @@ arrows to move, `PgUp/PgDn` to change month). Times in 24 h (HH:MM).
 - The details are organised in collapsible sections; only one is open at a time.
 - **Task panel width**: drag the handle on the left edge of the panel (or focus it and use the arrow keys). Double click or `Enter` restores the default width. The width is remembered.
 - **Steps** (internal checkboxes) or **subtasks** (full tasks, visible in every view with «↳ Subtask of…»). A step can become a subtask.
-- **Repetition**: «Make recurring» with any rule (e.g. Monday and Wednesday). Occurrences inherit everything (project, assignee, reviewer, type, priority, estimate, description, groupings, parent task, approval, reviews, links, tags, unchecked steps and reminders) and dates keep their relation to the due date. In an occurrence, «Apply this data to the series» updates the series and the pending future ones. «Delete series»: keep the occurrences as normal tasks or also delete the pending ones. Manage every series in *Work → ↻ Recurring*.
+- **Changing a recurring task**: when you save a change to an occurrence (or move it to another group), choose whether it applies to *only this occurrence*, *this and the following ones* or *all occurrences* (including past, finished and cancelled ones). Status, history and due dates are never copied. In *Work → ↻ Recurring*, editing a series asks *only new occurrences*, *from today* or *all*.
+- **Subtasks in Kanban and List**: subtasks in the same column as their parent fold under it with «⊞ +N» (switch «Group subtasks»).
+- **Repetition**: «Make recurring» with any rule (e.g. Monday and Wednesday). Occurrences inherit everything (project, assignee, reviewer, type, priority, estimate, description, groupings, parent task, approval, reviews, links, tags, unchecked steps and reminders) and dates keep their relation to the due date. «Delete series»: keep the occurrences as normal tasks or also delete the pending ones. Manage every series in *Work → ↻ Recurring*.
 - **Series in Kanban and List**: one card per series and status with «↻ +N»; click to expand it (↻ − to group it again). «Group recurring series» switch. The calendar shows all of them, in italics with ↻.
 - **Archive all**: with the Done column visible, button in its header (with confirmation and undo).
 - **Reminders**: the 🔔 bell opens the centre (Pending, Scheduled, Resolved). In Today, «Scheduled this week»; in the task details, its own.
@@ -67,6 +75,7 @@ arrows to move, `PgUp/PgDn` to change month). Times in 24 h (HH:MM).
 - Recoverable archive and trash; permanent deletion only from the trash (the note disappears from the tabs).
 - **Filters**: text (title and/or content), project (or «No project»), type and tag.
 - **Reorder tabs** by dragging them (or `Alt+←/→`).
+- **Editor**: *Edit* or *Preview* (remembered). Toolbar for headings, emphasis, code, links, quotes, lists, checkboxes, tables and separators; checkboxes can be ticked in the preview. Opening a note from the search (Ctrl+K) puts the caret at its last line.
 - **Split screen** (◫): two editable notes side by side; choose the right one among the open notes. On narrow screens they stack.
 
 ## Appearance and language
@@ -75,6 +84,8 @@ arrows to move, `PgUp/PgDn` to change month). Times in 24 h (HH:MM).
 - Your data (task titles, notes, names…) is never translated. Automatic history entries are stored in Spanish.
 
 ## Danger zone
+*Settings* is organised by sections (side index). Sections with a form have their own «Save» button and warn if you leave with unsaved changes.
+
 *Settings → Danger zone → Delete everything*: type the application name or «BORRAR TODO». A `…-previa-borrado.db` backup is
 created first (its name is shown) and the application is left as freshly installed (the interface language is kept).
 In the demo you can reload the fictitious data.

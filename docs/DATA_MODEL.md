@@ -60,6 +60,17 @@ English becomes the default interface language for new installations. Existing d
 - 0.3: `work_schedule`, `language` (`en`/`es`), `date_format`, `week_start` (1/7, display only), `theme_mode` (`sistema`/`claro`/`oscuro`),
   `theme_id`, `custom_themes` (only through `/api/themes`), `undo_seconds` (3–60), `group_recurring`. `note_tabs` includes `split`.
 - 0.4: `task_panel_width` (px, 320–2000, `null` = default width). `language` defaults to `en`.
+- 0.5: `group_subtasks` (bool, default `true`), `note_editor_mode` (`editar` / `vista_previa`). No schema change (still version 4).
+
+## API changes in 0.5
+- List filters (`/api/tasks`, `/api/notes`, `/api/projects`): comma-separated values and `none` (= without value) for
+  `project_id`, `client_id`, `person_id`/`assignee_id`, `status`, `priority`, `condition`, `tag`, `kind`. Single values still work.
+- `PATCH /api/tasks/{id}?scope=this|following|all`: for recurring occurrences, inheritable fields are also applied to the
+  following / all occurrences and to the series template (response `updated_occurrences`; `undo_id` when several tasks change).
+- `POST /api/tasks/{id}/reorder` accepts `group: {field, value}` (assignee_id, project_id, workstream_id, phase_id, deliverable_id)
+  and `scope`, applied in the same transaction as the status/position change.
+- `PATCH /api/recurrences/{id}` accepts `scope: new|from_today|all` (`apply_to_future: true` = `from_today`).
+- Search results add `project`, `kind`, `archived` and `project_type` so the client builds the context in the interface language.
 
 ## Full export
 `{"format": "kaosnt", "kind": "completa", "format_version": 1, "schema_version": 4, "app_version": "0.4.0", "exported_at": …, "tables": {…}}`.
