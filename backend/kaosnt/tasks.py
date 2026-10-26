@@ -1,5 +1,5 @@
-"""Lógica de tareas: creación, cambios significativos, condición de espera/bloqueo, dependencias
-(sin ciclos), pasos, historial breve (actualizaciones manuales editables), etiquetas y reparto semanal."""
+"""Task logic: creation, significant changes, waiting/blocked condition, dependencies
+(no cycles), steps, short history (editable manual updates), tags and weekly split."""
 from __future__ import annotations
 
 import sqlite3
@@ -7,7 +7,7 @@ from datetime import date
 from typing import Any
 
 from .db import jdump, jload, now_utc, row, rows
-from .errors import AppError, invalid, not_found
+from .errors import AppError, invalid, missing_ref, not_found
 
 STATUS_LABEL = {
     "backlog": "Backlog", "pendiente": "Pendiente", "en_curso": "En curso",
@@ -15,7 +15,7 @@ STATUS_LABEL = {
 }
 CONDITION_LABEL = {None: "sin condición", "espera": "En espera", "bloqueada": "Bloqueada"}
 
-# Cambios que cuentan como «actualización significativa». Abrir, reordenar, prioridad o fechas NO.
+# Changes that count as a «significant update». Opening, reordering, priority or dates do NOT.
 SIGNIFICANT_FIELDS = {"status", "condition", "description"}
 
 HISTORY_FIELDS = {
@@ -24,8 +24,8 @@ HISTORY_FIELDS = {
     "priority": "Prioridad", "approval": "Aprobación", "project_id": "Proyecto", "parent_id": "Tarea principal",
     "estimate_hours": "Esfuerzo estimado", "archived": "Archivada",
 }
-# Tipos de entrada del historial: 'cambio' (automática, no editable), 'actualizacion' (manual, editable),
-# 'seguimiento' (acción explícita «seguimiento realizado»).
+# History entry kinds: 'cambio' (automatic, not editable), 'actualizacion' (manual, editable),
+# 'seguimiento' (explicit «follow-up done» action).
 EDITABLE_HISTORY = {"actualizacion"}
 
 TASK_COLUMNS = {
@@ -60,7 +60,7 @@ def _validate_refs(conn, data: dict[str, Any], task_id: int | None, project_id: 
         ("parent_id", "tasks", "Tarea principal"),
     ):
         if field in data and not _exists(conn, table, data[field]):
-            raise invalid(f"{label} no existe")
+            raise missing_ref(label)
     for field, kind in (("workstream_id", "linea"), ("phase_id", "fase"), ("deliverable_id", "entregable")):
         gid = data.get(field)
         if gid is not None:
@@ -85,7 +85,7 @@ def add_history(conn, task_id: int, kind: str, text: str, at: str | None = None)
                  (task_id, at or now_utc(), kind, text[:5000]))
 
 
-# ---------- Etiquetas (objetos únicos reutilizables) ----------
+# ---------- Tags (unique reusable objects) ----------
 def set_tags(conn, table: str, owner_col: str, owner_id: int, names: list[str]) -> None:
     conn.execute(f"DELETE FROM {table} WHERE {owner_col} = ?", (owner_id,))
     seen: set[str] = set()
@@ -107,7 +107,7 @@ def list_tags(conn) -> list[dict[str, Any]]:
 
 
 def rename_tag(conn, tag_id: int, name: str) -> None:
-    """Renombra; si ya existe otra etiqueta con ese nombre, las fusiona."""
+    """Rename; if another tag with that name already exists, merge them."""
     if not conn.execute("SELECT 1 FROM tags WHERE id = ?", (tag_id,)).fetchone():
         raise not_found("Etiqueta")
     name = " ".join(name.split())
@@ -166,7 +166,7 @@ def _name(conn, table: str, col: str, id_):
 
 
 def update_task(conn: sqlite3.Connection, task_id: int, patch: dict[str, Any]) -> dict[str, Any]:
-    """Aplica cambios. No cambia estados por dependencias; la prioridad nunca se modifica sola."""
+    """Apply changes. Statuses never change because of dependencies; priority never changes by itself."""
     force = bool(patch.pop("force", False))
     tags = patch.pop("tags", None)
     t = get_task_row(conn, task_id)
@@ -190,9 +190,9 @@ def update_task(conn: sqlite3.Connection, task_id: int, patch: dict[str, Any]) -
     if (new_status == "en_curso" and t["status"] != "en_curso"
             and approval in ("pendiente", "rechazada") and not force):
         raise AppError(409, "aprobacion_pendiente",
-                       "La aprobación comercial de esta tarea está "
-                       + ("pendiente" if approval == "pendiente" else "rechazada")
-                       + ". ¿Quieres iniciar la ejecución igualmente?")
+                       "La aprobación comercial de esta tarea está pendiente. ¿Quieres iniciar la ejecución igualmente?"
+                       if approval == "pendiente" else
+                       "La aprobación comercial de esta tarea está rechazada. ¿Quieres iniciar la ejecución igualmente?")
     if "status" in patch and patch["status"] != t["status"]:
         if new_status == "en_curso" and not t["started_at"] and "started_at" not in patch:
             patch["started_at"] = ts
@@ -248,7 +248,7 @@ def update_task(conn: sqlite3.Connection, task_id: int, patch: dict[str, Any]) -
 
 
 def record_update(conn, task_id: int, text: str) -> None:
-    """Actualización manual: cuenta como significativa."""
+    """Manual update: counts as significant."""
     get_task_row(conn, task_id)
     ts = now_utc()
     conn.execute("UPDATE tasks SET last_significant_update = ?, updated_at = ? WHERE id = ?", (ts, ts, task_id))
@@ -256,8 +256,8 @@ def record_update(conn, task_id: int, text: str) -> None:
 
 
 def edit_update(conn, task_id: int, history_id: int, text: str) -> None:
-    """Corrige el texto de una actualización manual. Las entradas automáticas no son editables.
-    Corregir no cuenta como nueva actualización significativa."""
+    """Correct the text of a manual update. Automatic entries are not editable.
+    Correcting does not count as a new significant update."""
     h = conn.execute("SELECT kind FROM task_history WHERE id = ? AND task_id = ?", (history_id, task_id)).fetchone()
     if not h:
         raise not_found("Entrada del historial")
@@ -268,7 +268,7 @@ def edit_update(conn, task_id: int, history_id: int, text: str) -> None:
 
 
 def record_follow_up(conn, task_id: int, text: str) -> None:
-    """Seguimiento realizado: no resuelve la espera/bloqueo, reinicia el ciclo de seguimiento."""
+    """Follow-up done: does not resolve the wait/block, restarts the follow-up cycle."""
     get_task_row(conn, task_id)
     ts = now_utc()
     conn.execute("UPDATE tasks SET last_follow_up_at = ?, last_significant_update = ?, updated_at = ? WHERE id = ?",
@@ -276,7 +276,7 @@ def record_follow_up(conn, task_id: int, text: str) -> None:
     add_history(conn, task_id, "seguimiento", "Seguimiento realizado" + (f": {text}" if text else ""), ts)
 
 
-# ---------- Pasos (lista de comprobación ligera) ----------
+# ---------- Steps (lightweight checklist) ----------
 def add_step(conn, task_id: int, text: str) -> int:
     get_task_row(conn, task_id)
     r = conn.execute("SELECT MAX(position) FROM task_steps WHERE task_id = ?", (task_id,)).fetchone()
@@ -301,7 +301,7 @@ def update_step(conn, step_id: int, patch: dict[str, Any]) -> int:
     if "done" in patch and patch["done"] is not None and bool(patch["done"]) != bool(s["done"]):
         conn.execute("UPDATE task_steps SET done = ?, done_at = ? WHERE id = ?",
                      (1 if patch["done"] else 0, ts if patch["done"] else None, step_id))
-        # completar un paso es progreso real: cuenta como actualización significativa
+        # completing a step is real progress: it counts as a significant update
         conn.execute("UPDATE tasks SET last_significant_update = ?, updated_at = ? WHERE id = ?", (ts, ts, s["task_id"]))
         add_history(conn, s["task_id"], "cambio", ("Paso completado: " if patch["done"] else "Paso reabierto: ") + s["text"], ts)
     return s["task_id"]
@@ -314,7 +314,7 @@ def delete_step(conn, step_id: int) -> int:
 
 
 def promote_step(conn, step_id: int) -> int:
-    """Convierte un paso en una subtarea completa (visible en tablero, lista y calendario)."""
+    """Turn a step into a full subtask (visible on the board, list and calendar)."""
     s = _step(conn, step_id)
     parent = get_task_row(conn, s["task_id"])
     tid = create_task(conn, {"title": s["text"], "parent_id": parent["id"], "project_id": parent["project_id"],
@@ -464,8 +464,10 @@ def task_detail(conn, task_id: int) -> dict[str, Any]:
         """SELECT n.id, n.title_manual, n.content, n.created_at, n.state, l.excerpt FROM note_task_links l
            JOIN notes n ON n.id = l.note_id WHERE l.task_id = ? ORDER BY l.created_at""", (task_id,)))
     from .notes import display_title
+    from .settings import get_all
+    st = get_all(conn)
     for n in t["notes"]:
-        n["display_title"] = display_title(n)
+        n["display_title"] = display_title(n, st["timezone"], st["language"])
         n.pop("content", None)
     t["history"] = rows(conn.execute(
         "SELECT id, at, kind, text, edited_at FROM task_history WHERE task_id = ? ORDER BY id DESC LIMIT 100", (task_id,)))
@@ -486,7 +488,7 @@ def task_detail(conn, task_id: int) -> dict[str, Any]:
 
 def reorder(conn, task_id: int, status: str | None, before_id: int | None, after_id: int | None,
             force: bool = False) -> None:
-    """Orden manual: posición intermedia entre vecinos. No es un cambio significativo."""
+    """Manual order: intermediate position between neighbours. Not a significant change."""
     t = get_task_row(conn, task_id)
     if status and status != t["status"]:
         update_task(conn, task_id, {"status": status, "force": force})

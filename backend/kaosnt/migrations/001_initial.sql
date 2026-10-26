@@ -1,5 +1,5 @@
--- KAOSnt · esquema inicial (versión 1, igual que «Centro de trabajo» 0.1.0)
--- Fechas-hora: texto ISO 8601 en UTC con sufijo Z. Fechas de calendario: 'YYYY-MM-DD' (fecha local).
+-- KAOSnt · initial schema (version 1, same as «Centro de trabajo» 0.1.0)
+-- Date-times: ISO 8601 text in UTC with a Z suffix. Calendar dates: 'YYYY-MM-DD' (local date).
 
 CREATE TABLE clients (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

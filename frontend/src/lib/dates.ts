@@ -1,5 +1,5 @@
-// Fechas: instantes en UTC o 'YYYY-MM-DD'. Se muestran en la zona configurada (Europe/Madrid por defecto)
-// y en el formato configurado (dd/mm/aaaa por defecto). Internamente siempre AAAA-MM-DD.
+// Dates: instants in UTC or 'YYYY-MM-DD'. Shown in the configured time zone (Europe/Madrid by default)
+// and in the configured format (dd/mm/aaaa by default). Internally always YYYY-MM-DD.
 import { getLang, t } from "./i18n";
 
 export type DateFormat = "dd/mm/aaaa" | "aaaa-mm-dd" | "mm/dd/aaaa";
@@ -16,7 +16,7 @@ const MONTHS_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio
 const MONTHS_EN = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 export function dowShort(jsDay: number): string { return (getLang() === "en" ? DOW_EN : DOW_ES)[jsDay]; }
 export function monthName(m0: number): string { return (getLang() === "en" ? MONTHS_EN : MONTHS_ES)[m0]; }
-/** Cabeceras de la semana (lun…dom o dom…sáb según configuración). */
+/** Week headers (Mon…Sun or Sun…Sat depending on the settings). */
 export function weekHeaders(): string[] {
   const order = cfg.weekStart === 7 ? [0, 1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5, 6, 0];
   return order.map(dowShort);
@@ -43,22 +43,22 @@ export function addDays(iso: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Lunes de la semana (planificación: siempre lunes-domingo). */
+/** Monday of the week (planning: always Monday-Sunday). */
 export function weekStart(iso: string): string { return addDays(iso, -((new Date(iso + "T12:00:00Z").getUTCDay() + 6) % 7)); }
-/** Primer día de la semana para presentación (lunes o domingo, configurable). */
+/** First day of the week for display (Monday or Sunday, configurable). */
 export function viewWeekStart(iso: string): string {
   return cfg.weekStart === 7 ? addDays(iso, -new Date(iso + "T12:00:00Z").getUTCDay()) : weekStart(iso);
 }
 export function isoDow(iso: string): number { return ((new Date(iso + "T12:00:00Z").getUTCDay() + 6) % 7) + 1; }
 
-/** AAAA-MM-DD → texto en el formato configurado (o el indicado). */
+/** YYYY-MM-DD → text in the configured (or given) format. */
 export function formatIso(iso: string, format: DateFormat = cfg.format): string {
   const [y, m, d] = iso.slice(0, 10).split("-");
   if (!y || !m || !d) return iso;
   return format === "aaaa-mm-dd" ? `${y}-${m}-${d}` : format === "mm/dd/aaaa" ? `${m}/${d}/${y}` : `${d}/${m}/${y}`;
 }
 
-/** Texto en el formato configurado → AAAA-MM-DD, o null si no es una fecha válida. Acepta también AAAA-MM-DD. */
+/** Text in the configured format → YYYY-MM-DD, or null if it is not a valid date. YYYY-MM-DD is also accepted. */
 export function parseDateText(text: string, format: DateFormat = cfg.format): string | null {
   const s = (text || "").trim();
   let y: number, m: number, d: number;
@@ -75,7 +75,7 @@ export function parseDateText(text: string, format: DateFormat = cfg.format): st
   return `${y}-${pad(m)}-${pad(d)}`;
 }
 
-/** Placeholder del formato configurado (dd/mm/aaaa, …; en inglés dd/mm/yyyy). */
+/** Placeholder of the configured format (dd/mm/aaaa, …; in English dd/mm/yyyy). */
 export function formatHint(format: DateFormat = cfg.format): string {
   return getLang() === "en" ? format.replace("aaaa", "yyyy") : format;
 }
@@ -85,7 +85,7 @@ export function fmtDate(iso: string | null | undefined): string {
   return formatIso(iso.slice(0, 10));
 }
 
-/** Con día de la semana: «mié 14/10/2026». */
+/** With the weekday: «Wed 14/10/2026». */
 export function fmtDateDow(iso: string | null | undefined): string {
   if (!iso) return t("sin fecha");
   const d = new Date(iso.slice(0, 10) + "T12:00:00Z");
@@ -98,7 +98,7 @@ export function fmtDateTime(utc: string | null | undefined, tz: string): string 
   return `${formatIso(`${p.year}-${pad(p.month)}-${pad(p.day)}`)} ${pad(p.hour)}:${pad(p.minute)}`;
 }
 
-/** «HH:MM» válido en 24 h. */
+/** Valid «HH:MM» in 24 h. */
 export function parseTimeText(text: string): string | null {
   const m = /^(\d{1,2})(?::|\.|h)?(\d{2})$/.exec((text || "").trim());
   if (!m) return null;
@@ -118,7 +118,7 @@ export function dueLabel(due: string, today: string): string {
   return t("vence {fecha}", { fecha: fmtDateDow(due) });
 }
 
-/** Duración natural legible. Nunca se presenta como horas trabajadas. */
+/** Readable calendar duration. Never presented as hours worked. */
 export function fmtDuration(ms: number): string {
   if (ms < 0) ms = 0;
   const min = Math.floor(ms / 60000);

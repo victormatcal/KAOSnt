@@ -1,4 +1,4 @@
-"""Acceso a SQLite, migraciones versionadas y utilidades comunes."""
+"""SQLite access, versioned migrations and shared helpers."""
 from __future__ import annotations
 
 import json
@@ -9,7 +9,7 @@ from typing import Any, Iterable
 
 MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations"
 
-_clock = None  # reloj inyectable para pruebas (callable que devuelve datetime con zona)
+_clock = None  # injectable clock for tests (callable returning a timezone-aware datetime)
 
 
 def set_clock(clock) -> None:
@@ -63,8 +63,8 @@ def split_sql(sql: str) -> Iterable[str]:
 
 
 def migrate(conn: sqlite3.Connection, before_migrate=None) -> list[int]:
-    """Aplica migraciones pendientes, cada una en su transacción. `before_migrate` (copia previa)
-    solo se llama si la base ya tenía esquema y hay migraciones por aplicar."""
+    """Apply pending migrations, each in its own transaction. `before_migrate` (previous backup)
+    is only called if the database already had a schema and there are migrations to apply."""
     current = schema_version(conn)
     pending = [(v, f) for v, f in migration_files() if v > current]
     if pending and current > 0 and before_migrate:
@@ -95,7 +95,7 @@ def init_db(db_path: Path, before_migrate=None) -> None:
 
 
 class Tx:
-    """Transacción explícita: with Tx(conn): ..."""
+    """Explicit transaction: with Tx(conn): ..."""
 
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn

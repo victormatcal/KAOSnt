@@ -1,4 +1,4 @@
-// Pruebas de la 0.3: fechas configurables, idioma, temas, series recurrentes y notas.
+// 0.3 tests: configurable dates, language, themes, recurring series and notes.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
@@ -17,6 +17,8 @@ import { TodayView } from "../src/views/Today";
 import { SettingsView } from "../src/views/Settings";
 import type { Bootstrap, Task } from "../src/lib/types";
 
+setLang("es"); // these tests check the Spanish interface (English is the default since 0.4)
+
 const fx: Record<string, any> = JSON.parse(readFileSync(__dirname + "/../../tests/fixtures/demo-api.json", "utf8"));
 for (const [k, v] of Object.entries(fx)) apiCache.set(k, v);
 const boot: Bootstrap = fx["/api/bootstrap"];
@@ -30,7 +32,7 @@ const ctx: AppCtx = {
 const render = (el: any) => renderToStaticMarkup(<Ctx.Provider value={ctx}>{el}</Ctx.Provider>);
 const reset = () => { setLang("es"); setDateConfig("dd/mm/aaaa", 1); };
 
-test("fechas: formatos configurables y validación (internamente AAAA-MM-DD)", () => {
+test("dates: configurable formats and validation (internally YYYY-MM-DD)", () => {
   reset();
   assert.equal(formatIso("2026-10-12"), "12/10/2026");
   assert.equal(formatIso("2026-10-12", "mm/dd/aaaa"), "10/12/2026");
@@ -45,14 +47,14 @@ test("fechas: formatos configurables y validación (internamente AAAA-MM-DD)", (
   setDateConfig("aaaa-mm-dd", 7);
   assert.equal(fmtDate("2026-10-12"), "2026-10-12");
   assert.equal(viewWeekStart("2026-10-14"), "2026-10-11"); // domingo
-  assert.equal(weekStart("2026-10-14"), "2026-10-12"); // planificación: siempre lunes
+  assert.equal(weekStart("2026-10-14"), "2026-10-12"); // planning: always Monday
   assert.equal(monthGrid("2026-10-15")[0], "2026-09-27");
   assert.equal(weekHeaders()[0], "dom");
   reset();
   assert.equal(weekHeaders()[0], "lun");
 });
 
-test("DateInput: texto en el formato configurado, sin input type=date nativo", () => {
+test("DateInput: text in the configured format, no native input type=date", () => {
   reset();
   const html = render(<DateInput label="Fecha límite" value="2026-10-12" onChange={() => undefined} />);
   assert.ok(html.includes('value="12/10/2026"') && html.includes('placeholder="dd/mm/aaaa"'));
@@ -62,7 +64,7 @@ test("DateInput: texto en el formato configurado, sin input type=date nativo", (
   }
 });
 
-test("i18n: inglés con el español como clave, sin traducción se muestra el español", () => {
+test("i18n: English with Spanish as the key; without a translation the Spanish text is shown", () => {
   setLang("en");
   assert.equal(t("Hoy"), "Today");
   assert.equal(t("Tarea creada: {titulo}", { titulo: "Informe" }), "Task created: Informe");
@@ -78,7 +80,7 @@ test("i18n: inglés con el español como clave, sin traducción se muestra el es
   reset();
 });
 
-test("temas: integrados válidos, contraste ≥ 4,5:1, validación de CSS libre y plantilla", () => {
+test("themes: valid built-ins, contrast ≥ 4.5:1, free-CSS validation and template", () => {
   assert.deepEqual(BUILTIN_THEMES.map((x) => x.id), ["predeterminado", "minimalista", "cupertino", "retro", "alto-contraste"]);
   for (const th of BUILTIN_THEMES) {
     assert.equal(validateTheme(th), "", th.id);
@@ -93,11 +95,11 @@ test("temas: integrados válidos, contraste ≥ 4,5:1, validación de CSS libre 
   const tpl = themeTemplate(BUILTIN_THEMES[3]);
   assert.equal(validateTheme(tpl), "");
   assert.equal(Object.keys(tpl.dark).length, 23);
-  // la copia generada coincide con temas/*.json
-  for (const th of BUILTIN_THEMES) assert.deepEqual(JSON.parse(readFileSync(__dirname + `/../../../temas/${th.id}.json`, "utf8")), th);
+  // the generated copy matches themes/*.json
+  for (const th of BUILTIN_THEMES) assert.deepEqual(JSON.parse(readFileSync(__dirname + `/../../../themes/${th.id}.json`, "utf8")), th);
 });
 
-test("series recurrentes: una tarjeta por serie y estado con «↻ +N»; desplegable", () => {
+test("recurring series: one card per series and status with «↻ +N»; expandable", () => {
   const mk = (id: number, status: any, occ: string, rid: number | null = 7): Task => ({ ...fx["/api/tasks"][0], id, status, recurrence_id: rid, occurrence_date: occ, parent_id: null });
   const list = [mk(1, "pendiente", "2026-10-14"), mk(2, "pendiente", "2026-10-13"), mk(3, "pendiente", "2026-10-15"),
     mk(4, "hecha", "2026-10-10"), mk(5, "hecha", "2026-10-11"), mk(6, "pendiente", "", null)];
@@ -108,14 +110,14 @@ test("series recurrentes: una tarjeta por serie y estado con «↻ +N»; despleg
   assert.ok(html.includes("↻ +2") && html.includes("Archivar todas"));
 });
 
-test("notas: filtros por texto/proyecto y reordenación de pestañas por arrastre", () => {
+test("notes: text/project filters and tab reordering by drag", () => {
   assert.equal(notesQuery({ scope: "todas", kind: "", tag: "", project: "none", q: " alfa ", field: "titulo" }), "/api/notes?scope=todas&project_id=none&q=alfa&in=titulo");
   assert.deepEqual(reorderTabs([1, 2, 3, 4], 1, 3), [2, 3, 1, 4]);
   assert.deepEqual(reorderTabs([1, 2, 3, 4], 4, 2), [1, 4, 2, 3]);
   assert.deepEqual(reorderTabs([1, 2], 1, 9), [1, 2]);
 });
 
-test("horario por día: texto «Laborables» y Configuración con aspecto, zona de peligro e idioma", () => {
+test("schedule per day: «Working» text and Settings with appearance, danger zone and language", () => {
   reset();
   const sch = { "1": { start: "09:00", end: "19:00" }, "2": { start: "09:00", end: "19:00" }, "3": { start: "09:00", end: "19:00" },
     "4": { start: "09:00", end: "19:00" }, "5": { start: "09:00", end: "15:00" }, "6": null, "7": null };

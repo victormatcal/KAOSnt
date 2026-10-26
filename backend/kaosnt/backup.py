@@ -1,10 +1,10 @@
-"""Copias de seguridad, exportación y restauración.
+"""Backups, export and restore.
 
-- Copias: API de copia en línea de SQLite (consistente aunque la base esté abierta), verificadas con
-  integrity_check. Nunca se copia el archivo a ciegas.
-- Exportación completa: JSON estructurado y versionado.
-- Restauración completa (sin fusión): valida formato y versión, muestra resumen, crea copia previa,
-  restaura en una transacción y comprueba relaciones e integridad.
+- Backups: SQLite online backup API (consistent even while the database is open), verified with
+  integrity_check. The file is never copied blindly.
+- Full export: structured, versioned JSON.
+- Full restore (no merge): validates format and version, shows a summary, creates a previous backup,
+  restores in one transaction and checks relations and integrity.
 """
 from __future__ import annotations
 
@@ -19,16 +19,16 @@ from typing import Any
 
 from . import __version__
 from .config import Config
-from .db import connect, latest_version, migrate, now_utc, rows, schema_version
+from .db import connect, jdump, latest_version, migrate, now_utc, rows, schema_version
 from .errors import AppError, invalid, not_found
 from .notes import display_title
-from .settings import get_all
+from .settings import get_all, me_name
 from .timeutil import tz_of
 
 FORMAT = "kaosnt"
 LEGACY_FORMATS = {"centro-trabajo"}
 FORMAT_VERSION = 1
-# Orden de inserción (padres antes que hijos)
+# Insertion order (parents before children)
 TABLES = [
     "clients", "locations", "holidays", "people", "projects", "project_people", "groupings", "milestones",
     "recurrences", "tasks", "task_steps", "task_dependencies", "task_history", "task_allocations", "notes",
@@ -36,8 +36,8 @@ TABLES = [
 ]
 REASONS = ("manual", "auto", "previa-restauracion", "previa-migracion", "previa-borrado")
 BACKUP_RE = re.compile(r"^(kaosnt|centro)-\d{8}-\d{6}(-\d+)?-(manual|auto|previa-restauracion|previa-migracion|previa-borrado)\.db$")
-# Esquemas anteriores cuya exportación se puede restaurar (las migraciones posteriores son aditivas)
-RESTORABLE_OLD_SCHEMAS = {2}
+# Older schemas whose export can be restored (later migrations are additive)
+RESTORABLE_OLD_SCHEMAS = {2, 3}
 
 
 def _stamp(settings: dict[str, Any] | None) -> str:
@@ -114,14 +114,14 @@ def restore_from_backup(cfg: Config, name: str, settings: dict[str, Any]) -> dic
             raise invalid("La copia no supera la comprobación de integridad")
         v = src.execute("PRAGMA user_version").fetchone()[0]
         if v < 1 or v > latest_version():
-            raise invalid(f"Versión de esquema no compatible ({v})")
+            raise invalid("Versión de esquema no compatible ({v})", v=v)
         previous = create_backup(cfg, "previa-restauracion", settings)
         dst = connect(cfg.db_path)
         try:
             src.backup(dst)
-            migrate(dst)  # una copia de una versión anterior se actualiza al esquema actual
+            migrate(dst)  # a backup from an older version is upgraded to the current schema
             if dst.execute("PRAGMA foreign_key_check").fetchall():
-                raise AppError(500, "relaciones", f"La copia restaurada tiene relaciones inconsistentes; se conserva la copia previa {previous.name}")
+                raise AppError(500, "relaciones", "La copia restaurada tiene relaciones inconsistentes; se conserva la copia previa {copia}", params={"copia": previous.name})
         finally:
             dst.close()
     finally:
@@ -129,7 +129,7 @@ def restore_from_backup(cfg: Config, name: str, settings: dict[str, Any]) -> dic
     return {"restored": name, "previous_backup": previous.name}
 
 
-# ---------------- Exportación ----------------
+# ---------------- Export ----------------
 def _meta(conn, kind: str) -> dict[str, Any]:
     return {"format": FORMAT, "kind": kind, "format_version": FORMAT_VERSION, "schema_version": schema_version(conn),
             "app_version": __version__, "exported_at": now_utc()}
@@ -161,7 +161,7 @@ def export_project(conn: sqlite3.Connection, project_id: int) -> dict[str, Any]:
         people_ids.update(x for x in (t["assignee_id"], t["reviewer_id"], t["wait_on_person_id"]) if x)
     pph, pids = inn(people_ids)
     return {**_meta(conn, "proyecto"),
-            "note": "Exportación de consulta de un proyecto. La restauración solo admite exportaciones completas.",
+            "note": "Read-only export of a project. Restoring only accepts full exports.",
             "tables": {
                 "projects": [dict(p)],
                 "clients": q("SELECT * FROM clients WHERE id = ?", p["client_id"]) if p["client_id"] else [],
@@ -189,12 +189,13 @@ def _slug(s: str) -> str:
 
 
 def export_notes_zip(conn: sqlite3.Connection, include_trash: bool = False) -> bytes:
-    tz_name = get_all(conn)["timezone"]
+    _st = get_all(conn)
+    tz_name, lang = _st["timezone"], _st["language"]
     projects = {r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM projects")}
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         for n in rows(conn.execute("SELECT * FROM notes" + ("" if include_trash else " WHERE state <> 'papelera'") + " ORDER BY id")):
-            title = display_title(n, tz_name)
+            title = display_title(n, tz_name, lang)
             front = ["---", f"titulo: \"{title.replace(chr(34), chr(39))}\"", f"proyecto: \"{projects.get(n['project_id'], '')}\"",
                      f"tipo: {n['kind'] or ''}", f"estado: {n['state']}", f"creada: {n['created_at']}",
                      f"actualizada: {n['updated_at']}", "---", ""]
@@ -205,7 +206,7 @@ def export_notes_zip(conn: sqlite3.Connection, include_trash: bool = False) -> b
 
 def _csv_safe(v: Any) -> Any:
     if isinstance(v, str) and v[:1] in ("=", "+", "-", "@", "\t", "\r"):
-        return "'" + v  # evita inyección de fórmulas al abrir en Excel
+        return "'" + v  # prevents formula injection when opened in Excel
     return v
 
 
@@ -228,35 +229,34 @@ def export_tasks_csv(conn: sqlite3.Connection) -> str:
     return out.getvalue()
 
 
-# ---------------- Restauración desde exportación completa ----------------
+# ---------------- Restore from a full export ----------------
 def validate_export(conn: sqlite3.Connection, data: dict[str, Any]) -> dict[str, Any]:
     if data.get("format") != FORMAT and data.get("format") not in LEGACY_FORMATS:
         raise invalid("El archivo no es una exportación de KAOSnt")
     if data.get("kind") != "completa":
         raise invalid("Solo se pueden restaurar exportaciones completas (no por proyecto)")
     if data.get("format_version") != FORMAT_VERSION:
-        raise invalid(f"Versión de formato no compatible: {data.get('format_version')}")
+        raise invalid("Versión de formato no compatible: {v}", v=data.get("format_version"))
     sv = data.get("schema_version")
     if sv != schema_version(conn) and not (sv in RESTORABLE_OLD_SCHEMAS and isinstance(sv, int) and sv < schema_version(conn)):
-        raise invalid(f"La exportación es del esquema {data.get('schema_version')} y la base actual del "
-                      f"{schema_version(conn)}. Para datos de una versión anterior, restaura una copia .db "
-                      "(se actualiza automáticamente).")
+        raise invalid("La exportación es del esquema {origen} y la base actual del {actual}. Para datos de una versión anterior, "
+                      "restaura una copia .db (se actualiza automáticamente).", origen=data.get("schema_version"), actual=schema_version(conn))
     tables = data.get("tables")
     if not isinstance(tables, dict):
         raise invalid("Estructura de tablas no válida")
     unknown = set(tables) - set(TABLES)
     if unknown:
-        raise invalid(f"Tablas desconocidas: {', '.join(sorted(unknown))}")
+        raise invalid("Tablas desconocidas: {tablas}", tablas=", ".join(sorted(unknown)))
     counts = {}
     for t in TABLES:
         items = tables.get(t, [])
         if not isinstance(items, list) or any(not isinstance(r, dict) for r in items):
-            raise invalid(f"Datos no válidos en {t}")
+            raise invalid("Datos no válidos en {tabla}", tabla=t)
         cols = {r["name"] for r in conn.execute(f"PRAGMA table_info({t})")}
         for r in items:
             extra = set(r) - cols
             if extra:
-                raise invalid(f"Columnas desconocidas en {t}: {', '.join(sorted(extra))}")
+                raise invalid("Columnas desconocidas en {tabla}: {columnas}", tabla=t, columnas=", ".join(sorted(extra)))
         counts[t] = len(items)
     current = {t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in TABLES}
     return {"valid": True, "exported_at": data.get("exported_at"), "app_version": data.get("app_version"),
@@ -265,6 +265,7 @@ def validate_export(conn: sqlite3.Connection, data: dict[str, Any]) -> dict[str,
 
 def restore_from_export(cfg: Config, conn: sqlite3.Connection, data: dict[str, Any]) -> dict[str, Any]:
     summary = validate_export(conn, data)
+    sv = data.get("schema_version")
     previous = create_backup(cfg, "previa-restauracion", get_all(conn))
     conn.execute("PRAGMA foreign_keys = OFF")
     try:
@@ -277,9 +278,11 @@ def restore_from_export(cfg: Config, conn: sqlite3.Connection, data: dict[str, A
                 for r in data["tables"].get(t, []):
                     cols = list(r.keys())
                     conn.execute(f"INSERT INTO {t}({','.join(cols)}) VALUES ({','.join('?' for _ in cols)})", [r[c] for c in cols])
+            if sv < 4:  # exports made before 0.4 were used with the Spanish interface (same rule as migration 004)
+                conn.execute("""INSERT OR IGNORE INTO settings(key, value) SELECT 'language', '"es"'""")
             bad = conn.execute("PRAGMA foreign_key_check").fetchall()
             if bad:
-                raise invalid(f"La exportación contiene {len(bad)} relaciones rotas; no se ha restaurado nada")
+                raise invalid("La exportación contiene {n} relaciones rotas; no se ha restaurado nada", n=len(bad))
             if conn.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
                 raise invalid("Fallo de integridad tras restaurar; no se ha restaurado nada")
             conn.execute("COMMIT")
@@ -291,10 +294,11 @@ def restore_from_export(cfg: Config, conn: sqlite3.Connection, data: dict[str, A
     return {**summary, "previous_backup": previous.name}
 
 
-# ---------------- Borrar todo el entorno (0.3) ----------------
+# ---------------- Delete the whole environment (0.3) ----------------
 def wipe_all(cfg: Config, conn: sqlite3.Connection, settings: dict[str, Any]) -> str:
-    """Copia previa y borrado de todos los datos (incluidos los ajustes). Devuelve el nombre de la copia."""
+    """Previous backup and deletion of all data (including settings, except the interface language). Returns the backup name."""
     previous = create_backup(cfg, "previa-borrado", settings)
+    language = get_all(conn)["language"]  # the interface language is a preference, not data: it is kept
     conn.execute("PRAGMA foreign_keys = OFF")
     try:
         conn.execute("BEGIN IMMEDIATE")
@@ -304,7 +308,8 @@ def wipe_all(cfg: Config, conn: sqlite3.Connection, settings: dict[str, Any]) ->
             conn.execute("DELETE FROM undo_log")
             conn.execute("DELETE FROM sqlite_sequence")
             ts = now_utc()
-            conn.execute("INSERT INTO people(name, role, is_me, created_at, updated_at) VALUES (?,?,?,?,?)", ("Yo", "", 1, ts, ts))
+            conn.execute("INSERT INTO settings(key, value) VALUES ('language', ?)", (jdump(language),))
+            conn.execute("INSERT INTO people(name, role, is_me, created_at, updated_at) VALUES (?,?,?,?,?)", (me_name(language), "", 1, ts, ts))
             conn.execute("COMMIT")
         except Exception:
             conn.execute("ROLLBACK")

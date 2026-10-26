@@ -1,4 +1,4 @@
-"""Pruebas de las funciones añadidas en la 0.3."""
+"""Tests for the features added in 0.3."""
 import json
 import sqlite3
 from datetime import date, datetime, timedelta, timezone
@@ -11,7 +11,7 @@ from conftest import make_client
 from kaosnt import themes
 from kaosnt.app import create_app
 from kaosnt.config import Config
-from kaosnt.db import MIGRATIONS_DIR, split_sql
+from kaosnt.db import MIGRATIONS_DIR, latest_version, split_sql
 from kaosnt.timeutil import add_hours, business_hours_between
 
 REPO = Path(__file__).resolve().parents[2]
@@ -26,30 +26,30 @@ def mk(c, **kw):
     return r.json()
 
 
-# ---------------- 13) Horario laboral por día ----------------
-def test_horario_por_dia_viernes_corto_y_cambio_de_hora():
+# ---------------- 13) Working hours per day ----------------
+def test_schedule_per_day_short_friday_and_dst_change():
     s = {"timezone": "Europe/Madrid", "work_schedule": SCHED, "holidays": []}
-    start = datetime(2026, 10, 23, 11, 0, tzinfo=timezone.utc)  # viernes 13:00 CEST; el viernes acaba a las 15:00
+    start = datetime(2026, 10, 23, 11, 0, tzinfo=timezone.utc)  # Friday 13:00 CEST; Friday ends at 15:00
     end = add_hours(start, 3, "laborable", s)
-    assert end == datetime(2026, 10, 26, 9, 0, tzinfo=timezone.utc)  # 2 h el viernes + 1 h el lunes (10:00 CET)
+    assert end == datetime(2026, 10, 26, 9, 0, tzinfo=timezone.utc)  # 2 h on Friday + 1 h on Monday (10:00 CET)
     assert abs(business_hours_between(start, end, s) - 3) < 1e-9
-    # semana completa: 4 × 10 h + 6 h
+    # full week: 4 × 10 h + 6 h
     a = datetime(2026, 10, 18, 22, 0, tzinfo=timezone.utc)  # lunes 00:00 CEST
     assert abs(business_hours_between(a, a + timedelta(days=7), s) - 46) < 1e-9
 
 
-def test_horario_ajuste_validacion_y_disponibilidad_proporcional(client):
+def test_schedule_setting_validation_and_proportional_availability(client):
     assert client.get("/api/settings").json()["work_schedule"]["6"] is None
     bad = dict(SCHED, **{"5": {"start": "15:00", "end": "09:00"}})
     assert client.patch("/api/settings", json={"work_schedule": bad}).status_code == 422
     assert client.patch("/api/settings", json={"work_schedule": {"1": None}}).status_code == 422
     assert client.patch("/api/settings", json={"work_schedule": SCHED}).status_code == 200
     a = client.post("/api/people", json={"name": "Ana", "weekly_capacity_hours": 46}).json()["id"]
-    client.post("/api/holidays", json={"date": "2026-10-16"})  # el viernes corto (6 h) es festivo
+    client.post("/api/holidays", json={"date": "2026-10-16"})  # the short Friday (6 h) is a holiday
     pa = next(p for p in client.get("/api/planning?week=2026-10-12").json()["people"] if p["person_id"] == a)
     assert pa["availability"] == {"nominal_days": 5, "holiday_days": 1, "absence_days": 0, "available_days": 4,
                                   "available_hours": 40.0}  # 46 × 40/46
-    # recurrencia «laborables» respeta el horario: sábado y domingo no
+    # the «working days» recurrence follows the schedule: not Saturday or Sunday
     r = client.post("/api/recurrences", json={"title": "Parte", "rule": "laborables", "start_date": "2026-10-13"}).json()
     occ = {x["occurrence_date"] for x in client.get(f"/api/tasks?recurrence_id={r['id']}").json()}
     assert "2026-10-17" not in occ and "2026-10-15" in occ and "2026-10-16" not in occ
@@ -57,7 +57,7 @@ def test_horario_ajuste_validacion_y_disponibilidad_proporcional(client):
 
 def _db_v02(path: Path, extra_sql: list[str]) -> None:
     conn = sqlite3.connect(str(path))
-    for f in ("001_inicial.sql", "002_v02.sql"):
+    for f in ("001_initial.sql", "002_v02.sql"):
         for stmt in split_sql((MIGRATIONS_DIR / f).read_text(encoding="utf-8")):
             conn.execute(stmt)
     conn.execute("PRAGMA user_version = 2")
@@ -67,7 +67,7 @@ def _db_v02(path: Path, extra_sql: list[str]) -> None:
     conn.close()
 
 
-def test_migracion_desde_v02_con_copia_y_horario(tmp_path, clock):
+def test_migration_from_v02_with_backup_and_schedule(tmp_path, clock):
     cfg = Config(data_dir=tmp_path / "d", port=8765)
     cfg.data_dir.mkdir(parents=True)
     _db_v02(cfg.db_path, [
@@ -79,18 +79,18 @@ def test_migracion_desde_v02_con_copia_y_horario(tmp_path, clock):
         c.headers.update({"X-KAOSnt": "1"})
         sch = c.get("/api/settings").json()["work_schedule"]
         assert sch["1"] == {"start": "08:00", "end": "17:30"} and sch["5"] is None and sch["7"] is None
-        # la serie de la 0.2 (sin plantilla) sigue generando
+        # the 0.2 series (without a template) keeps generating
         c.get("/api/today")
         assert c.get("/api/tasks?recurrence_id=1").json()
         assert c.get("/api/recurrences").json()[0]["template"] is None
     assert list(cfg.backup_dir.glob("*-previa-migracion.db"))
     conn = sqlite3.connect(str(cfg.db_path))
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == latest_version()
     assert not conn.execute("SELECT 1 FROM settings WHERE key = 'workdays'").fetchone()
 
 
-# ---------------- 1) Deshacer ----------------
-def test_deshacer_restaura_campos_exactos(client, clock):
+# ---------------- 1) Undo ----------------
+def test_undo_restores_exact_fields(client, clock):
     t = mk(client, title="A", status="en_curso")
     before = client.get(f"/api/tasks/{t['id']}").json()
     clock.dt += timedelta(hours=2)
@@ -100,12 +100,12 @@ def test_deshacer_restaura_campos_exactos(client, clock):
     after = client.get(f"/api/tasks/{t['id']}").json()
     for k in ("status", "completed_at", "started_at", "position", "last_significant_update", "archived"):
         assert after[k] == before[k], k
-    assert client.post(f"/api/undo/{r['undo_id']}").status_code == 422  # solo una vez
-    # sin ?undo no se crea instantánea
+    assert client.post(f"/api/undo/{r['undo_id']}").status_code == 422  # only once
+    # without ?undo no snapshot is created
     assert "undo_id" not in client.patch(f"/api/tasks/{t['id']}", json={"priority": "alta"}).json()
 
 
-def test_deshacer_mover_columna_saltar_y_resolver_espera(client):
+def test_undo_move_column_skip_and_resolve_wait(client):
     a, b = mk(client, title="A"), mk(client, title="B")
     pos = client.get(f"/api/tasks/{a['id']}").json()["position"]
     r = client.post(f"/api/tasks/{a['id']}/reorder?undo=1", json={"status": "en_curso"}).json()
@@ -126,7 +126,7 @@ def test_deshacer_mover_columna_saltar_y_resolver_espera(client):
     assert client.get(f"/api/tasks/{occ['id']}").json()["status"] == "pendiente"
 
 
-def test_archivado_masivo_y_deshacer_en_conjunto(client):
+def test_bulk_archive_and_undo_together(client):
     ids = [mk(client, title=f"H{i}", status="hecha")["id"] for i in range(3)]
     r = client.post("/api/tasks/archive-bulk", json={"ids": ids}).json()
     assert r["archived"] == 3
@@ -136,7 +136,7 @@ def test_archivado_masivo_y_deshacer_en_conjunto(client):
     assert client.post("/api/tasks/archive-bulk", json={"ids": []}).status_code == 422
 
 
-def test_deshacer_nota_recordatorio_e_hito(client):
+def test_undo_note_reminder_and_milestone(client):
     n = client.post("/api/notes", json={"content": "x"}).json()
     r = client.patch(f"/api/notes/{n['id']}?undo=1", json={"state": "papelera"}).json()
     assert r["state"] == "papelera"
@@ -156,17 +156,17 @@ def test_deshacer_nota_recordatorio_e_hito(client):
     assert client.get(f"/api/projects/{p}").json()["milestones"][0]["status"] == "pendiente"
 
 
-def test_deshacer_caduca(client, clock):
+def test_undo_expires(client, clock):
     t = mk(client, title="A")
     r = client.patch(f"/api/tasks/{t['id']}?undo=1", json={"status": "hecha"}).json()
     clock.dt += timedelta(minutes=16)
     assert client.post(f"/api/undo/{r['undo_id']}").json()["code"] == "sin_deshacer"
 
 
-# ---------------- 3) Temas ----------------
-def test_temas_integrados_validos_y_con_contraste():
-    base = json.loads((REPO / "temas" / "predeterminado.json").read_text(encoding="utf-8"))
-    files = sorted((REPO / "temas").glob("*.json"))
+# ---------------- 3) Themes ----------------
+def test_builtin_themes_valid_and_with_contrast():
+    base = json.loads((REPO / "themes" / "predeterminado.json").read_text(encoding="utf-8"))
+    files = sorted((REPO / "themes").glob("*.json"))
     assert {f.stem for f in files} >= set(themes.BUILTIN_IDS)
     for f in files:
         th = themes.validate(json.loads(f.read_text(encoding="utf-8")))
@@ -179,19 +179,19 @@ def test_temas_integrados_validos_y_con_contraste():
     {"light": {"bg": "url(http://x)"}}, {"light": {"bg": "red; background:url(x)"}}, {"light": {"inventada": "#fff"}},
     {"font": "Comic Sans"}, {"radius": 40}, {"css": "body{}"}, {"format": "otro"}, {"id": "Con Espacios"},
 ])
-def test_temas_rechaza_css_libre_urls_y_fuentes(client, bad):
+def test_themes_reject_free_css_urls_and_fonts(client, bad):
     th = {"format": "kaosnt-theme", "version": 1, "id": "mio", "name": "Mío", "light": {}, "dark": {}, **bad}
     assert client.post("/api/themes", json=th).status_code == 422
 
 
-def test_temas_importar_seleccionar_y_borrar(client):
-    th = json.loads((REPO / "temas" / "ejemplo-mi-tema.json").read_text(encoding="utf-8"))
+def test_themes_import_select_and_delete(client):
+    th = json.loads((REPO / "themes" / "example-my-theme.json").read_text(encoding="utf-8"))
     assert client.post("/api/themes", json=th).status_code == 201
-    assert client.post("/api/themes", json={**th, "id": "retro"}).status_code == 422  # id reservado
-    assert client.patch("/api/settings", json={"theme_id": "mi-tema", "theme_mode": "oscuro"}).status_code == 200
+    assert client.post("/api/themes", json={**th, "id": "retro"}).status_code == 422  # reserved id
+    assert client.patch("/api/settings", json={"theme_id": "my-theme", "theme_mode": "oscuro"}).status_code == 200
     assert client.patch("/api/settings", json={"theme_id": "no-existe"}).status_code == 422
-    assert client.patch("/api/settings", json={"custom_themes": []}).status_code == 422  # solo vía /api/themes
-    client.delete("/api/themes/mi-tema")
+    assert client.patch("/api/settings", json={"custom_themes": []}).status_code == 422  # only through /api/themes
+    client.delete("/api/themes/my-theme")
     s = client.get("/api/settings").json()
     assert s["custom_themes"] == [] and s["theme_id"] == "predeterminado"
     for k, v in (("language", "fr"), ("date_format", "dd.mm.yy"), ("week_start", 3), ("theme_mode", "azul"), ("undo_seconds", 0)):
@@ -199,8 +199,8 @@ def test_temas_importar_seleccionar_y_borrar(client):
     assert client.patch("/api/settings", json={"language": "en", "date_format": "aaaa-mm-dd", "week_start": 7, "undo_seconds": 12}).status_code == 200
 
 
-# ---------------- 4) Festivos en bloque ----------------
-def test_festivos_en_bloque_vista_previa_e_importacion(client):
+# ---------------- 4) Bulk holidays ----------------
+def test_bulk_holidays_preview_and_import(client):
     norte = client.post("/api/locations", json={"name": "Norte"}).json()["id"]
     client.post("/api/holidays", json={"date": "2026-12-08", "location_id": None})
     text = "\n".join(["día;nombre;oficina", "08/12/2026;Inmaculada;", "25/12/2026;Navidad;Común",
@@ -210,24 +210,24 @@ def test_festivos_en_bloque_vista_previa_e_importacion(client):
     st = [(x["line"], x["status"], x.get("reason_code")) for x in r["lines"]]
     assert st == [(2, "duplicado", "existe"), (3, "importar", ""), (4, "importar", ""), (5, "duplicado", "repetido"),
                   (6, "error", "fecha"), (7, "error", "oficina"), (8, "importar", "")]
-    assert r["created"] == 0 and not client.get("/api/holidays?year=2027").json()  # vista previa: no guarda
+    assert r["created"] == 0 and not client.get("/api/holidays?year=2027").json()  # preview: nothing is saved
     r = client.post("/api/holidays/import", json={"text": text, "dry_run": False}).json()
     assert r["created"] == 3
-    assert not any(h["date"] == "2026-10-12" for h in client.get("/api/holidays").json())  # nunca como común
+    assert not any(h["date"] == "2026-10-12" for h in client.get("/api/holidays").json())  # never as common
     assert next(h for h in client.get("/api/holidays").json() if h["date"] == "2026-04-23")["location_id"] == norte
     r = client.post("/api/holidays/import", json={"text": "12/10/2026;Pilar;Zaragoza", "create_locations": True, "dry_run": False}).json()
     assert r["created"] == 1 and r["lines"][0]["reason_code"] == "nueva_oficina"
     assert any(l["name"] == "Zaragoza" for l in client.get("/api/locations").json())
 
 
-# ---------------- 6) Recordatorios visibles ----------------
-def test_centro_de_recordatorios(client, clock):
+# ---------------- 6) Visible reminders ----------------
+def test_reminder_centre(client, clock):
     t = mk(client, title="T")
     fut = client.post("/api/reminders", json={"title": "Futuro", "due_at": "2026-10-15T08:00:00Z", "task_id": t["id"]}).json()
     lejos = client.post("/api/reminders", json={"title": "Lejos", "due_at": "2026-11-20T08:00:00Z"}).json()
     data = client.get("/api/reminders").json()
     assert [r["title"] for r in data["scheduled"]] == ["Futuro", "Lejos"] and not data["active"]
-    assert [r["title"] for r in client.get("/api/today").json()["scheduled"]] == ["Futuro"]  # solo esta semana
+    assert [r["title"] for r in client.get("/api/today").json()["scheduled"]] == ["Futuro"]  # only this week
     assert [r["title"] for r in client.get(f"/api/tasks/{t['id']}/reminders").json()["scheduled"]] == ["Futuro"]
     assert client.patch(f"/api/reminders/{fut['id']}", json={"title": "Futuro editado", "due_at": "2026-10-13T09:00:00Z"}).status_code == 200
     act = client.get("/api/reminders").json()["active"]
@@ -245,8 +245,8 @@ def test_centro_de_recordatorios(client, clock):
     assert client.patch(f"/api/reminders/{auto['id']}", json={"title": "x"}).status_code == 422
 
 
-# ---------------- 9-11) Recurrentes ----------------
-def test_hacer_recurrente_hereda_todo_y_desplaza_fechas(client):
+# ---------------- 9-11) Recurring ----------------
+def test_make_recurring_inherits_everything_and_shifts_dates(client):
     p = client.post("/api/projects", json={"name": "P"}).json()["id"]
     g = client.post(f"/api/projects/{p}/groupings", json={"kind": "linea", "name": "L"}).json()["id"]
     ana = client.post("/api/people", json={"name": "Ana"}).json()["id"]
@@ -268,14 +268,14 @@ def test_hacer_recurrente_hereda_todo_y_desplaza_fechas(client):
     for k in ("project_id", "workstream_id", "assignee_id", "reviewer_id", "kind", "priority", "estimate_hours",
               "description", "parent_id", "approval", "review_after_idle_hours", "review_hours_mode", "links", "tags"):
         assert o[k] == client.get(f"/api/tasks/{t['id']}").json()[k], k
-    assert o["due_date"] == "2026-10-21" and o["planned_date"] == "2026-10-20"  # 1 día antes, como la original
+    assert o["due_date"] == "2026-10-21" and o["planned_date"] == "2026-10-20"  # 1 day before, like the original
     assert o["next_review_at"] == "2026-10-21T07:00:00Z"
-    assert [(s["text"], s["done"]) for s in o["steps"]] == [("Paso 1", False)]  # pasos sin marcar
+    assert [(s["text"], s["done"]) for s in o["steps"]] == [("Paso 1", False)]  # unchecked steps
     rem = client.get(f"/api/tasks/{o['id']}/reminders").json()["scheduled"]
     assert [(r["title"], r["due_at"]) for r in rem] == [("Avisar", "2026-10-20T16:00:00Z")]
 
 
-def test_referencias_borradas_no_rompen_la_generacion(client, clock):
+def test_deleted_references_do_not_break_generation(client, clock):
     p = client.post("/api/projects", json={"name": "P"}).json()["id"]
     ana = client.post("/api/people", json={"name": "Ana"}).json()["id"]
     t = mk(client, title="X", project_id=p, assignee_id=ana, due_date="2026-10-13")
@@ -287,7 +287,7 @@ def test_referencias_borradas_no_rompen_la_generacion(client, clock):
     assert newest["occurrence_date"] > "2026-10-20" and newest["project_id"] is None and newest["assignee_id"] == ana
 
 
-def test_aplicar_a_la_serie(client):
+def test_apply_to_the_series(client):
     t = mk(client, title="Daily", due_date="2026-10-13")
     d = client.post(f"/api/tasks/{t['id']}/recurrence", json={"rule": "diaria"}).json()
     occ = sorted(client.get(f"/api/tasks?recurrence_id={d['recurrence_id']}").json(), key=lambda x: x["occurrence_date"])
@@ -295,7 +295,7 @@ def test_aplicar_a_la_serie(client):
     client.patch(f"/api/tasks/{hecha}", json={"status": "hecha"})
     client.patch(f"/api/tasks/{occ[1]['id']}", json={"title": "Daily v2", "priority": "urgente", "tags": ["nuevo"]})
     r = client.post(f"/api/tasks/{occ[1]['id']}/apply-to-series").json()
-    assert r["updated_occurrences"] == len(occ) - 2  # desde hoy, sin esta ni la hecha
+    assert r["updated_occurrences"] == len(occ) - 2  # from today, excluding this one and the done one
     after = {x["id"]: x for x in client.get(f"/api/tasks?recurrence_id={d['recurrence_id']}&include_closed=1").json()}
     assert after[hecha]["title"] == "Daily" and after[occ[-1]["id"]]["title"] == "Daily v2"
     assert after[occ[-1]["id"]]["priority"] == "urgente" and after[occ[-1]["id"]]["tags"] == ["nuevo"]
@@ -304,7 +304,7 @@ def test_aplicar_a_la_serie(client):
 
 
 @pytest.mark.parametrize("mode", ["conservar", "eliminar_pendientes"])
-def test_eliminar_serie(client, mode):
+def test_delete_series(client, mode):
     r = client.post("/api/recurrences", json={"title": "S", "rule": "diaria", "start_date": "2026-10-13"}).json()
     occ = client.get(f"/api/tasks?recurrence_id={r['id']}").json()
     client.patch(f"/api/tasks/{occ[0]['id']}", json={"status": "hecha"})
@@ -316,12 +316,12 @@ def test_eliminar_serie(client, mode):
     if mode == "conservar":
         assert len(left) == len(occ) and res["deleted"] == 0
     else:
-        assert sorted(x["id"] for x in left) == sorted([occ[0]["id"], occ[1]["id"]])  # hecha y en curso se conservan
+        assert sorted(x["id"] for x in left) == sorted([occ[0]["id"], occ[1]["id"]])  # done and in-progress ones are kept
     assert client.delete("/api/recurrences/999?mode=conservar").status_code == 404
     assert client.delete(f"/api/recurrences/{r['id']}?mode=otro").status_code == 422
 
 
-def test_hoy_una_entrada_por_serie_y_aviso_solo_de_la_mas_antigua(client, clock):
+def test_today_one_entry_per_series_and_notice_only_for_the_oldest(client, clock):
     r = client.post("/api/recurrences", json={"title": "Diaria", "rule": "diaria", "start_date": "2026-10-12"}).json()
     today = client.get("/api/today").json()
     items = [x for x in today["sections"]["vence"] if x["recurrence_id"] == r["id"]]
@@ -330,8 +330,8 @@ def test_hoy_una_entrada_por_serie_y_aviso_solo_de_la_mas_antigua(client, clock)
     assert len(venc) == 1 and venc[0]["task_id"] == items[0]["id"]
 
 
-# ---------------- 12) Borrar todo ----------------
-def test_borrar_todo_con_confirmacion_y_copia(client, cfg):
+# ---------------- 12) Delete everything ----------------
+def test_delete_everything_with_confirmation_and_backup(client, cfg):
     mk(client, title="A")
     client.post("/api/notes", json={"content": "n"})
     client.patch("/api/settings", json={"app_name": "Mi KAOS"})
@@ -339,12 +339,12 @@ def test_borrar_todo_con_confirmacion_y_copia(client, cfg):
     r = client.post("/api/system/reset", json={"confirm_text": "mi kaos"}).json()
     assert (cfg.backup_dir / r["previous_backup"]).exists() and r["previous_backup"].endswith("-previa-borrado.db")
     assert client.get("/api/tasks?include_closed=1&include_backlog=1").json() == []
-    assert [p["name"] for p in client.get("/api/people").json()] == ["Yo"]
+    assert [p["name"] for p in client.get("/api/people").json()] == ["Me"]  # 0.4: English by default
     assert client.get("/api/settings").json()["app_name"] == "KAOSnt"
     assert any(b["reason"] == "previa-borrado" for b in client.get("/api/backups").json()["items"])
 
 
-def test_borrar_todo_en_demo_recarga_datos(tmp_path, clock):
+def test_delete_everything_in_demo_reloads_data(tmp_path, clock):
     cfg = Config(data_dir=tmp_path / "demo", port=8766, demo=True)
     from kaosnt.demo import seed_if_empty
     cfg.ensure_dirs()
@@ -357,15 +357,15 @@ def test_borrar_todo_en_demo_recarga_datos(tmp_path, clock):
         assert sum(1 for p in c.get("/api/people").json() if p["is_me"]) == 1
 
 
-# ---------------- 14) Eliminar proyectos ----------------
+# ---------------- 14) Delete projects ----------------
 @pytest.mark.parametrize("mode", ["desvincular", "eliminar"])
-def test_eliminar_proyecto(client, cfg, mode):
+def test_delete_project(client, cfg, mode):
     p = client.post("/api/projects", json={"name": "P"}).json()["id"]
     t = mk(client, title="T", project_id=p)
     otra = mk(client, title="Otra")
     n = client.post("/api/notes", json={"content": "n", "project_id": p}).json()
     client.post("/api/recurrences", json={"title": "R", "rule": "semanal", "weekdays": [5], "start_date": "2026-11-01", "project_id": p})
-    assert client.post(f"/api/projects/{p}/delete", json={"mode": mode}).status_code == 422  # sin confirmar
+    assert client.post(f"/api/projects/{p}/delete", json={"mode": mode}).status_code == 422  # not confirmed
     r = client.post(f"/api/projects/{p}/delete", json={"mode": mode, "confirm": True}).json()
     assert (cfg.backup_dir / r["previous_backup"]).exists()
     assert client.get(f"/api/projects/{p}").status_code == 404
@@ -378,8 +378,8 @@ def test_eliminar_proyecto(client, cfg, mode):
         assert ids == [otra["id"]] and note["state"] == "papelera" and not client.get("/api/recurrences").json()
 
 
-# ---------------- 15-18) Notas ----------------
-def test_filtrar_notas_por_titulo_contenido_y_proyecto(client):
+# ---------------- 15-18) Notes ----------------
+def test_filter_notes_by_title_content_and_project(client):
     p = client.post("/api/projects", json={"name": "P"}).json()["id"]
     a = client.post("/api/notes", json={"content": "Reunión Alfa\nventana de corte el sábado", "project_id": p}).json()
     b = client.post("/api/notes", json={"content": "Ideas\nalfa beta"}).json()
@@ -393,7 +393,7 @@ def test_filtrar_notas_por_titulo_contenido_y_proyecto(client):
     assert ids({"project_id": str(p), "q": "corte"}) == [a["id"]]
 
 
-def test_pestanas_con_pantalla_dividida_y_nota_purgada(client):
+def test_tabs_with_split_screen_and_purged_note(client):
     a = client.post("/api/notes", json={}).json()["id"]
     b = client.post("/api/notes", json={}).json()["id"]
     client.put("/api/session/note-tabs", json={"open": [b, a], "active": a, "split": b})
@@ -403,11 +403,11 @@ def test_pestanas_con_pantalla_dividida_y_nota_purgada(client):
     assert client.get("/api/session/note-tabs").json() == {"open": [a], "active": a}
 
 
-# ---------------- Restauración de una exportación de la 0.2 ----------------
-def test_restaurar_exportacion_del_esquema_anterior(client):
+# ---------------- Restoring an export from 0.2 ----------------
+def test_restore_export_from_previous_schema(client):
     mk(client, title="Antes")
     export = client.get("/api/export/full").json()
-    assert export["schema_version"] == 3
+    assert export["schema_version"] == latest_version()
     old = json.loads(json.dumps(export))
     old["schema_version"], old["app_version"] = 2, "0.2.0"
     for r in old["tables"]["recurrences"]:

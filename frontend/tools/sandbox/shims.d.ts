@@ -1,4 +1,4 @@
-// Solo para entornos sin @types/react (sandbox de desarrollo). Con `npm install` se usan los tipos reales.
+// Only for environments without @types/react (development sandbox). With `npm install` the real types are used.
 declare module "react" {
   export type ReactNode = any;
   export type Dispatch<A> = (value: A) => void;

@@ -29,7 +29,7 @@ export const RULE: Record<Rule, string> = tr({ diaria: "Todos los días", labora
 export const NONWORK: Record<string, string> = tr({ saltar: "Saltar ese día", siguiente_laborable: "Mover al siguiente laborable", mantener: "Mantener la fecha" });
 const DAYS_SHORT_ES = ["L", "M", "X", "J", "V", "S", "D"];
 const DAYS_LONG_ES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
-/** Días ISO (1 = lunes); se traducen al leerlos. */
+/** ISO days (1 = Monday); translated when read. */
 export const DAYS_SHORT: string[] = new Proxy(DAYS_SHORT_ES, { get: (a, k) => (typeof k === "string" && /^\d+$/.test(k) ? t(a[Number(k)]) : (a as any)[k]) });
 export const DAYS_LONG: string[] = new Proxy(DAYS_LONG_ES, { get: (a, k) => (typeof k === "string" && /^\d+$/.test(k) ? t(a[Number(k)]) : (a as any)[k]) });
 export const REMINDER_RULE = tr({
@@ -46,7 +46,7 @@ export function describeRule(r: { rule: Rule; weekdays?: number[]; interval_days
   return RULE[r.rule];
 }
 
-/** «L–J 09:00–19:00 · V 09:00–15:00» (días consecutivos con el mismo horario se agrupan). */
+/** «L–J 09:00–19:00 · V 09:00–15:00» (consecutive days with the same hours are grouped). */
 export function describeSchedule(sch: WorkSchedule | undefined): string {
   if (!sch) return "";
   const parts: string[] = [];

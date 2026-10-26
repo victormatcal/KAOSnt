@@ -1,6 +1,6 @@
-"""«Deshacer» tras acciones directas. Antes de la acción se guarda una instantánea de las filas afectadas
-(todas sus columnas) y deshacer las restaura exactamente (estado, completed_at, started_at, position…).
-El registro es efímero (no se exporta) y caduca a los 15 minutos. El borrado definitivo no tiene deshacer."""
+"""«Undo» after direct actions. Before the action a snapshot of the affected rows is stored
+(all their columns) and undo restores them exactly (status, completed_at, started_at, position…).
+The log is ephemeral (not exported) and expires after 15 minutes. Permanent deletion has no undo."""
 from __future__ import annotations
 
 import sqlite3

@@ -1,12 +1,12 @@
-"""Notas: captura libre sin título ni ubicación, título sugerido, versión para concurrencia,
-archivo/papelera recuperables, vínculos a tareas y conversión de fragmentos en tareas."""
+"""Notes: free capture without title or location, suggested title, version for concurrency,
+recoverable archive/trash, links to tasks and turning excerpts into tasks."""
 from __future__ import annotations
 
 import re
 from typing import Any
 
 from .db import now_utc, row, rows
-from .errors import AppError, invalid, not_found
+from .errors import AppError, invalid, missing_ref, not_found
 from .settings import get, get_all
 from .tasks import create_task, set_tags
 from .timeutil import parse_dt
@@ -16,7 +16,7 @@ _ONLY_SYMBOLS = re.compile(r"^[\s\-=*_#>`|:~]*$")
 
 
 def suggested_title(content: str) -> str | None:
-    """Primera línea significativa del contenido, sin marcas Markdown. None si no hay."""
+    """First meaningful line of the content, without Markdown marks. None if there is none."""
     in_code = False
     for line in (content or "").splitlines():
         s = line.strip()
@@ -33,24 +33,26 @@ def suggested_title(content: str) -> str | None:
     return None
 
 
-def fallback_title(created_at: str, tz_name: str = "Europe/Madrid") -> str:
+def fallback_title(created_at: str, tz_name: str = "Europe/Madrid", language: str = "es") -> str:
     dt = parse_dt(created_at)
     try:
         from zoneinfo import ZoneInfo
         dt = dt.astimezone(ZoneInfo(tz_name))
     except Exception:
         pass
-    return "Nota del " + dt.strftime("%d/%m/%Y %H:%M")
+    # Computed (not stored) title, so it follows the interface language (0.4)
+    return ("Nota del " if language == "es" else "Note of ") + dt.strftime("%d/%m/%Y %H:%M")
 
 
-def display_title(n: dict[str, Any], tz_name: str = "Europe/Madrid") -> str:
+def display_title(n: dict[str, Any], tz_name: str = "Europe/Madrid", language: str = "es") -> str:
     if n.get("title_manual"):
         return n["title_manual"]
-    return suggested_title(n.get("content") or "") or fallback_title(n.get("created_at") or now_utc(), tz_name)
+    return suggested_title(n.get("content") or "") or fallback_title(n.get("created_at") or now_utc(), tz_name, language)
 
 
 def _decorate(conn, items: list[dict[str, Any]], with_content: bool) -> list[dict[str, Any]]:
-    tz_name = get_all(conn)["timezone"]
+    _st = get_all(conn)
+    tz_name, lang = _st["timezone"], _st["language"]
     ids = [n["id"] for n in items]
     tags: dict[int, list[str]] = {}
     links: dict[int, int] = {}
@@ -61,7 +63,7 @@ def _decorate(conn, items: list[dict[str, Any]], with_content: bool) -> list[dic
         links = {r[0]: r[1] for r in conn.execute(
             f"SELECT note_id, COUNT(*) FROM note_task_links WHERE note_id IN ({ph}) GROUP BY note_id", ids)}
     for n in items:
-        n["display_title"] = display_title(n, tz_name)
+        n["display_title"] = display_title(n, tz_name, lang)
         n["title_is_suggested"] = not n.get("title_manual")
         n["pinned"] = bool(n["pinned"])
         n["tags"] = sorted(tags.get(n["id"], []), key=str.lower)
@@ -93,11 +95,11 @@ def create_note(conn, data: dict[str, Any]) -> int:
     if task_id is not None:
         t = conn.execute("SELECT project_id FROM tasks WHERE id = ?", (task_id,)).fetchone()
         if not t:
-            raise invalid("Tarea no existe")
+            raise missing_ref("Tarea")
         if project_id is None:
             project_id = t["project_id"]
     if project_id is not None and not conn.execute("SELECT 1 FROM projects WHERE id = ?", (project_id,)).fetchone():
-        raise invalid("Proyecto no existe")
+        raise missing_ref("Proyecto")
     ts = now_utc()
     title = (data.get("title_manual") or "").strip() or None
     nid = conn.execute(
@@ -118,7 +120,7 @@ def update_note(conn, note_id: int, patch: dict[str, Any]) -> dict[str, Any]:
     tags = patch.pop("tags", None)
     if patch.get("project_id") is not None and not conn.execute(
             "SELECT 1 FROM projects WHERE id = ?", (patch["project_id"],)).fetchone():
-        raise invalid("Proyecto no existe")
+        raise missing_ref("Proyecto")
     if "title_manual" in patch:
         patch["title_manual"] = (patch["title_manual"] or "").strip() or None
     if "pinned" in patch:
@@ -128,7 +130,7 @@ def update_note(conn, note_id: int, patch: dict[str, Any]) -> dict[str, Any]:
     changes = {k: v for k, v in patch.items() if n.get(k) != v}
     if changes:
         changes["updated_at"] = now_utc()
-        bump = ", version = version + 1" if "content" in changes else ""  # la versión solo cambia con el contenido
+        bump = ", version = version + 1" if "content" in changes else ""  # the version only changes with the content
         conn.execute(f"UPDATE notes SET {', '.join(f'{k} = ?' for k in changes)}{bump} WHERE id = ?",
                      [*changes.values(), note_id])
     if tags is not None:
@@ -165,14 +167,15 @@ def list_notes(conn, f: dict[str, Any]) -> list[dict[str, Any]]:
     q = f"SELECT * FROM notes WHERE {' AND '.join(where)} ORDER BY pinned DESC, updated_at DESC LIMIT 1000"
     items = rows(conn.execute(q, params))
     text = (f.get("q") or "").strip()
-    if text:  # título y/o contenido, sin distinguir mayúsculas ni acentos; todas las palabras
+    if text:  # title and/or content, ignoring case and accents; all words
         from .search import norm, parse_query
         terms = parse_query(text)
         field = f.get("in") or "todo"
-        tz_name = get_all(conn)["timezone"]
+        _st = get_all(conn)
+        tz_name, lang = _st["timezone"], _st["language"]
 
         def hay(n):
-            title = display_title(n, tz_name)
+            title = display_title(n, tz_name, lang)
             return norm(title if field == "titulo" else n["content"] if field == "contenido" else title + "\n" + n["content"])
         items = [n for n in items if all(t in hay(n) for t in terms)]
     return _decorate(conn, items, False)
@@ -193,7 +196,7 @@ def link_task(conn, note_id: int, task_id: int, excerpt: str | None = None) -> N
 
 
 def note_to_task(conn, note_id: int, data: dict[str, Any]) -> int:
-    """Crea una tarea a partir de un fragmento. La nota no se modifica ni se duplica."""
+    """Create a task from an excerpt. The note is neither changed nor duplicated."""
     n = get_note_row(conn, note_id)
     project_id = data.get("project_id") if data.get("project_id") is not None else n["project_id"]
     tid = create_task(conn, {"title": data["title"], "project_id": project_id,

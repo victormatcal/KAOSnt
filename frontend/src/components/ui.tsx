@@ -35,7 +35,7 @@ export function Field({ label, children, hint, wide }: { label: string; children
   );
 }
 
-/** Área de texto que crece con el contenido (entre minRows y maxRows líneas) sin desbordar su contenedor. */
+/** Text area that grows with its content (between minRows and maxRows lines) without overflowing its container. */
 export function AutoText({ value, onChange, minRows = 1, maxRows = 8, ...rest }:
   { value: string; onChange: (v: string) => void; minRows?: number; maxRows?: number; [k: string]: any }) {
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -51,7 +51,7 @@ export function AutoText({ value, onChange, minRows = 1, maxRows = 8, ...rest }:
   return <textarea ref={ref} rows={minRows} className="autotext" value={value} onChange={(e: any) => onChange(e.target.value)} {...rest} />;
 }
 
-/** Texto que se guarda al salir del campo o con Ctrl+Enter. Esc deshace la edición en curso. */
+/** Text saved when leaving the field or with Ctrl+Enter. Esc reverts the current edit. */
 export function CommitText({ value, onCommit, placeholder, label, maxRows = 6 }:
   { value: string; onCommit: (v: string) => void; placeholder?: string; label: string; maxRows?: number }) {
   const [v, setV] = useState(value);
@@ -139,7 +139,7 @@ export function LinksEditor({ value, onChange }: { value: Link[]; onChange: (v: 
   );
 }
 
-/** Selector de etiquetas: reutiliza las existentes; Enter elige la sugerencia resaltada o crea una nueva. */
+/** Tag picker: reuses existing tags; Enter picks the highlighted suggestion or creates a new one. */
 export function TagPicker({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
   const { boot } = useApp();
   const [text, setText] = useState("");
@@ -181,7 +181,7 @@ export function TagPicker({ value, onChange }: { value: string[]; onChange: (v: 
   );
 }
 
-/** Buscador de tareas por título, con contexto (proyecto, estado, responsable) en lugar de identificadores. */
+/** Task finder by title, with context (project, status, assignee) instead of identifiers. */
 export function TaskPicker({ tasks, onPick, placeholder = t("Buscar tarea por título…"), exclude = [] }:
   { tasks: TaskRef[]; onPick: (id: number) => void; placeholder?: string; exclude?: number[] }) {
   const app = useApp();
@@ -216,7 +216,7 @@ export function TaskPicker({ tasks, onPick, placeholder = t("Buscar tarea por t�
   );
 }
 
-/** Acordeón: solo una sección abierta a la vez (lo controla el padre). */
+/** Accordion: only one section open at a time (controlled by the parent). */
 export function AccItem({ id, title, open, setOpen, children, badge }:
   { id: string; title: string; open: string | null; setOpen: (v: string | null) => void; children: ReactNode; badge?: ReactNode }) {
   const isOpen = open === id;

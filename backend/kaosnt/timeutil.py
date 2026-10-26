@@ -1,9 +1,9 @@
-"""Fechas y zonas horarias. Almacenamiento en UTC; «hoy» en la zona configurada.
+"""Dates and time zones. Stored in UTC; «today» in the configured time zone.
 
-Tiempo natural: diferencia real entre instantes.
-Horas laborables: solo dentro del horario de cada día (settings["work_schedule"], por día ISO; 0.3) y sin los
-festivos que se pasen en settings["holidays"] (registrados manualmente; nunca se infieren). Si no hay
-work_schedule se usa el formato de la 0.2 (workdays + work_start/work_end).
+Calendar time: real difference between instants.
+Working hours: only within each day's schedule (settings["work_schedule"], per ISO day; 0.3) and excluding the
+holidays passed in settings["holidays"] (registered manually; never inferred). Without
+work_schedule the 0.2 format is used (workdays + work_start/work_end).
 """
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ def _hm(s: str) -> time:
 
 
 def schedule_of(settings: dict[str, Any]) -> dict[int, tuple[time, time] | None]:
-    """Horario por día ISO → (inicio, fin) o None si no es laborable."""
+    """Schedule per ISO day → (start, end) or None if it is not a working day."""
     sch = settings.get("work_schedule")
     out: dict[int, tuple[time, time] | None] = {}
     if isinstance(sch, dict):
@@ -69,7 +69,7 @@ def schedule_of(settings: dict[str, Any]) -> dict[int, tuple[time, time] | None]
 
 
 def day_hours(d: date, settings: dict[str, Any]) -> float:
-    """Horas laborables nominales de ese día de la semana (sin tener en cuenta festivos)."""
+    """Nominal working hours of that weekday (holidays not taken into account)."""
     w = schedule_of(settings)[d.isoweekday()]
     if not w:
         return 0.0
@@ -90,7 +90,7 @@ def next_working_day(d: date, settings: dict[str, Any], max_days: int = 60) -> d
 
 
 def add_hours(start: datetime, hours: float, mode: str, settings: dict[str, Any]) -> datetime:
-    """Instante en que se cumplen `hours` desde `start` (natural o laborable)."""
+    """Instant at which `hours` have elapsed since `start` (calendar or working hours)."""
     if mode != "laborable":
         return start + timedelta(hours=hours)
     tz = tz_of(settings)

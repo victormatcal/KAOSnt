@@ -13,7 +13,7 @@ const MILESTONE_STATUS = tr({ pendiente: "pendiente", cumplido: "cumplido", canc
 
 export function ProjectsView() {
   const app = useApp();
-  const [tab, setTab] = useState<"proyectos" | "clientes">("proyectos");
+  const [tab, setTab] = useState<"projects" | "clients">("projects");
   const [showAll, setShowAll] = useState(false);
   const [creating, setCreating] = useState(false);
   const { data, error, reload } = useApi<ProjectListItem[]>(`/api/projects${showAll ? "?include_archived=true" : ""}`);
@@ -22,15 +22,15 @@ export function ProjectsView() {
       <header className="view-head row">
         <h1>{t("Proyectos")}</h1>
         <div role="tablist" className="tabs-inline" aria-label={t("Proyectos o clientes")}>
-          <button role="tab" aria-selected={tab === "proyectos"} className={tab === "proyectos" ? "active" : ""} onClick={() => setTab("proyectos")}>{t("Proyectos")}</button>
-          <button role="tab" aria-selected={tab === "clientes"} className={tab === "clientes" ? "active" : ""} onClick={() => setTab("clientes")}>{t("Clientes")}</button>
+          <button role="tab" aria-selected={tab === "projects"} className={tab === "projects" ? "active" : ""} onClick={() => setTab("projects")}>{t("Proyectos")}</button>
+          <button role="tab" aria-selected={tab === "clients"} className={tab === "clients" ? "active" : ""} onClick={() => setTab("clients")}>{t("Clientes")}</button>
         </div>
         <span className="spacer" />
-        {tab === "proyectos" && <>
+        {tab === "projects" && <>
           <label className="check"><input type="checkbox" checked={showAll} onChange={(e: any) => setShowAll(e.target.checked)} /> {t("Incluir archivados")}</label>
           <button className="primary" onClick={() => setCreating(true)}>{t("Nuevo proyecto")}</button></>}
       </header>
-      {tab === "clientes" ? <ClientsPanel /> : <>
+      {tab === "clients" ? <ClientsPanel /> : <>
         <ErrorBox error={error} onRetry={reload} />
         {data && !data.length && <Empty>{t("Aún no hay proyectos. No son obligatorios: puedes capturar tareas y notas sin proyecto y vincularlas después.")}</Empty>}
         <div className="project-grid">
@@ -55,7 +55,7 @@ export function ProjectsView() {
   );
 }
 
-/** Gestión de clientes: crear, renombrar y eliminar (los proyectos se conservan sin cliente). */
+/** Client management: create, rename and delete (projects are kept without a client). */
 function ClientsPanel() {
   const app = useApp();
   const { data, error, reload } = useApi<Client[]>("/api/clients");
@@ -90,7 +90,7 @@ function ClientsPanel() {
   );
 }
 
-/** Selector de cliente con opción de crear uno nuevo en línea. */
+/** Client picker with an option to create a new one inline. */
 function ClientPicker({ value, onChange }: { value: number | null; onChange: (id: number | null) => void }) {
   const app = useApp();
   const [creating, setCreating] = useState(false);
@@ -297,7 +297,7 @@ export function ProjectDetail({ id }: { id: number }) {
   );
 }
 
-/** Eliminar un proyecto (además de archivar). Copia previa automática y dos opciones para su contenido. */
+/** Delete a project (besides archiving). Automatic previous backup and two options for its content. */
 function DeleteProjectDialog({ project, onClose }: { project: Project; onClose: () => void }) {
   const app = useApp();
   const [mode, setMode] = useState<"desvincular" | "eliminar">("desvincular");

@@ -1,9 +1,9 @@
 {
   "format": "kaosnt-theme",
   "version": 1,
-  "id": "mi-tema",
-  "name": "Mi tema (ejemplo)",
-  "description": "Ejemplo: solo cambia el acento a verde. Las variables que no se indican se toman del tema base.",
+  "id": "my-theme",
+  "name": "My theme (example)",
+  "description": "Example: only changes the accent to green. Variables that are not given are taken from the base theme.",
   "font": "redondeada",
   "radius": 10,
   "light": {

@@ -6,6 +6,8 @@ import { applyPrefs } from "./lib/prefs";
 import { AppCtx, Ctx, Toast } from "./lib/store";
 import type { Bootstrap, Reminder } from "./lib/types";
 import { QuickTask, SearchDialog } from "./components/QuickCapture";
+import { PanelResizer } from "./components/PanelResizer";
+import { PANEL_SETTING_MAX, PANEL_SETTING_MIN } from "./lib/panel";
 import { ReminderCenter, ReminderTab } from "./components/ReminderCenter";
 import { TaskPanel } from "./components/TaskPanel";
 import { ErrorBox } from "./components/ui";
@@ -27,7 +29,7 @@ export function parseRoute(hash: string): { view: string; id?: number } {
   return { view, id: n && Number.isFinite(n) ? n : undefined };
 }
 
-/** Destino de «inicio»: la pantalla de apertura configurada (o la última vista si así se configuró). */
+/** «Home» destination: the configured start screen (or the last view if configured so). */
 export function homeHash(s: { start_view: string; last_view: string }): string {
   return "#/" + (s.start_view === "ultima" ? s.last_view || "hoy" : s.start_view || "hoy");
 }
@@ -48,9 +50,19 @@ export function App({ initialBoot }: { initialBoot?: Bootstrap }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [reminderCount, setReminderCount] = useState(0);
   const [remCenter, setRemCenter] = useState<ReminderTab | null>(null);
+  // Task panel width (0.4): live value while resizing; saved in the settings when the gesture ends
+  const layoutRef = useRef<HTMLDivElement>(null);
+  const [panelWidth, setPanelWidth] = useState<number | null>(initialBoot?.settings.task_panel_width ?? null);
+  useEffect(() => { if (boot) setPanelWidth(boot.settings.task_panel_width ?? null); }, [boot?.settings.task_panel_width]);
+  const commitPanelWidth = (w: number | null) => {
+    if (w !== null) w = Math.min(Math.max(w, PANEL_SETTING_MIN), PANEL_SETTING_MAX);
+    setPanelWidth(w);
+    api.patch("/api/settings", { task_panel_width: w }).then(
+      () => setBoot((b: Bootstrap | null) => (b ? { ...b, settings: { ...b.settings, task_panel_width: w } } : b)), () => undefined);
+  };
   const [systemDark, setSystemDark] = useState(false);
   const toastSeq = useRef(0);
-  // Idioma, formato de fecha y tema: se aplican antes de pintar con la configuración recibida
+  // Language, date format and theme: applied before painting with the settings received
   if (boot) applyPrefs(boot.settings, systemDark);
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
@@ -105,12 +117,12 @@ export function App({ initialBoot }: { initialBoot?: Bootstrap }) {
         run: () => { api.post(`/api/undo/${undoId}`).then(() => { setDataVersion((v: number) => v + 1); toast(t("Acción deshecha"), "ok"); }, (e: any) => toast(e.message, "error")); },
       } });
     },
-    openReminders: (tab) => setRemCenter(tab || "pendientes"),
+    openReminders: (tab) => setRemCenter(tab || "pending"),
   }), [boot, dataVersion]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.altKey) return; // AltGr en teclados españoles
+      if (e.ctrlKey && e.altKey) return; // AltGr on Spanish keyboards
       if (e.altKey && !e.shiftKey && (e.key === "t" || e.key === "T")) { e.preventDefault(); setQuick({}); }
       else if (e.altKey && (e.key === "n" || e.key === "N")) { e.preventDefault(); void newNote(); }
       else if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); setSearch(true); }
@@ -129,7 +141,7 @@ export function App({ initialBoot }: { initialBoot?: Bootstrap }) {
     return () => { window.removeEventListener("beforeunload", before); document.removeEventListener("visibilitychange", hidden); };
   }, []);
 
-  // Recordatorios: recálculo periódico mientras la app está abierta y aviso agrupado opcional
+  // Reminders: periodic recalculation while the app is open and optional grouped notification
   useEffect(() => {
     if (!boot) return;
     const check = async () => {
@@ -143,7 +155,7 @@ export function App({ initialBoot }: { initialBoot?: Bootstrap }) {
         const body = st.notifications_discreet || fresh.length > 1 ? t("{n} recordatorio(s) pendiente(s)", { n: fresh.length }) : t(fresh[0].rule_label);
         new Notification(st.app_name || "KAOSnt", { body, tag: "kaosnt-recordatorios" });
         await api.post("/api/reminders/notified", { ids: fresh.map((x) => x.id) });
-      } catch { /* el centro interno sigue disponible */ }
+      } catch { /* the internal centre is still available */ }
     };
     void check();
     const timer = setInterval(check, 60000);
@@ -177,13 +189,17 @@ export function App({ initialBoot }: { initialBoot?: Bootstrap }) {
         <button onClick={() => setQuick({})} title="Alt+T">{t("+ Tarea")} <kbd>Alt+T</kbd></button>
         <button onClick={() => newNote()} title="Alt+N">{t("+ Nota")} <kbd>Alt+N</kbd></button>
         <button onClick={() => setSearch(true)} title={t("Ctrl+K o /")}>{t("Buscar")} <kbd>Ctrl+K</kbd></button>
-        <button className="bell ghost" onClick={() => setRemCenter("pendientes")} title={t("Centro de recordatorios: pendientes, programados y resueltos")}
+        <button className="bell ghost" onClick={() => setRemCenter("pending")} title={t("Centro de recordatorios: pendientes, programados y resueltos")}
           aria-label={t("Recordatorios: {n} pendientes", { n: reminderCount })}>🔔 {reminderCount}</button>
         <a href="#/config" className={"navlink" + (current === "config" ? " active" : "")} title={t("Configuración, copias y cierre")}>⚙ {t("Configuración")}</a>
       </header>
-      <div className={"layout" + (taskId ? " with-panel" : "")}>
+      <div ref={layoutRef} className={"layout" + (taskId ? " with-panel" : "") + (panelWidth !== null ? " custom-width" : "")}
+        style={panelWidth !== null ? { ["--panel-w" as any]: `${panelWidth}px` } : undefined}>
         <main id="main" tabIndex={-1}>{content}</main>
-        {taskId !== null && <TaskPanel key={taskId} id={taskId} onClose={() => setTaskId(null)} />}
+        {taskId !== null && <div className="panel-wrap">
+          <PanelResizer width={panelWidth} layout={() => layoutRef.current} onResize={setPanelWidth} onCommit={commitPanelWidth} />
+          <TaskPanel key={taskId} id={taskId} onClose={() => setTaskId(null)} />
+        </div>}
       </div>
       {quick && <QuickTask preset={quick} onClose={() => setQuick(null)} />}
       {search && <SearchDialog onClose={() => setSearch(false)} />}

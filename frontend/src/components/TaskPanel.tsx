@@ -20,8 +20,8 @@ const EDITABLE: (keyof TaskDetail)[] = [
 ];
 const KEEP_EMPTY_STRING = new Set(["title", "description", "wait_reason", "wait_on", "wait_next_action"]);
 
-/** PATCH de tarea; si la aprobación comercial está pendiente, pide confirmación explícita.
- * Con undo=true el servidor guarda una instantánea y devuelve undo_id para «Deshacer». */
+/** Task PATCH; if the commercial approval is pending, asks for explicit confirmation.
+ * With undo=true the server stores a snapshot and returns undo_id for «Undo». */
 export async function patchTask(id: number, body: Record<string, unknown>, undo = false): Promise<TaskDetail | null> {
   const url = `/api/tasks/${id}${undo ? "?undo=1" : ""}`;
   try {
@@ -40,7 +40,7 @@ function pick(task: TaskDetail): Record<string, any> {
   return o;
 }
 
-/** Fecha y hora UTC ↔ campo local en la zona configurada. */
+/** UTC date and time ↔ local field in the configured time zone. */
 function UtcDateTime({ value, onChange, label }: { value: string | null; onChange: (v: string | null) => void; label: string }) {
   const app = useApp();
   return <DateTimeInput label={label} value={utcToZonedInput(value, app.tz) || null} onChange={(v) => onChange(v ? zonedToUtc(v, app.tz) : null)} />;
@@ -60,7 +60,7 @@ export function TaskPanel({ id, onClose }: { id: number; onClose: () => void }) 
   useEffect(() => { api.get<Task[]>("/api/tasks?include_backlog=1").then(setAllTasks, () => undefined); }, [id, app.dataVersion]);
 
   const dirtyKeys = useMemo(() => task ? EDITABLE.filter((k) => JSON.stringify(draft[k as string] ?? null) !== JSON.stringify((task as any)[k] ?? null)) : [], [draft, task]);
-  // Tras «Deshacer» u otros cambios externos se recarga la tarea (si no hay cambios sin guardar en el formulario)
+  // After «Undo» or other external changes the task is reloaded (if the form has no unsaved changes)
   useEffect(() => { if (task && !dirtyKeys.length) void load(); }, [app.dataVersion]);
 
   useEffect(() => {
@@ -80,7 +80,7 @@ export function TaskPanel({ id, onClose }: { id: number; onClose: () => void }) 
   const set = (k: string, v: any) => setDraft((d: Record<string, any>) => ({ ...d, [k]: v }));
   const after = (x: TaskDetail | null, msg?: string) => {
     if (!x) return;
-    // conserva los cambios del borrador que no tocaba esta acción
+    // keep the draft changes this action did not touch
     setTask(x);
     setDraft((d: Record<string, any>) => { const base = pick(x); for (const k of dirtyKeys) base[k as string] = d[k as string]; return base; });
     app.changed();
@@ -90,7 +90,7 @@ export function TaskPanel({ id, onClose }: { id: number; onClose: () => void }) 
     setError("");
     try { after(await fn(), msg); return true; } catch (e: any) { setError(e.message); return false; }
   };
-  /** Guarda los cambios pendientes del formulario. Devuelve false si hay un error. */
+  /** Save the pending form changes. Returns false on error. */
   async function save(): Promise<boolean> {
     if (!task || !dirtyKeys.length) return true;
     const body: Record<string, any> = {};
@@ -104,7 +104,7 @@ export function TaskPanel({ id, onClose }: { id: number; onClose: () => void }) 
     setSaving(false);
     return ok;
   }
-  /** Acción directa con «Deshacer». */
+  /** Direct action with «Undo». */
   const quick = (body: Record<string, unknown>, msg: string) => run(() => patchTask(task.id, body, true), msg);
   const setTags = async (tags: string[]) => {
     if (await run(() => api.patch<TaskDetail>(`/api/tasks/${task.id}`, { tags }))) await app.reloadBoot();

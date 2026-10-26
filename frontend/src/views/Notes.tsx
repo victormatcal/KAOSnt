@@ -13,12 +13,12 @@ import { Chip, Empty, ErrorBox, Field, Modal, PersonSelect, ProjectSelect, TagPi
 type Scope = "sin_clasificar" | "todas" | "fijadas" | "archivo" | "papelera";
 const SCOPES: [Scope, () => string][] = [["sin_clasificar", () => t("Sin clasificar")], ["todas", () => t("Todas")], ["fijadas", () => t("Fijadas")], ["archivo", () => t("Archivo")], ["papelera", () => t("Papelera")]];
 
-// Autoguardados activos, para avisar antes de cerrar la pestaña del navegador
+// Active autosaves, to warn before closing the browser tab
 export const activeSavers = new Set<NoteSaver>();
 
 interface Tabs { open: number[]; active: number | null; split?: number | null }
 
-/** Filtros de la lista de notas → parámetros de /api/notes. */
+/** Note list filters → /api/notes parameters. */
 export function notesQuery(f: { scope: string; kind: string; tag: string; project: string; q: string; field: string }): string {
   const p = [`scope=${f.scope}`];
   if (f.kind) p.push(`kind=${f.kind}`);
@@ -28,7 +28,7 @@ export function notesQuery(f: { scope: string; kind: string; tag: string; projec
   return `/api/notes?${p.join("&")}`;
 }
 
-/** Reordena: mueve `id` a la posición de `target` (arrastrar y soltar). */
+/** Reorder: move `id` to the position of `target` (drag and drop). */
 export function reorderTabs(open: number[], id: number, target: number): number[] {
   if (id === target || !open.includes(id) || !open.includes(target)) return open;
   const rest = open.filter((x) => x !== id);
@@ -71,7 +71,7 @@ export function NotesView({ routeId }: { routeId?: number }) {
       .then(undefined, (e) => setTabsError(t("No se pudo guardar la sesión de pestañas: {error}", { error: e.message })));
   }
   const openNote = (id: number) => app.navigate(`#/notas/${id}`);
-  /** Quita una nota de las pestañas (al cerrar la pestaña o si la nota ya no existe). Nunca borra la nota. */
+  /** Remove a note from the tabs (when closing the tab or if the note no longer exists). Never deletes the note. */
   const removeTab = (id: number) => {
     if (tabs) {
       const idx = tabs.open.indexOf(id);
@@ -103,7 +103,7 @@ export function NotesView({ routeId }: { routeId?: number }) {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const editor = (id: number, pane: "izquierda" | "derecha") => <NoteEditor key={pane + id} id={id} pane={pane}
+  const editor = (id: number, pane: "left" | "right") => <NoteEditor key={pane + id} id={id} pane={pane}
     onTitle={(title) => setTitles((m: Record<number, string>) => ({ ...m, [id]: title }))} onListChange={reload}
     onGone={() => { removeTab(id); reload(); }} />;
 
@@ -165,8 +165,8 @@ export function NotesView({ routeId }: { routeId?: number }) {
           </div>
         </div>
         {active ? <div className={"note-panes" + (split ? " two" : "")}>
-          {editor(active, "izquierda")}
-          {split && editor(split, "derecha")}
+          {editor(active, "left")}
+          {split && editor(split, "right")}
         </div> : <Empty>{t("Abre una nota de la lista o crea una nueva. Cerrar una pestaña nunca borra ni archiva la nota.")}</Empty>}
       </section>
     </div>
@@ -175,11 +175,11 @@ export function NotesView({ routeId }: { routeId?: number }) {
 
 const EMERGENCY = (id: number) => `kaosnt-nota-pendiente-${id}`;
 
-function NoteEditor({ id, pane, onTitle, onListChange, onGone }: { id: number; pane: "izquierda" | "derecha"; onTitle: (title: string) => void; onListChange: () => void; onGone: () => void }) {
+function NoteEditor({ id, pane, onTitle, onListChange, onGone }: { id: number; pane: "left" | "right"; onTitle: (title: string) => void; onListChange: () => void; onGone: () => void }) {
   const app = useApp();
   const [note, setNote] = useState<Note | null>(null);
   const [text, setText] = useState("");
-  const [state, setState] = useState<SaveState>("guardado");
+  const [state, setState] = useState<SaveState>("saved");
   const [saveErr, setSaveErr] = useState("");
   const [loadErr, setLoadErr] = useState("");
   const [preview, setPreview] = useState(false);
@@ -201,16 +201,16 @@ function NoteEditor({ id, pane, onTitle, onListChange, onGone }: { id: number; p
           setNote(r); onTitle(r.display_title);
           return { version: r.version };
         },
-        onState: (s, err) => { setState(s); setSaveErr(err || ""); if (s === "guardado") onListChange(); },
+        onState: (s, err) => { setState(s); setSaveErr(err || ""); if (s === "saved") onListChange(); },
         emergency: {
-          put: (c) => { try { localStorage.setItem(EMERGENCY(id), c); } catch { /* sin almacenamiento local */ } },
+          put: (c) => { try { localStorage.setItem(EMERGENCY(id), c); } catch { /* no local storage */ } },
           clear: () => { try { localStorage.removeItem(EMERGENCY(id)); } catch { /* */ } },
         },
       });
       activeSavers.add(saver.current);
       try { const pending = localStorage.getItem(EMERGENCY(id)); if (pending !== null && pending !== n.content) setRecovered(pending); } catch { /* */ }
     } catch (e: any) {
-      if (e?.status === 404) { onGone(); return; } // la nota ya no existe: se quita de las pestañas
+      if (e?.status === 404) { onGone(); return; } // the note no longer exists: it is removed from the tabs
       setLoadErr(e.message);
     }
   };
@@ -245,7 +245,7 @@ function NoteEditor({ id, pane, onTitle, onListChange, onGone }: { id: number; p
     const first = sel.split("\n").map((l) => l.replace(/^\s*([-*+]\s+(\[[ xX]\]\s+)?|\d+[.)]\s+|#+\s+)/, "").trim()).find(Boolean) || "";
     setToTask({ title: first.slice(0, 200), excerpt: sel.trim() });
   }
-  const indicator = state === "guardado" && saver.current?.hasUnsaved ? "pendiente" : state;
+  const indicator = state === "saved" && saver.current?.hasUnsaved ? "pending" : state;
 
   return (
     <div className={"note-editor pane-" + pane} onKeyDown={(e: any) => {
@@ -262,10 +262,10 @@ function NoteEditor({ id, pane, onTitle, onListChange, onGone }: { id: number; p
           defaultValue={note.title_manual || ""} key={"t" + (note.title_manual || "")}
           onBlur={(e: any) => { if ((e.target.value || null) !== (note.title_manual || null)) void meta({ title_manual: e.target.value }); }} />
         <span className={`save-state save-${indicator}`} role="status" aria-live="polite">{SAVE_LABEL[indicator]}</span>
-        {(state === "error" || state === "conflicto") && <>
+        {(state === "error" || state === "conflict") && <>
           <button onClick={() => saver.current?.retry()}>{t("Reintentar")}</button>
-          {state === "conflicto" && <button onClick={() => saver.current?.overwrite()}>{t("Sobrescribir con mi texto")}</button>}
-          {state === "conflicto" && <button className="ghost" onClick={() => { navigator.clipboard?.writeText(text).catch(() => undefined); app.toast(t("Tu texto se ha copiado al portapapeles"), "info"); void load(); }}>{t("Copiar mi texto y recargar")}</button>}
+          {state === "conflict" && <button onClick={() => saver.current?.overwrite()}>{t("Sobrescribir con mi texto")}</button>}
+          {state === "conflict" && <button className="ghost" onClick={() => { navigator.clipboard?.writeText(text).catch(() => undefined); app.toast(t("Tu texto se ha copiado al portapapeles"), "info"); void load(); }}>{t("Copiar mi texto y recargar")}</button>}
         </>}
       </div>
       {saveErr && <p className="field-error" role="alert">{t("{error}. El texto sigue en el editor y en una copia de emergencia local.", { error: saveErr })}</p>}

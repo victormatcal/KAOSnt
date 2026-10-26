@@ -1,5 +1,5 @@
-"""Genera frontend/tests/fixtures/demo-api.json con respuestas reales de la API sobre datos ficticios.
-Lo usan las pruebas de renderizado del frontend (sin navegador). Uso: python backend/tools/gen_frontend_fixture.py"""
+"""Generate frontend/tests/fixtures/demo-api.json with real API responses over fictitious data.
+Used by the frontend render tests (no browser). Usage: python backend/tools/gen_frontend_fixture.py"""
 import json
 import sys
 import tempfile
@@ -16,8 +16,8 @@ from kaosnt.app import create_app  # noqa: E402
 from kaosnt.config import Config  # noqa: E402
 from kaosnt.demo import seed_if_empty  # noqa: E402
 
-# Fecha fija: el martes de la semana actual. Así el fixture no depende del día en que se genera
-# (con la fecha real, un viernes dejaba los festivos ficticios fuera de la semana y las pruebas cambiaban).
+# Fixed date: Tuesday of the current week, so the fixture does not depend on the day it is generated
+# (with the real date, a Friday left the fictitious holidays out of the week and the tests changed).
 _real = date.today()
 today = _real - timedelta(days=_real.weekday()) + timedelta(days=1)
 
@@ -34,7 +34,7 @@ ws = today - timedelta(days=today.weekday())
 grid0 = date(today.year, today.month, 1)
 grid0 -= timedelta(days=grid0.weekday())
 URLS = ["/api/reminders", "/api/session/note-tabs", "/api/tasks/2/reminders", "/api/bootstrap", "/api/today", "/api/tasks", "/api/projects", "/api/projects/1", "/api/tasks?project_id=1",
-        "/api/notes?project_id=1", "/api/people/1/view", "/api/people/2/view", "/api/notes?scope=todas", "/api/notes/1",
+        "/api/notes?project_id=1", "/api/people/1/view", "/api/people/2/view", "/api/people/2/delete-preview", "/api/notes?scope=todas", "/api/notes/1",
         "/api/recurrences", "/api/backups", "/api/tasks/2", "/api/tasks/1", "/api/tasks?include_backlog=1", "/api/tags",
         "/api/locations", f"/api/holidays?year={today.year}", "/api/clients", "/api/tasks?archived=only",
         f"/api/planning?week={ws.isoformat()}",
@@ -53,4 +53,4 @@ with tempfile.TemporaryDirectory() as d:
         out["__today__"] = today.isoformat()
 target = Path(__file__).resolve().parents[2] / "frontend" / "tests" / "fixtures" / "demo-api.json"
 target.write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
-print("Fixture escrito en", target)
+print("Fixture written to", target)

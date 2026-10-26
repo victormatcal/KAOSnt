@@ -1,5 +1,5 @@
-// Series recurrentes sin saturar la interfaz: una tarjeta por serie y estado.
-// Representante: la ocurrencia abierta más antigua o, entre las terminadas (hecha/cancelada), la más reciente.
+// Recurring series without cluttering the interface: one card per series and status.
+// Representative: the oldest open occurrence or, among finished ones (hecha/cancelada), the most recent.
 import type { Task } from "./types";
 
 export interface SeriesTask extends Task { series_more?: number; series_key?: string }

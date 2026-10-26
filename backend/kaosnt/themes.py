@@ -1,9 +1,9 @@
-"""Temas de personalización declarativos (JSON). Solo colores (#hex, rgb[a], hsl[a]), una familia de fuente
-de una lista cerrada y un radio de borde. Nada de CSS libre, URLs ni fuentes remotas.
+"""Declarative customisation themes (JSON). Only colours (#hex, rgb[a], hsl[a]), a font family
+from a closed list and a border radius. No free CSS, URLs or remote fonts.
 
-Formato: {"format": "kaosnt-theme", "version": 1, "id", "name", "description", "font", "radius",
+Format: {"format": "kaosnt-theme", "version": 1, "id", "name", "description", "font", "radius",
           "light": {variable: color}, "dark": {variable: color}}
-Las variables ausentes se toman del tema base. La misma validación existe en el cliente (src/lib/theme.ts).
+Missing variables are taken from the base theme. The same validation exists in the client (src/lib/theme.ts).
 """
 from __future__ import annotations
 
@@ -36,17 +36,17 @@ def is_color(v: Any) -> bool:
 
 
 def validate(theme: Any) -> dict[str, Any]:
-    """Devuelve el tema normalizado o lanza 422 con el motivo."""
+    """Return the normalised theme or raise 422 with the reason."""
     if not isinstance(theme, dict):
         raise invalid("El tema debe ser un objeto JSON")
     allowed = {"format", "version", "id", "name", "description", "font", "radius", "light", "dark"}
     extra = set(theme) - allowed
     if extra:
-        raise invalid(f"Campos no admitidos en el tema: {', '.join(sorted(extra))}")
+        raise invalid("Campos no admitidos en el tema: {campos}", campos=", ".join(sorted(extra)))
     if theme.get("format") != FORMAT:
         raise invalid('El archivo no es un tema de KAOSnt (format debe ser "kaosnt-theme")')
     if theme.get("version") != VERSION:
-        raise invalid(f"Versión de tema no compatible: {theme.get('version')}")
+        raise invalid("Versión de tema no compatible: {v}", v=theme.get("version"))
     tid = theme.get("id")
     if not isinstance(tid, str) or not ID_RE.match(tid):
         raise invalid("Identificador de tema no válido (minúsculas, números y guiones; máx. 40)")
@@ -58,7 +58,7 @@ def validate(theme: Any) -> dict[str, Any]:
         raise invalid("Descripción no válida (máx. 300 caracteres)")
     font = theme.get("font", "sistema")
     if font not in FONTS:
-        raise invalid(f"Fuente no admitida: usa {', '.join(FONTS)}")
+        raise invalid("Fuente no admitida: usa {fuentes}", fuentes=", ".join(FONTS))
     radius = theme.get("radius", 6)
     if not isinstance(radius, int) or isinstance(radius, bool) or not 0 <= radius <= 16:
         raise invalid("El radio debe ser un número entero entre 0 y 16")
@@ -67,18 +67,18 @@ def validate(theme: Any) -> dict[str, Any]:
     for mode in ("light", "dark"):
         vars_ = theme.get(mode, {})
         if not isinstance(vars_, dict):
-            raise invalid(f"«{mode}» debe ser un objeto de variables")
+            raise invalid("«{modo}» debe ser un objeto de variables", modo=mode)
         bad = [k for k in vars_ if k not in COLOR_VARS]
         if bad:
-            raise invalid(f"Variables desconocidas en «{mode}»: {', '.join(sorted(bad))}")
+            raise invalid("Variables desconocidas en «{modo}»: {vars}", modo=mode, vars=", ".join(sorted(bad)))
         for k, v in vars_.items():
             if not is_color(v):
-                raise invalid(f"Color no válido en «{mode}.{k}»: solo #hex, rgb(a) o hsl(a)")
+                raise invalid("Color no válido en «{campo}»: solo #hex, rgb(a) o hsl(a)", campo=f"{mode}.{k}")
         out[mode] = {k: v.strip() for k, v in vars_.items()}
     return out
 
 
-# ---------- Contraste WCAG (para pruebas y para avisar al importar) ----------
+# ---------- WCAG contrast (for tests and to warn when importing) ----------
 def _rgb(c: str) -> tuple[float, float, float] | None:
     c = c.strip()
     if c.startswith("#"):
@@ -110,7 +110,7 @@ def contrast(a: str, b: str) -> float:
     return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
 
 
-# Pares texto/fondo que deben cumplir ≥ 4,5:1
+# Text/background pairs that must reach ≥ 4.5:1
 CONTRAST_PAIRS = (
     ("text", "bg"), ("text", "surface"), ("text", "surface-2"), ("muted", "bg"), ("muted", "surface"),
     ("accent", "surface"), ("accent", "accent-soft"), ("accent-text", "accent"), ("danger", "danger-soft"),
@@ -120,7 +120,7 @@ CONTRAST_PAIRS = (
 
 
 def contrast_report(full_vars: dict[str, str]) -> list[dict[str, Any]]:
-    """Pares por debajo de 4,5:1 (vacío = cumple)."""
+    """Pairs below 4.5:1 (empty = compliant)."""
     out = []
     for fg, bg in CONTRAST_PAIRS:
         if fg in full_vars and bg in full_vars:

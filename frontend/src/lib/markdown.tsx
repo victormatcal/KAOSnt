@@ -1,5 +1,5 @@
-// Renderizador Markdown propio y seguro: produce elementos React (nunca innerHTML). El HTML del texto se
-// muestra literal y no se ejecuta. No descarga imágenes ni recursos: las imágenes se muestran como enlace.
+// Own safe Markdown renderer: it produces React elements (never innerHTML). HTML in the text is
+// shown literally and never executed. No images or resources are downloaded: images are shown as links.
 import type { ReactNode } from "react";
 import { t } from "./i18n";
 import { isSafeUrl, linkProps } from "./links";

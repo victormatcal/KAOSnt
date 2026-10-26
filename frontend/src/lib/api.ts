@@ -1,4 +1,4 @@
-// Cliente HTTP mínimo. Solo habla con el propio servidor local (mismo origen).
+// Minimal HTTP client. It only talks to its own local server (same origin).
 import { t } from "./i18n";
 
 export class ApiError extends Error {
@@ -15,13 +15,22 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
       credentials: "same-origin",
     });
   } catch {
-    throw new ApiError(0, "sin_conexion", t("No se puede conectar con la aplicación local. Comprueba que KAOSnt sigue en marcha (iniciar.bat)."));
+    throw new ApiError(0, "sin_conexion", t("No se puede conectar con la aplicación local. Comprueba que KAOSnt sigue en marcha (start.bat)."));
   }
   const text = await res.text();
   let data: any = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = null; }
-  if (!res.ok) throw new ApiError(res.status, data?.code || "error", data?.message || t("Error {codigo}", { codigo: res.status }), data || {});
+  if (!res.ok) throw new ApiError(res.status, data?.code || "error", serverMessage(data) || t("Error {codigo}", { codigo: res.status }), data || {});
   return data as T;
+}
+
+/** Server messages are translation keys (Spanish) with params; params listed in `tparams` are keys too. */
+export function serverMessage(data: any): string {
+  if (!data) return "";
+  if (typeof data.message_key !== "string") return typeof data.message === "string" ? data.message : "";
+  const params: Record<string, string | number> = { ...(data.params || {}) };
+  for (const k of Array.isArray(data.tparams) ? data.tparams : []) if (typeof params[k] === "string") params[k] = t(params[k] as string);
+  return t(data.message_key, params);
 }
 
 export const api = {

@@ -4,7 +4,7 @@ import { App } from "./App";
 import { applyCachedPrefs } from "./lib/prefs";
 import { applyCachedAppearance } from "./lib/theme";
 
-// Último idioma, formato de fecha y aspecto conocidos, antes del primer render (evita el destello blanco).
+// Last known language, date format and appearance, before the first render (avoids the white flash).
 applyCachedAppearance();
 applyCachedPrefs();
 const el = document.getElementById("root");

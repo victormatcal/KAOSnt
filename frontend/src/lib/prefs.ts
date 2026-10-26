@@ -1,5 +1,5 @@
-// Preferencias de interfaz (idioma, formato de fecha, inicio de semana y aspecto) aplicadas antes del primer
-// render: al arrancar se usan las últimas conocidas (localStorage) y, al cargar la configuración, las del servidor.
+// Interface preferences (language, date format, week start and appearance) applied before the first
+// render: on start the last known ones are used (localStorage) and, once the settings load, the server ones.
 import { setDateConfig } from "./dates";
 import { setLang } from "./i18n";
 import { applyAppearance, effectiveMode, findTheme, resolveAppearance } from "./theme";
@@ -11,7 +11,7 @@ export function applyCachedPrefs(): void {
   try {
     const p = JSON.parse(localStorage.getItem(KEY) || "null");
     if (p) { setLang(p.language); setDateConfig(p.date_format, p.week_start); }
-  } catch { /* sin almacenamiento local */ }
+  } catch { /* no local storage */ }
 }
 
 let lastKey = "";
@@ -23,7 +23,7 @@ export function applyPrefs(s: Pick<Settings, "language" | "date_format" | "week_
   setLang(s.language);
   setDateConfig(s.date_format, s.week_start);
   if (typeof document !== "undefined") {
-    document.documentElement.lang = s.language === "en" ? "en" : "es";
+    document.documentElement.lang = s.language === "es" ? "es" : "en";
     const theme = findTheme(s.theme_id, s.custom_themes || []);
     applyAppearance(resolveAppearance(theme, effectiveMode(s.theme_mode, systemDark)));
   }

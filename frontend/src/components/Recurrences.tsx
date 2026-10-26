@@ -18,7 +18,7 @@ export function ruleIsValid(r: RuleValue): boolean {
   return !!r.start_date && (r.rule !== "semanal" || r.weekdays.length > 0) && (r.rule !== "cada_n_dias" || (r.interval_days || 0) >= 1);
 }
 
-/** Editor de la regla de repetición (compartido por la tarea, la captura rápida y el gestor). */
+/** Repetition rule editor (shared by the task, quick capture and the manager). */
 export function RuleEditor({ value, onChange, lockRule }: { value: RuleValue; onChange: (v: RuleValue) => void; lockRule?: boolean }) {
   const set = (p: Partial<RuleValue>) => onChange({ ...value, ...p });
   return (
@@ -114,7 +114,7 @@ export function RecurrencesModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** Eliminar una serie: conservar las ocurrencias como tareas normales o eliminar también las pendientes. */
+/** Delete a series: keep the occurrences as normal tasks or also delete the pending ones. */
 export function DeleteSeriesDialog({ rec, onClose, onDone }: { rec: { id: number; title: string }; onClose: () => void; onDone: () => void }) {
   const app = useApp();
   const [mode, setMode] = useState<"conservar" | "eliminar_pendientes">("conservar");
