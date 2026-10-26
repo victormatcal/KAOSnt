@@ -92,7 +92,7 @@ export interface Settings {
   language: "es" | "en"; date_format: "dd/mm/aaaa" | "aaaa-mm-dd" | "mm/dd/aaaa"; week_start: 1 | 7;
   theme_mode: "sistema" | "claro" | "oscuro"; theme_id: string; custom_themes: import("./theme").ThemeDef[];
   undo_seconds: number; group_recurring: boolean; task_panel_width: number | null;
-  group_subtasks: boolean; note_editor_mode: "editar" | "vista_previa";
+  group_subtasks: boolean; note_editor_mode: "editar" | "live" | "vista_previa";
 }
 export type WorkSchedule = Record<"1" | "2" | "3" | "4" | "5" | "6" | "7", { start: string; end: string } | null>;
 

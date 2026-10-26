@@ -83,7 +83,8 @@ test("editor: keyboard shortcuts (Ctrl+K inserts a link inside the editor)", () 
 });
 
 test("renderer: nested lists, table alignment, separator and safe output", () => {
-  const html = renderToStaticMarkup(<Markdown text={"- a\n\t- b\n\t\t1. c\n- d\n\n| x | y | z |\n|:---|:---:|---:|\n| 1 | 2 | 3 |\n\n---\n<script>alert(1)</script>"} />);
+  // 0.6 adds data-line (source line) to every block; it is removed here to check the structure
+  const html = renderToStaticMarkup(<Markdown text={"- a\n\t- b\n\t\t1. c\n- d\n\n| x | y | z |\n|:---|:---:|---:|\n| 1 | 2 | 3 |\n\n---\n<script>alert(1)</script>"} />).replace(/ data-line="\d+"/g, "");
   assert.match(html, /<ul><li>a<ul><li>b<ol><li>c<\/li><\/ol><\/li><\/ul><\/li><li>d<\/li><\/ul>/);
   assert.match(html, /<th class="al-left">x<\/th><th class="al-center">y<\/th><th class="al-right">z<\/th>/);
   assert.match(html, /<hr\/>/);

@@ -188,5 +188,5 @@ def test_new_settings(client):
     s = client.get("/api/settings").json()
     assert s["group_subtasks"] is True and s["note_editor_mode"] == "editar"
     assert client.patch("/api/settings", json={"group_subtasks": False, "note_editor_mode": "vista_previa"}).status_code == 200
-    assert client.patch("/api/settings", json={"note_editor_mode": "live"}).status_code == 422
+    assert client.patch("/api/settings", json={"note_editor_mode": "wysiwyg"}).status_code == 422  # «live» is valid since 0.6
     assert client.patch("/api/settings", json={"group_subtasks": "si"}).status_code == 422

@@ -32,10 +32,10 @@ DEFAULTS: dict[str, Any] = {
     "custom_themes": [],            # imported themes (validated in themes.py)
     "undo_seconds": 8,
     "group_recurring": True,
-    "task_panel_width": None,
+    "task_panel_width": None,       # task detail panel width in px (0.4); None = default (42 % of the window)
     # 0.5
     "group_subtasks": True,         # Kanban and List: fold subtasks under their parent (same column and group)
-    "note_editor_mode": "editar",   # editar | vista_previa (last mode used in the note editor)       # task detail panel width in px (0.4); None = default (42 % of the window)
+    "note_editor_mode": "editar",   # editar | live | vista_previa (last mode used in the note editor; live since 0.6)
     "project_types": ["implementacion", "mantenimiento", "id", "consultoria", "benchmark", "propuesta", "otro"],
 }
 EDITABLE = set(DEFAULTS.keys()) - {"custom_themes"}  # themes are managed through /api/themes
@@ -103,7 +103,7 @@ def validate_patch(body: dict[str, Any], custom_ids: set[str]) -> None:
         raise invalid("Valor no válido para agrupar series")
     if "group_subtasks" in body and not isinstance(body["group_subtasks"], bool):
         raise invalid("Valor no válido para agrupar subtareas")
-    if "note_editor_mode" in body and body["note_editor_mode"] not in ("editar", "vista_previa"):
+    if "note_editor_mode" in body and body["note_editor_mode"] not in ("editar", "live", "vista_previa"):
         raise invalid("Modo de editor no admitido")
     if "task_panel_width" in body:
         w = body["task_panel_width"]

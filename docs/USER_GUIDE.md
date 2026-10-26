@@ -15,13 +15,15 @@
 | Create a task from the selected text of a note | `Alt+Shift+T` |
 | Close a note tab (does not delete it) | `Alt+W` |
 | Markdown editor | `Tab`/`Shift+Tab` indent, `Enter` continues lists, `Ctrl+B`/`Ctrl+I`/`Ctrl+K` bold, italic and link, `Ctrl+Shift+C` code, `Ctrl+Shift+X` strikethrough, `Esc` then `Tab` leaves the text |
+| Hide / show the notes side panel | `Alt+B` |
 | Resize the task panel (handle focused) | `←` / `→` (`Shift` for bigger steps), `Home` / `End`, `Enter` = default width |
 
 On the Kanban board, each card has ◀ ▲ ▼ ▶ buttons besides drag and drop. With the board grouped, drag a card to another
 group (or use «⇄ Move to another group…») to change its assignee, project or grouping.
 
 **Filters**: each filter accepts several values (e.g. two projects); values combine with «or» inside a filter and «and»
-between filters. Filter by **client** in Work, Notes and Projects. Every screen keeps its filters and options while you move
+between filters. The active filters appear below the bar as «Filter: value ×» chips in a single line («+N more» shows the rest);
+click × to remove one value. Filter by **client** in Work, Notes and Projects. Every screen keeps its filters and options while you move
 to another screen and back (until the browser is closed); «Reset filters» clears them.
 
 **Undo**: after marking done, cancelling, archiving, moving between columns, promoting, skipping an occurrence, resolving a wait,
@@ -75,7 +77,8 @@ arrows to move, `PgUp/PgDn` to change month). Times in 24 h (HH:MM).
 - Recoverable archive and trash; permanent deletion only from the trash (the note disappears from the tabs).
 - **Filters**: text (title and/or content), project (or «No project»), type and tag.
 - **Reorder tabs** by dragging them (or `Alt+←/→`).
-- **Editor**: *Edit* or *Preview* (remembered). Toolbar for headings, emphasis, code, links, quotes, lists, checkboxes, tables and separators; checkboxes can be ticked in the preview. Opening a note from the search (Ctrl+K) puts the caret at its last line.
+- **Side panel**: «⟨» or `Alt+B` hides it (the note uses the whole width; «⟩» brings it back). The «Filters» header folds only the filters and shows how many are active.
+- **Editor**: *Edit*, *Live* (editor and result side by side; scrolling synchronised — switch «Sync scrolling»; click a block of the result to jump to its line) or *Preview* (the last one used is remembered). Toolbar for headings, emphasis, code, links, quotes, lists, checkboxes, tables and separators; checkboxes can be ticked in the preview. Opening a note from the search (Ctrl+K) puts the caret at its last line.
 - **Split screen** (◫): two editable notes side by side; choose the right one among the open notes. On narrow screens they stack.
 
 ## Appearance and language

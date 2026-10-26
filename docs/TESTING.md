@@ -4,6 +4,38 @@
 Linux (development container) · Python 3.12 · FastAPI 0.136.3 · Uvicorn 0.35.0 · Pydantic 2.12.5 · SQLite 3.44 ·
 Node 24 · TypeScript 6 · React 19.2.1. **Not run on Windows or in a real browser** (no browser was available).
 
+## Version 0.6 — run and passed
+
+Baseline before any change (repository ZIP of 0.5.0): server 102/102, frontend 43/43, 1119 translation keys.
+
+### Server: 104 of 104 (102 previous + 2 new in `tests/test_v06.py`)
+- `note_editor_mode` accepts `live` (Edit is still the default) and rejects unknown values; the value survives export and restore.
+- The 0.5 test that expected `live` to be rejected now checks another invalid value (`live` is valid on purpose).
+
+### Frontend: 51 of 51 (43 previous + 8 new in `tests/v06.test.tsx`) and `tools/i18n-keys.mjs` (1132 keys, all translated, none unused)
+- Work filter bar: no chips inside the controls, one row of «Filter: value ×» chips (with Backlog), no row without filters,
+  removing a chip removes only that value, how many chips fit in one line (`fitChips`), expanded row with «Show less»,
+  fixed-height and single-line CSS rules.
+- Notes: CSS rules no longer reach the pop-up check boxes or stretch the select; options with the check box on the left and
+  word wrapping; hide button with `Alt+B`, filters header with the active count, panel hidden and filters folded from the
+  session state.
+- Live mode: source line on every block (headings, paragraphs, nested lists, code, tables, quotes with absolute lines,
+  separator); editor-line ↔ preview-position mapping and its inverse, block of a line, line/offset conversions; editor and
+  result rendered together with toolbar and «Sync scrolling», compact (stacked) version, no `<script>`.
+- The 0.5 renderer test now removes `data-line` before checking the list structure.
+- Also run with the clock moved −30 and +45 days (all passed).
+
+### Real server (`python -m kaosnt`)
+- Database created by the **real 0.5 server** (a note, editor mode «preview») opened with 0.6: no migration (schema 4), the
+  setting is kept, `live` accepted, notes filter with `none`, `index.html` and `app.js` served.
+
+## Pending verification on your computer (0.6)
+- **I could not open a real browser.** Not checked visually: the notes filter pop-up (alignment, width, footer), the hidden
+  panel strip and `Alt+B`, the Work chip line (how many fit, «+N more», expanding), and the Live mode (layout, synchronised
+  scrolling with long notes and wrapped lines, click to jump, highlight of the current block, typing speed with long notes).
+- Synchronised scrolling estimates the editor line from the scroll position (it does not measure wrapped lines), so with very
+  long wrapped paragraphs the result can be a few lines off; the ends of both panes are always aligned.
+
 ## Version 0.5 — run and passed
 
 Baseline before any change (repository ZIP): server 92/92, frontend 31/31, 1061 translation keys.

@@ -8,7 +8,7 @@ import { useApi, useApp } from "../lib/store";
 import { useViewState } from "../lib/viewstate";
 import type { Note, NoteSummary, Task } from "../lib/types";
 import { DateInput } from "../components/DateInput";
-import { EditorMode, MarkdownEditor } from "../components/MarkdownEditor";
+import { asEditorMode, EditorMode, MarkdownEditor } from "../components/MarkdownEditor";
 import { consumeNoteFocus, focusAtEnd } from "../lib/focus";
 import { Chip, Empty, ErrorBox, Field, Modal, PersonSelect, ProjectSelect, TagPicker, TaskPicker, MultiSelect } from "../components/ui";
 
@@ -29,6 +29,11 @@ export function notesQuery(f: { scope: string; kind: string; tag: string; projec
   if (f.client) p.push(`client_id=${encodeURIComponent(f.client)}`);
   if (f.q.trim()) { p.push(`q=${encodeURIComponent(f.q.trim())}`); if (f.field !== "todo") p.push(`in=${f.field}`); }
   return `/api/notes?${p.join("&")}`;
+}
+
+/** Number of active note filters (shown on the folded «Filters» header, 0.6). The text search is always visible. */
+export function activeNoteFilters(f: { project: string; client: string; kind: string; tag: string; field: string }): number {
+  return [f.project, f.client, f.kind, f.tag].filter(Boolean).length + (f.field && f.field !== "todo" ? 1 : 0);
 }
 
 /** Reorder: move `id` to the position of `target` (drag and drop). */
@@ -57,6 +62,12 @@ export function NotesView({ routeId }: { routeId?: number }) {
   const [tabsError, setTabsError] = useState("");
   const [dragTab, setDragTab] = useState<number | null>(null);
   const filtered = !!(kind || tag || project || client || q.trim());
+  // Side panel (0.6): hide it completely (Alt+B) or fold only the filters. Kept for the browser session;
+  // on narrow screens the panel starts hidden.
+  const narrow = typeof window !== "undefined" && window.innerWidth < 900;
+  const [sideHidden, setSideHidden] = useViewState<boolean>("notes.sideHidden", narrow);
+  const [filtersOpen, setFiltersOpen] = useViewState<boolean>("notes.filtersOpen", true);
+  const activeFilters = activeNoteFilters({ project, client, kind, tag, field });
 
   useEffect(() => { api.get<Tabs>("/api/session/note-tabs").then(setTabs, (e) => setTabsError(e.message)); }, []);
   useEffect(() => {
@@ -103,7 +114,10 @@ export function NotesView({ routeId }: { routeId?: number }) {
   const splitCandidates = (tabs?.open || []).filter((x) => x !== active);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.altKey && !e.ctrlKey && (e.key === "w" || e.key === "W") && active) { e.preventDefault(); removeTab(active); } };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.altKey && !e.ctrlKey && (e.key === "w" || e.key === "W") && active) { e.preventDefault(); removeTab(active); }
+      if (e.altKey && !e.ctrlKey && !e.shiftKey && (e.key === "b" || e.key === "B")) { e.preventDefault(); setSideHidden(!sideHidden); }  // 0.6
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
@@ -113,14 +127,22 @@ export function NotesView({ routeId }: { routeId?: number }) {
     onGone={() => { removeTab(id); reload(); }} />;
 
   return (
-    <div className="view notes-view">
+    <div className={"view notes-view" + (sideHidden ? " side-hidden" : "")}>
+      {sideHidden ? <aside className="notes-side-strip" aria-label={t("Lista de notas (oculta)")}>
+        <button className="ghost" onClick={() => setSideHidden(false)} title={t("Mostrar el panel de notas (Alt+B)")} aria-label={t("Mostrar el panel de notas (Alt+B)")} aria-expanded={false}>⟩</button>
+      </aside> :
       <aside className="notes-side" aria-label={t("Lista de notas")}>
-        <button className="primary block" onClick={() => app.newNote()}>{t("Nueva nota (Alt+N)")}</button>
+        <div className="row tight side-head">
+          <button className="primary grow" onClick={() => app.newNote()}>{t("Nueva nota (Alt+N)")}</button>
+          <button className="ghost small" onClick={() => setSideHidden(true)} title={t("Ocultar el panel de notas (Alt+B)")} aria-label={t("Ocultar el panel de notas (Alt+B)")} aria-expanded={true}>⟨</button>
+        </div>
         <div className="scope-tabs" role="tablist" aria-label={t("Bandejas")}>
           {SCOPES.map(([k, label]) => <button key={k} role="tab" aria-selected={scope === k} className={scope === k ? "active" : ""} onClick={() => setScope(k)}>{label()}</button>)}
         </div>
-        <div className="note-filters" role="group" aria-label={t("Filtros de notas")}>
-          <input type="search" aria-label={t("Buscar en las notas")} placeholder={t("Buscar texto…")} value={q} onChange={(e: any) => setQ(e.target.value)} />
+        <input type="search" className="note-search" aria-label={t("Buscar en las notas")} placeholder={t("Buscar texto…")} value={q} onChange={(e: any) => setQ(e.target.value)} />
+        <button type="button" className="ghost small filters-toggle" aria-expanded={filtersOpen} aria-controls="note-filters" onClick={() => setFiltersOpen(!filtersOpen)}>
+          {filtersOpen ? "▾" : "▸"} {activeFilters ? t("Filtros ({n})", { n: activeFilters }) : t("Filtros")}</button>
+        {filtersOpen && <div className="note-filters" id="note-filters" role="group" aria-label={t("Filtros de notas")}>
           <select aria-label={t("Buscar en")} value={field} onChange={(e: any) => setField(e.target.value)}>
             <option value="todo">{t("Título y contenido")}</option><option value="titulo">{t("Solo título")}</option><option value="contenido">{t("Solo contenido")}</option></select>
           <MultiSelect label={t("Proyecto")} value={project} onChange={setProject}
@@ -130,8 +152,8 @@ export function NotesView({ routeId }: { routeId?: number }) {
           <MultiSelect label={t("Tipo de nota")} value={kind} onChange={setKind}
             options={[{ value: "none", label: t("Nota") }, ...Object.entries(NOTE_KIND).map(([k, v]) => ({ value: k, label: v }))]} />
           <MultiSelect label={t("Etiqueta")} value={tag} onChange={setTag} allLabel={t("Todas")} options={app.boot.tags.map((x) => ({ value: x, label: "#" + x }))} />
-          {filtered && <button className="ghost small" onClick={() => { setKind(""); setTag(""); setProject(""); setClient(""); setQ(""); setField("todo"); }}>{t("Restablecer filtros")}</button>}
-        </div>
+        </div>}
+        {filtered && <button className="ghost small" onClick={() => { setKind(""); setTag(""); setProject(""); setClient(""); setQ(""); setField("todo"); }}>{t("Restablecer filtros")}</button>}
         <ErrorBox error={error} onRetry={reload} />
         {list && !list.length && <Empty>{filtered ? t("Ninguna nota coincide con los filtros.") : scope === "papelera" ? t("La papelera está vacía.") : scope === "sin_clasificar" ? t("No hay notas sin clasificar.") : t("Sin notas aquí. Crea una con Alt+N: no necesita título ni proyecto.")}</Empty>}
         {list && list.length > 0 && filtered && <p className="hint">{t("{n} nota(s)", { n: list.length })}</p>}
@@ -141,7 +163,7 @@ export function NotesView({ routeId }: { routeId?: number }) {
             <span className="note-item-meta">{fmtDate(n.updated_at.slice(0, 10))}{n.kind ? ` · ${NOTE_KIND[n.kind]}` : ""}{n.project_id ? ` · ${app.project(n.project_id)?.name ?? ""}` : ""}{n.linked_tasks ? " · " + t("{n} tarea(s)", { n: n.linked_tasks }) : ""}</span>
             <span className="note-item-excerpt">{n.excerpt}</span>
           </button></li>))}</ul>
-      </aside>
+      </aside>}
       <section className="notes-main">
         <ErrorBox error={tabsError} />
         <div className="note-tabs-bar">
@@ -187,7 +209,7 @@ function NoteEditor({ id, pane, onTitle, onListChange, onGone }: { id: number; p
   const [state, setState] = useState<SaveState>("saved");
   const [saveErr, setSaveErr] = useState("");
   const [loadErr, setLoadErr] = useState("");
-  const [mode, setModeState] = useState<EditorMode>(app.boot.settings.note_editor_mode === "vista_previa" ? "vista_previa" : "editar");
+  const [mode, setModeState] = useState<EditorMode>(asEditorMode(app.boot.settings.note_editor_mode));
   const setMode = (m: EditorMode) => {  // the last mode used is remembered in the settings
     setModeState(m);
     if (m !== app.boot.settings.note_editor_mode) api.patch("/api/settings", { note_editor_mode: m }).then(() => app.reloadBoot(), () => undefined);
@@ -204,7 +226,7 @@ function NoteEditor({ id, pane, onTitle, onListChange, onGone }: { id: number; p
       const n = await api.get<Note>(`/api/notes/${id}`);
       setNote(n); setText(n.content); onTitle(n.display_title); setLoadErr("");
       // Opened from the search (Ctrl+K): edit mode and caret at the end, ready to type (not for notes in the trash)
-      if (pane === "left" && consumeNoteFocus(id) && n.state !== "papelera") { setModeState("editar"); setFocusReq(true); }
+      if (pane === "left" && consumeNoteFocus(id) && n.state !== "papelera") { setModeState((m: EditorMode) => (m === "vista_previa" ? "editar" : m)); setFocusReq(true); }  // Live keeps Live
       saver.current?.dispose();
       if (saver.current) activeSavers.delete(saver.current);
       saver.current = new NoteSaver(n.content, n.version, {

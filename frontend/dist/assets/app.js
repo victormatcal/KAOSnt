@@ -18676,7 +18676,6 @@ exports.EN = {
     "Buscar en {filtro}": "Search in {filtro}",
     "Buscar…": "Search…",
     "Quitar todos": "Clear all",
-    "Quitar {valor}": "Remove {valor}",
     "Copias y restauración": "Backups and restore",
     "La sección «{seccion}» tiene cambios sin guardar. ¿Salir sin guardarlos?": "The \"{seccion}\" section has unsaved changes. Leave without saving them?",
     "Hay cambios sin guardar en Configuración. ¿Salir sin guardarlos?": "There are unsaved changes in Settings. Leave without saving them?",
@@ -18691,6 +18690,20 @@ exports.EN = {
     "Alcance no válido": "Invalid scope",
     "Valor no válido para agrupar subtareas": "Invalid value for grouping subtasks",
     "Modo de editor no admitido": "Editor mode not supported",
+    "Live": "Live",
+    "El resultado sigue al editor y al revés": "The result follows the editor and vice versa",
+    "Sincronizar desplazamiento": "Sync scrolling",
+    "Resultado en directo de {campo}": "Live result of {campo}",
+    "Haz clic en un bloque para ir a su línea": "Click a block to go to its line",
+    "Incluir": "Include",
+    "Filtros activos": "Active filters",
+    "Quitar el filtro {filtro}: {valor}": "Remove the filter {filtro}: {valor}",
+    "+{n} más": "+{n} more",
+    "Mostrar menos": "Show less",
+    "Lista de notas (oculta)": "Note list (hidden)",
+    "Mostrar el panel de notas (Alt+B)": "Show the notes panel (Alt+B)",
+    "Ocultar el panel de notas (Alt+B)": "Hide the notes panel (Alt+B)",
+    "Filtros ({n})": "Filters ({n})",
 };
 
 },{}]; // build/src/i18n/en.js
@@ -20001,6 +20014,8 @@ exports.TaskPicker = TaskPicker;
 exports.AccItem = AccItem;
 exports.Section = Section;
 exports.MultiSelect = MultiSelect;
+exports.fitChips = fitChips;
+exports.ActiveFilters = ActiveFilters;
 const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const i18n_1 = require("../lib/i18n");
@@ -20194,8 +20209,9 @@ const splitMulti = (v) => (v ? String(v).split(",").filter(Boolean) : []);
 exports.splitMulti = splitMulti;
 const joinMulti = (a) => a.join(",");
 exports.joinMulti = joinMulti;
-/** Multiple-choice filter (0.5): check boxes with a search box, chips of the chosen values and «Clear all».
- * The value is a comma-separated list, so a filter with a single value from 0.4 still works. */
+/** Multiple-choice filter (0.5): check boxes with a search box and «Clear all». The value is a comma-separated list,
+ * so a filter with a single value from 0.4 still works. Since 0.6 the button only shows a summary: the chosen values are
+ * shown (and removed) in an ActiveFilters row, so the control always keeps the same height. */
 function MultiSelect({ label, options, value, onChange, allLabel }) {
     const [open, setOpen] = (0, react_1.useState)(false);
     const [q, setQ] = (0, react_1.useState)("");
@@ -20214,10 +20230,50 @@ function MultiSelect({ label, options, value, onChange, allLabel }) {
     const nq = q.trim().toLowerCase();
     const shown = options.filter((o) => !nq || o.label.toLowerCase().includes(nq));
     const summary = !chosen.length ? (allLabel ?? (0, i18n_1.t)("Todos")) : chosen.length === 1 ? labelOf(chosen[0]) : (0, i18n_1.t)("{n} seleccionados", { n: chosen.length });
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "multiselect", ref: box, onKeyDown: (e) => { if (e.key === "Escape" && open) {
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "multiselect" + (open ? " open" : ""), ref: box, onKeyDown: (e) => { if (e.key === "Escape" && open) {
             e.stopPropagation();
             setOpen(false);
-        } }, children: [(0, jsx_runtime_1.jsx)("span", { className: "ms-label", children: label }), (0, jsx_runtime_1.jsxs)("button", { type: "button", className: "ms-button" + (chosen.length ? " has-value" : ""), "aria-haspopup": "listbox", "aria-expanded": open, "aria-label": (0, i18n_1.t)("{filtro}: {valor}", { filtro: label, valor: summary }), title: chosen.map(labelOf).join(", "), onClick: () => setOpen(!open), children: [(0, jsx_runtime_1.jsx)("span", { className: "ms-summary", children: summary }), " ", (0, jsx_runtime_1.jsx)("span", { "aria-hidden": "true", children: "\u25BE" })] }), open && (0, jsx_runtime_1.jsxs)("div", { className: "ms-popup", role: "listbox", "aria-multiselectable": "true", "aria-label": label, children: [options.length > 6 && (0, jsx_runtime_1.jsx)("input", { type: "search", className: "ms-search", "aria-label": (0, i18n_1.t)("Buscar en {filtro}", { filtro: label }), placeholder: (0, i18n_1.t)("Buscar…"), value: q, onChange: (e) => setQ(e.target.value), autoFocus: true }), (0, jsx_runtime_1.jsxs)("ul", { className: "plain ms-options", children: [shown.map((o) => (0, jsx_runtime_1.jsx)("li", { children: (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: chosen.includes(o.value), onChange: () => toggle(o.value) }), " ", o.label] }) }, o.value)), !shown.length && (0, jsx_runtime_1.jsx)("li", { className: "muted small", children: (0, i18n_1.t)("Sin coincidencias") })] }), (0, jsx_runtime_1.jsxs)("div", { className: "ms-foot", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", className: "ghost small", disabled: !chosen.length, onClick: () => onChange(""), children: (0, i18n_1.t)("Quitar todos") }), (0, jsx_runtime_1.jsx)("button", { type: "button", className: "small", onClick: () => setOpen(false), children: (0, i18n_1.t)("Cerrar") })] })] }), chosen.length > 1 && (0, jsx_runtime_1.jsx)("span", { className: "ms-chips", children: chosen.map((v) => (0, jsx_runtime_1.jsxs)("span", { className: "tagchip", children: [labelOf(v), (0, jsx_runtime_1.jsx)("button", { type: "button", className: "ghost small", "aria-label": (0, i18n_1.t)("Quitar {valor}", { valor: labelOf(v) }), onClick: () => toggle(v), children: "\u00D7" })] }, v)) })] }));
+        } }, children: [(0, jsx_runtime_1.jsx)("span", { className: "ms-label", children: label }), (0, jsx_runtime_1.jsxs)("button", { type: "button", className: "ms-button" + (chosen.length ? " has-value" : ""), "aria-haspopup": "listbox", "aria-expanded": open, "aria-label": (0, i18n_1.t)("{filtro}: {valor}", { filtro: label, valor: summary }), title: chosen.map(labelOf).join(", "), onClick: () => setOpen(!open), children: [(0, jsx_runtime_1.jsx)("span", { className: "ms-summary", children: summary }), " ", (0, jsx_runtime_1.jsx)("span", { "aria-hidden": "true", children: "\u25BE" })] }), open && (0, jsx_runtime_1.jsxs)("div", { className: "ms-popup", role: "listbox", "aria-multiselectable": "true", "aria-label": label, children: [options.length > 6 && (0, jsx_runtime_1.jsx)("input", { type: "search", className: "ms-search", "aria-label": (0, i18n_1.t)("Buscar en {filtro}", { filtro: label }), placeholder: (0, i18n_1.t)("Buscar…"), value: q, onChange: (e) => setQ(e.target.value), autoFocus: true }), (0, jsx_runtime_1.jsxs)("ul", { className: "plain ms-options", children: [shown.map((o) => (0, jsx_runtime_1.jsx)("li", { children: (0, jsx_runtime_1.jsxs)("label", { className: "ms-option", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: chosen.includes(o.value), onChange: () => toggle(o.value) }), (0, jsx_runtime_1.jsx)("span", { children: o.label })] }) }, o.value)), !shown.length && (0, jsx_runtime_1.jsx)("li", { className: "muted small", children: (0, i18n_1.t)("Sin coincidencias") })] }), (0, jsx_runtime_1.jsxs)("div", { className: "ms-foot", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", className: "ghost small", disabled: !chosen.length, onClick: () => onChange(""), children: (0, i18n_1.t)("Quitar todos") }), (0, jsx_runtime_1.jsx)("button", { type: "button", className: "small", onClick: () => setOpen(false), children: (0, i18n_1.t)("Cerrar") })] })] })] }));
+}
+/** How many chips fit in one line: widths of the chips, available width and gap between them. */
+function fitChips(widths, available, gap) {
+    let used = 0;
+    for (let i = 0; i < widths.length; i++) {
+        used += (i ? gap : 0) + widths[i];
+        if (used > available)
+            return i;
+    }
+    return widths.length;
+}
+/** Row of active filters (0.6): «Filter: value ×» chips in a single line; the ones that do not fit are summarised in
+ * «+N more», which expands the row (and «Show less» folds it again). Hidden when there are no active filters. */
+function ActiveFilters({ chips, onReset, expanded, setExpanded }) {
+    const box = (0, react_1.useRef)(null);
+    const [fit, setFit] = (0, react_1.useState)(chips.length);
+    const sig = chips.map((c) => c.key).join("|");
+    (0, react_1.useLayoutEffect)(() => {
+        const el = box.current;
+        if (!el || typeof getComputedStyle === "undefined")
+            return;
+        const measure = () => {
+            const items = Array.from(el.children);
+            const gap = parseFloat(getComputedStyle(el).columnGap || "4") || 4;
+            setFit(fitChips(items.map((x) => x.offsetWidth), el.clientWidth, gap));
+        };
+        measure();
+        const RO = window.ResizeObserver;
+        if (RO) {
+            const ro = new RO(measure);
+            ro.observe(el);
+            return () => ro.disconnect();
+        }
+        window.addEventListener("resize", measure);
+        return () => window.removeEventListener("resize", measure);
+    }, [sig]);
+    if (!chips.length)
+        return null;
+    const hidden = expanded ? 0 : Math.max(0, chips.length - fit);
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "active-filters", role: "group", "aria-label": (0, i18n_1.t)("Filtros activos"), children: [(0, jsx_runtime_1.jsx)("div", { ref: box, className: "af-chips" + (expanded ? " expanded" : ""), children: chips.map((c, i) => (0, jsx_runtime_1.jsxs)("span", { className: "tagchip af-chip" + (!expanded && i >= fit ? " af-overflow" : ""), "aria-hidden": !expanded && i >= fit ? true : undefined, children: [(0, jsx_runtime_1.jsxs)("span", { className: "af-text", children: [(0, jsx_runtime_1.jsxs)("span", { className: "af-filter", children: [c.filter, ":"] }), " ", c.value] }), (0, jsx_runtime_1.jsx)("button", { type: "button", className: "ghost small", "aria-label": (0, i18n_1.t)("Quitar el filtro {filtro}: {valor}", { filtro: c.filter, valor: c.value }), tabIndex: !expanded && i >= fit ? -1 : undefined, onClick: c.remove, children: "\u00D7" })] }, c.key)) }), hidden > 0 && (0, jsx_runtime_1.jsx)("button", { type: "button", className: "ghost small af-more", "aria-expanded": false, onClick: () => setExpanded(true), children: (0, i18n_1.t)("+{n} más", { n: hidden }) }), expanded && (0, jsx_runtime_1.jsx)("button", { type: "button", className: "ghost small af-more", "aria-expanded": true, onClick: () => setExpanded(false), children: (0, i18n_1.t)("Mostrar menos") }), onReset && (0, jsx_runtime_1.jsx)("button", { type: "button", className: "ghost small", onClick: onReset, children: (0, i18n_1.t)("Restablecer filtros") })] }));
 }
 
 },{"react/jsx-runtime":1,"react":2,"../lib/i18n":8,"../lib/labels":18,"../lib/links":23,"../lib/store":15}]; // build/src/components/ui.js
@@ -20731,10 +20787,14 @@ function History({ task, run }) {
 defs[28]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.asEditorMode = void 0;
+exports.previewAnchors = previewAnchors;
 exports.editForKey = editForKey;
 exports.MarkdownEditor = MarkdownEditor;
 const jsx_runtime_1 = require("react/jsx-runtime");
 // Markdown editor (0.5): «Edit» and «Preview» modes, toolbar and keyboard editing.
+// 0.6: «Live» mode — editor and rendered result side by side (stacked when narrow), synchronised scrolling
+// (can be switched off), click on a rendered block to jump to its source line and highlight of the block being edited.
 // - Tab / Shift+Tab indent and outdent (several lines when selected). To leave the field with the keyboard: Esc, then Tab.
 // - Enter continues bullets, numbers and checkboxes; on an empty item it ends the list.
 // - Ctrl+B bold, Ctrl+I italic, Ctrl+K link (inside the editor only; elsewhere Ctrl+K opens the search),
@@ -20744,7 +20804,19 @@ const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const i18n_1 = require("../lib/i18n");
 const markdown_1 = require("../lib/markdown");
+const viewstate_1 = require("../lib/viewstate");
 const mdedit_1 = require("../lib/mdedit");
+/** Stored value → editor mode (unknown values → Edit). */
+const asEditorMode = (v) => (v === "live" || v === "vista_previa" ? v : "editar");
+exports.asEditorMode = asEditorMode;
+const LIVE_DELAY = 150; // ms: the live result is rendered shortly after typing stops
+/** Rendered blocks of a preview as anchors (source line and position inside the scrolling preview). */
+function previewAnchors(preview) {
+    const top0 = preview.getBoundingClientRect().top - preview.scrollTop;
+    return Array.from(preview.querySelectorAll("[data-line]"))
+        .map((el) => ({ line: Number(el.dataset.line), top: el.getBoundingClientRect().top - top0 }))
+        .filter((a) => Number.isFinite(a.line));
+}
 /** Keyboard shortcut → edit (null = not handled). Exported for the tests. */
 function editForKey(e, s) {
     const mod = (e.ctrlKey || e.metaKey) && !e.altKey;
@@ -20790,6 +20862,80 @@ function MarkdownEditor({ value, onChange, mode, onModeChange, label, placeholde
     const own = (0, react_1.useRef)(null);
     const ref = (textareaRef || own);
     const escArmed = (0, react_1.useRef)(false);
+    // ---- Live mode ----
+    const live = mode === "live";
+    const previewRef = (0, react_1.useRef)(null);
+    const [sync, setSync] = (0, viewstate_1.useViewState)("editor.syncScroll", true);
+    const [shown, setShown] = (0, react_1.useState)(value); // text rendered in the live result (debounced)
+    const [caretLine, setCaretLine] = (0, react_1.useState)(0);
+    const lock = (0, react_1.useRef)(null);
+    (0, react_1.useEffect)(() => {
+        if (!live) {
+            setShown(value);
+            return;
+        }
+        const timer = setTimeout(() => setShown(value), LIVE_DELAY);
+        return () => clearTimeout(timer);
+    }, [value, live]);
+    const totalLines = () => Math.max(1, value.split("\n").length);
+    const editorToPreview = () => {
+        const ta = ref.current, pv = previewRef.current;
+        if (!live || !sync || !ta || !pv || lock.current === "preview") {
+            if (lock.current === "preview")
+                lock.current = null;
+            return;
+        }
+        lock.current = "editor";
+        if (ta.scrollTop + ta.clientHeight >= ta.scrollHeight - 2) {
+            pv.scrollTop = pv.scrollHeight;
+            return;
+        }
+        const line = (ta.scrollTop / Math.max(1, ta.scrollHeight)) * totalLines();
+        pv.scrollTop = (0, markdown_1.lineToOffset)(previewAnchors(pv), line, pv.scrollHeight, totalLines());
+    };
+    const previewToEditor = () => {
+        const ta = ref.current, pv = previewRef.current;
+        if (!live || !sync || !ta || !pv || lock.current === "editor") {
+            if (lock.current === "editor")
+                lock.current = null;
+            return;
+        }
+        lock.current = "preview";
+        if (pv.scrollTop + pv.clientHeight >= pv.scrollHeight - 2) {
+            ta.scrollTop = ta.scrollHeight;
+            return;
+        }
+        const line = (0, markdown_1.offsetToLine)(previewAnchors(pv), pv.scrollTop, pv.scrollHeight, totalLines());
+        ta.scrollTop = (line / totalLines()) * ta.scrollHeight;
+    };
+    /** Click on a rendered block → caret at the start of its source line. */
+    const jumpFromPreview = (e) => {
+        const target = e.target;
+        if (target.closest("a, input, button") || readOnly)
+            return;
+        const el = target.closest("[data-line]");
+        const ta = ref.current;
+        if (!el || !ta)
+            return;
+        const line = Number(el.dataset.line);
+        const pos = (0, markdown_1.offsetOfLine)(ta.value, line);
+        ta.focus();
+        ta.setSelectionRange(pos, pos);
+        ta.scrollTop = Math.max(0, (line / totalLines()) * ta.scrollHeight - ta.clientHeight / 3);
+        setCaretLine(line);
+    };
+    // Highlight the block being edited in the live result
+    (0, react_1.useEffect)(() => {
+        const pv = previewRef.current;
+        if (!live || !pv)
+            return;
+        const blocks = Array.from(pv.querySelectorAll(".markdown > [data-line]"));
+        const cur = (0, markdown_1.blockForLine)(blocks.map((b) => Number(b.dataset.line)), caretLine);
+        for (const b of blocks)
+            b.classList.toggle("md-current", Number(b.dataset.line) === cur);
+    }, [caretLine, shown, live]);
+    const trackCaret = (ta) => { if (live)
+        setCaretLine((0, markdown_1.lineOfOffset)(ta.value, ta.selectionStart)); };
     // Compact editor (task description) grows with its content
     (0, react_1.useLayoutEffect)(() => {
         const el = ref.current;
@@ -20817,40 +20963,48 @@ function MarkdownEditor({ value, onChange, mode, onModeChange, label, placeholde
         if (next !== null)
             onChange(next);
     };
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "md-editor" + (compact ? " compact" : "") + (className ? " " + className : ""), children: [(0, jsx_runtime_1.jsxs)("div", { className: "md-toolbar", role: "toolbar", "aria-label": (0, i18n_1.t)("Formato Markdown"), children: [(0, jsx_runtime_1.jsx)("div", { className: "tabs-inline md-modes", role: "radiogroup", "aria-label": (0, i18n_1.t)("Modo del editor"), children: [["editar", (0, i18n_1.t)("Editar")], ["vista_previa", (0, i18n_1.t)("Vista previa")]].map(([m, l]) => ((0, jsx_runtime_1.jsx)("button", { type: "button", role: "radio", "aria-checked": mode === m, className: mode === m ? "active" : "", onClick: () => onModeChange(m), children: l }, m))) }), mode === "editar" && !readOnly && (0, jsx_runtime_1.jsxs)("div", { className: "md-tools", children: [tool("H1", (0, i18n_1.t)("Título 1"), (s) => (0, mdedit_1.toggleLinePrefix)(s, "# ")), tool("H2", (0, i18n_1.t)("Título 2"), (s) => (0, mdedit_1.toggleLinePrefix)(s, "## ")), tool("H3", (0, i18n_1.t)("Título 3"), (s) => (0, mdedit_1.toggleLinePrefix)(s, "### ")), tool("B", (0, i18n_1.t)("Negrita (Ctrl+B)"), (s) => (0, mdedit_1.wrap)(s, "**", (0, i18n_1.t)("negrita")), "𝐁"), tool("I", (0, i18n_1.t)("Cursiva (Ctrl+I)"), (s) => (0, mdedit_1.wrap)(s, "*", (0, i18n_1.t)("cursiva")), "𝐼"), tool("S", (0, i18n_1.t)("Tachado (Ctrl+Shift+X)"), (s) => (0, mdedit_1.wrap)(s, "~~", (0, i18n_1.t)("tachado")), "S̶"), tool("code", (0, i18n_1.t)("Código (Ctrl+Shift+C)"), (s) => (0, mdedit_1.wrap)(s, "`", (0, i18n_1.t)("código")), "</>"), tool("pre", (0, i18n_1.t)("Bloque de código"), mdedit_1.codeBlock, "{ }"), tool("link", (0, i18n_1.t)("Enlace (Ctrl+K)"), mdedit_1.insertLink, "🔗"), tool("quote", (0, i18n_1.t)("Cita"), (s) => (0, mdedit_1.toggleLinePrefix)(s, "> "), "❝"), tool("ul", (0, i18n_1.t)("Lista con viñetas"), (s) => (0, mdedit_1.toggleLinePrefix)(s, "- "), "•"), tool("ol", (0, i18n_1.t)("Lista numerada"), (s) => (0, mdedit_1.toggleLinePrefix)(s, "1. "), "1."), tool("task", (0, i18n_1.t)("Casilla"), (s) => (0, mdedit_1.toggleLinePrefix)(s, "- [ ] "), "☐"), tool("table", (0, i18n_1.t)("Tabla"), (s) => (0, mdedit_1.insertBlock)(s, mdedit_1.TABLE_TEMPLATE, 2), "▦"), tool("hr", (0, i18n_1.t)("Separador"), (s) => (0, mdedit_1.insertBlock)(s, "---", 3), "―")] })] }), mode === "vista_previa"
+    const textarea = ((0, jsx_runtime_1.jsx)("textarea", { ref: ref, className: (compact ? "autotext md-text" : "note-text md-text") + (live ? " md-live-text" : ""), "aria-label": label, value: value, spellCheck: true, placeholder: placeholder, readOnly: readOnly, rows: compact ? 3 : undefined, onChange: (e) => onChange(e.target.value), onBlur: () => { escArmed.current = false; onBlur?.(); }, onScroll: editorToPreview, onSelect: (e) => trackCaret(e.currentTarget), onKeyDown: (e) => {
+            if (e.key === "Escape") {
+                if (!escArmed.current) {
+                    escArmed.current = true;
+                    e.stopPropagation();
+                } // next Tab leaves the field
+                return;
+            }
+            if (e.key === "Tab" && escArmed.current) {
+                escArmed.current = false;
+                return;
+            }
+            escArmed.current = false;
+            if (readOnly)
+                return;
+            const ta = e.currentTarget;
+            const ed = editForKey(e, { value: ta.value, start: ta.selectionStart, end: ta.selectionEnd });
+            if (!ed)
+                return;
+            e.preventDefault();
+            e.stopPropagation(); // Ctrl+K here inserts a link instead of opening the global search
+            applyToTextarea(ta, ed, onChange);
+        } }));
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "md-editor" + (compact ? " compact" : "") + (className ? " " + className : ""), children: [(0, jsx_runtime_1.jsxs)("div", { className: "md-toolbar", role: "toolbar", "aria-label": (0, i18n_1.t)("Formato Markdown"), children: [(0, jsx_runtime_1.jsx)("div", { className: "tabs-inline md-modes", role: "radiogroup", "aria-label": (0, i18n_1.t)("Modo del editor"), children: [["editar", (0, i18n_1.t)("Editar")], ["live", (0, i18n_1.t)("Live")], ["vista_previa", (0, i18n_1.t)("Vista previa")]].map(([m, l]) => ((0, jsx_runtime_1.jsx)("button", { type: "button", role: "radio", "aria-checked": mode === m, className: mode === m ? "active" : "", onClick: () => onModeChange(m), children: l }, m))) }), mode !== "vista_previa" && !readOnly && (0, jsx_runtime_1.jsxs)("div", { className: "md-tools", children: [tool("H1", (0, i18n_1.t)("Título 1"), (s) => (0, mdedit_1.toggleLinePrefix)(s, "# ")), tool("H2", (0, i18n_1.t)("Título 2"), (s) => (0, mdedit_1.toggleLinePrefix)(s, "## ")), tool("H3", (0, i18n_1.t)("Título 3"), (s) => (0, mdedit_1.toggleLinePrefix)(s, "### ")), tool("B", (0, i18n_1.t)("Negrita (Ctrl+B)"), (s) => (0, mdedit_1.wrap)(s, "**", (0, i18n_1.t)("negrita")), "𝐁"), tool("I", (0, i18n_1.t)("Cursiva (Ctrl+I)"), (s) => (0, mdedit_1.wrap)(s, "*", (0, i18n_1.t)("cursiva")), "𝐼"), tool("S", (0, i18n_1.t)("Tachado (Ctrl+Shift+X)"), (s) => (0, mdedit_1.wrap)(s, "~~", (0, i18n_1.t)("tachado")), "S̶"), tool("code", (0, i18n_1.t)("Código (Ctrl+Shift+C)"), (s) => (0, mdedit_1.wrap)(s, "`", (0, i18n_1.t)("código")), "</>"), tool("pre", (0, i18n_1.t)("Bloque de código"), mdedit_1.codeBlock, "{ }"), tool("link", (0, i18n_1.t)("Enlace (Ctrl+K)"), mdedit_1.insertLink, "🔗"), tool("quote", (0, i18n_1.t)("Cita"), (s) => (0, mdedit_1.toggleLinePrefix)(s, "> "), "❝"), tool("ul", (0, i18n_1.t)("Lista con viñetas"), (s) => (0, mdedit_1.toggleLinePrefix)(s, "- "), "•"), tool("ol", (0, i18n_1.t)("Lista numerada"), (s) => (0, mdedit_1.toggleLinePrefix)(s, "1. "), "1."), tool("task", (0, i18n_1.t)("Casilla"), (s) => (0, mdedit_1.toggleLinePrefix)(s, "- [ ] "), "☐"), tool("table", (0, i18n_1.t)("Tabla"), (s) => (0, mdedit_1.insertBlock)(s, mdedit_1.TABLE_TEMPLATE, 2), "▦"), tool("hr", (0, i18n_1.t)("Separador"), (s) => (0, mdedit_1.insertBlock)(s, "---", 3), "―")] }), live && (0, jsx_runtime_1.jsxs)("label", { className: "check small md-sync", title: (0, i18n_1.t)("El resultado sigue al editor y al revés"), children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: sync, onChange: (e) => setSync(e.target.checked) }), " ", (0, i18n_1.t)("Sincronizar desplazamiento")] })] }), mode === "vista_previa"
                 ? (0, jsx_runtime_1.jsx)("div", { className: compact ? "md-preview compact" : "note-preview", tabIndex: 0, "aria-label": (0, i18n_1.t)("Vista previa de {campo}", { campo: label }), children: (0, jsx_runtime_1.jsx)(markdown_1.Markdown, { text: value, onToggleTask: readOnly ? undefined : toggleTask }) })
-                : (0, jsx_runtime_1.jsx)("textarea", { ref: ref, className: compact ? "autotext md-text" : "note-text md-text", "aria-label": label, value: value, spellCheck: true, placeholder: placeholder, readOnly: readOnly, rows: compact ? 3 : undefined, onChange: (e) => onChange(e.target.value), onBlur: () => { escArmed.current = false; onBlur?.(); }, onKeyDown: (e) => {
-                        if (e.key === "Escape") {
-                            if (!escArmed.current) {
-                                escArmed.current = true;
-                                e.stopPropagation();
-                            } // next Tab leaves the field
-                            return;
-                        }
-                        if (e.key === "Tab" && escArmed.current) {
-                            escArmed.current = false;
-                            return;
-                        }
-                        escArmed.current = false;
-                        if (readOnly)
-                            return;
-                        const ta = e.currentTarget;
-                        const ed = editForKey(e, { value: ta.value, start: ta.selectionStart, end: ta.selectionEnd });
-                        if (!ed)
-                            return;
-                        e.preventDefault();
-                        e.stopPropagation(); // Ctrl+K here inserts a link instead of opening the global search
-                        applyToTextarea(ta, ed, onChange);
-                    } }), mode === "editar" && !readOnly && (0, jsx_runtime_1.jsx)("p", { className: "hint md-hint", children: (0, i18n_1.t)("Tab sangra · Esc y luego Tab sale del campo · Ctrl+B/I/K negrita, cursiva y enlace") })] }));
+                : live
+                    ? (0, jsx_runtime_1.jsxs)("div", { className: "md-live" + (compact ? " compact" : ""), children: [textarea, (0, jsx_runtime_1.jsx)("div", { ref: previewRef, className: "md-live-preview" + (compact ? " compact" : ""), tabIndex: 0, onScroll: previewToEditor, onClick: jumpFromPreview, "aria-label": (0, i18n_1.t)("Resultado en directo de {campo}", { campo: label }), title: (0, i18n_1.t)("Haz clic en un bloque para ir a su línea"), children: (0, jsx_runtime_1.jsx)(markdown_1.Markdown, { text: shown, onToggleTask: readOnly ? undefined : toggleTask }) })] })
+                    : textarea, mode !== "vista_previa" && !readOnly && (0, jsx_runtime_1.jsx)("p", { className: "hint md-hint", children: (0, i18n_1.t)("Tab sangra · Esc y luego Tab sale del campo · Ctrl+B/I/K negrita, cursiva y enlace") })] }));
 }
 
-},{"react/jsx-runtime":1,"react":2,"../lib/i18n":8,"../lib/markdown":29,"../lib/mdedit":30}]; // build/src/components/MarkdownEditor.js
+},{"react/jsx-runtime":1,"react":2,"../lib/i18n":8,"../lib/markdown":29,"../lib/viewstate":14,"../lib/mdedit":30}]; // build/src/components/MarkdownEditor.js
 defs[29]=[function(module,exports,require){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.tableAlign = tableAlign;
 exports.renderMarkdown = renderMarkdown;
 exports.Markdown = Markdown;
+exports.lineToOffset = lineToOffset;
+exports.offsetToLine = offsetToLine;
+exports.blockForLine = blockForLine;
+exports.lineOfOffset = lineOfOffset;
+exports.offsetOfLine = offsetOfLine;
 const jsx_runtime_1 = require("react/jsx-runtime");
 const i18n_1 = require("./i18n");
 const links_1 = require("./links");
@@ -20916,24 +21070,26 @@ function renderList(items, opts) {
                         ? (0, jsx_runtime_1.jsx)("input", { type: "checkbox", className: "md-check", checked: done, "aria-label": done ? (0, i18n_1.t)("completado") : (0, i18n_1.t)("pendiente"), onChange: () => opts.onToggleTask(it.line) })
                         : (0, jsx_runtime_1.jsx)("span", { "aria-label": done ? (0, i18n_1.t)("completado") : (0, i18n_1.t)("pendiente"), children: done ? "☑" : "☐" }), " ", inline(task[2])] })
             : inline(it.text);
-        out.push((0, jsx_runtime_1.jsxs)("li", { className: task ? "md-task" + (done ? " done" : "") : undefined, children: [content, children.length ? renderList(children, opts) : null] }, k()));
+        out.push((0, jsx_runtime_1.jsxs)("li", { "data-line": it.line, className: task ? "md-task" + (done ? " done" : "") : undefined, children: [content, children.length ? renderList(children, opts) : null] }, k()));
         i = j;
     }
-    return items[0].ordered ? (0, jsx_runtime_1.jsx)("ol", { children: out }, k()) : (0, jsx_runtime_1.jsx)("ul", { children: out }, k());
+    return items[0].ordered ? (0, jsx_runtime_1.jsx)("ol", { "data-line": items[0].line, children: out }, k()) : (0, jsx_runtime_1.jsx)("ul", { "data-line": items[0].line, children: out }, k());
 }
 function renderMarkdown(src, opts = {}) {
     const lines = (src || "").replace(/\r\n?/g, "\n").split("\n");
     const out = [];
+    const base = opts.lineBase || 0;
     let i = 0;
     while (i < lines.length) {
         const line = lines[i];
         if (/^\s*```/.test(line)) {
             const buf = [];
+            const start = i;
             i++;
             while (i < lines.length && !/^\s*```/.test(lines[i]))
                 buf.push(lines[i++]);
             i++;
-            out.push((0, jsx_runtime_1.jsx)("pre", { children: (0, jsx_runtime_1.jsx)("code", { children: buf.join("\n") }) }, k()));
+            out.push((0, jsx_runtime_1.jsx)("pre", { "data-line": base + start, children: (0, jsx_runtime_1.jsx)("code", { children: buf.join("\n") }) }, k()));
             continue;
         }
         if (!line.trim()) {
@@ -20943,16 +21099,17 @@ function renderMarkdown(src, opts = {}) {
         const h = /^(#{1,6})\s+(.*)$/.exec(line);
         if (h) {
             const Tag = ("h" + Math.min(h[1].length + 1, 6));
-            out.push((0, jsx_runtime_1.jsx)(Tag, { children: inline(h[2]) }, k()));
+            out.push((0, jsx_runtime_1.jsx)(Tag, { "data-line": base + i, children: inline(h[2]) }, k()));
             i++;
             continue;
         }
         if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) {
-            out.push((0, jsx_runtime_1.jsx)("hr", {}, k()));
+            out.push((0, jsx_runtime_1.jsx)("hr", { "data-line": base + i }, k()));
             i++;
             continue;
         }
         if (startsTable(lines, i)) {
+            const start = i;
             const head = cells(line);
             const align = tableAlign(lines[i + 1]);
             i += 2;
@@ -20960,14 +21117,15 @@ function renderMarkdown(src, opts = {}) {
             while (i < lines.length && lines[i].includes("|") && lines[i].trim())
                 body.push(cells(lines[i++]));
             const cls = (c) => (align[c] ? `al-${align[c]}` : undefined);
-            out.push((0, jsx_runtime_1.jsx)("div", { className: "md-table", children: (0, jsx_runtime_1.jsxs)("table", { children: [(0, jsx_runtime_1.jsx)("thead", { children: (0, jsx_runtime_1.jsx)("tr", { children: head.map((c, ci) => (0, jsx_runtime_1.jsx)("th", { className: cls(ci), children: inline(c) }, k())) }) }), (0, jsx_runtime_1.jsx)("tbody", { children: body.map((r) => (0, jsx_runtime_1.jsx)("tr", { children: r.map((c, ci) => (0, jsx_runtime_1.jsx)("td", { className: cls(ci), children: inline(c) }, k())) }, k())) })] }) }, k()));
+            out.push((0, jsx_runtime_1.jsx)("div", { className: "md-table", "data-line": base + start, children: (0, jsx_runtime_1.jsxs)("table", { children: [(0, jsx_runtime_1.jsx)("thead", { children: (0, jsx_runtime_1.jsx)("tr", { children: head.map((c, ci) => (0, jsx_runtime_1.jsx)("th", { className: cls(ci), children: inline(c) }, k())) }) }), (0, jsx_runtime_1.jsx)("tbody", { children: body.map((r) => (0, jsx_runtime_1.jsx)("tr", { children: r.map((c, ci) => (0, jsx_runtime_1.jsx)("td", { className: cls(ci), children: inline(c) }, k())) }, k())) })] }) }, k()));
             continue;
         }
         if (/^\s*>/.test(line)) {
             const buf = [];
+            const start = i;
             while (i < lines.length && /^\s*>/.test(lines[i]))
                 buf.push(lines[i++].replace(/^\s*>\s?/, ""));
-            out.push((0, jsx_runtime_1.jsx)("blockquote", { children: renderMarkdown(buf.join("\n")) }, k()));
+            out.push((0, jsx_runtime_1.jsx)("blockquote", { "data-line": base + start, children: renderMarkdown(buf.join("\n"), { lineBase: base + start }) }, k()));
             continue;
         }
         if (LIST_RE.test(line)) {
@@ -20975,23 +21133,79 @@ function renderMarkdown(src, opts = {}) {
             const first = width(LIST_RE.exec(line)[1]);
             while (i < lines.length && LIST_RE.test(lines[i])) {
                 const m = LIST_RE.exec(lines[i]);
-                items.push({ indent: Math.max(width(m[1]), first), ordered: /^\d/.test(m[2]), text: m[3], line: i });
+                items.push({ indent: Math.max(width(m[1]), first), ordered: /^\d/.test(m[2]), text: m[3], line: base + i });
                 i++;
             }
             out.push(renderList(items, opts));
             continue;
         }
         const buf = [];
+        const start = i;
         while (i < lines.length && lines[i].trim() && !/^(#{1,6}\s|\s*```|\s*>)/.test(lines[i]) && !LIST_RE.test(lines[i]) && !startsTable(lines, i))
             buf.push(lines[i++]);
         if (!buf.length)
             buf.push(lines[i++]);
-        out.push((0, jsx_runtime_1.jsx)("p", { children: buf.flatMap((b, j) => (j ? [(0, jsx_runtime_1.jsx)("br", {}, k()), ...inline(b)] : inline(b))) }, k()));
+        out.push((0, jsx_runtime_1.jsx)("p", { "data-line": base + start, children: buf.flatMap((b, j) => (j ? [(0, jsx_runtime_1.jsx)("br", {}, k()), ...inline(b)] : inline(b))) }, k()));
     }
     return out;
 }
 function Markdown({ text, onToggleTask }) {
     return (0, jsx_runtime_1.jsx)("div", { className: "markdown", children: renderMarkdown(text, { onToggleTask }) });
+}
+/** Preview position for a source line (fractional lines allowed), interpolating between the surrounding anchors. */
+function lineToOffset(anchors, line, previewHeight, totalLines) {
+    if (!anchors.length)
+        return 0;
+    const a = [...anchors].sort((x, y) => x.line - y.line);
+    if (line <= a[0].line)
+        return a[0].line ? a[0].top * (line / a[0].line) : a[0].top;
+    for (let i = 0; i < a.length; i++) {
+        const cur = a[i], next = a[i + 1] || { line: Math.max(totalLines, cur.line + 1), top: previewHeight };
+        if (line < next.line)
+            return cur.top + (next.top - cur.top) * ((line - cur.line) / Math.max(1, next.line - cur.line));
+    }
+    return previewHeight;
+}
+/** Source line (fractional) shown at a preview position: the inverse of lineToOffset. */
+function offsetToLine(anchors, y, previewHeight, totalLines) {
+    if (!anchors.length)
+        return 0;
+    const a = [...anchors].sort((x, z) => x.top - z.top || x.line - z.line);
+    if (y <= a[0].top)
+        return a[0].top > 0 ? a[0].line * (y / a[0].top) : a[0].line;
+    for (let i = 0; i < a.length; i++) {
+        const cur = a[i], next = a[i + 1] || { line: Math.max(totalLines, cur.line + 1), top: previewHeight };
+        if (y < next.top)
+            return cur.line + (next.line - cur.line) * ((y - cur.top) / Math.max(1, next.top - cur.top));
+    }
+    return totalLines;
+}
+/** Block that contains a source line: the last block start ≤ line. */
+function blockForLine(starts, line) {
+    let best = null;
+    for (const s of starts)
+        if (s <= line && (best === null || s > best))
+            best = s;
+    return best;
+}
+/** 0-based line of a character offset in a text. */
+function lineOfOffset(text, offset) {
+    let n = 0;
+    for (let i = 0; i < offset && i < text.length; i++)
+        if (text.charCodeAt(i) === 10)
+            n++;
+    return n;
+}
+/** Character offset where a 0-based line starts. */
+function offsetOfLine(text, line) {
+    let pos = 0;
+    for (let n = 0; n < line; n++) {
+        const nl = text.indexOf("\n", pos);
+        if (nl === -1)
+            return text.length;
+        pos = nl + 1;
+    }
+    return pos;
 }
 
 },{"react/jsx-runtime":1,"./i18n":8,"./links":23}]; // build/src/lib/markdown.js
@@ -21188,6 +21402,7 @@ defs[32]=[function(module,exports,require){
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.activeSavers = void 0;
 exports.notesQuery = notesQuery;
+exports.activeNoteFilters = activeNoteFilters;
 exports.reorderTabs = reorderTabs;
 exports.NotesView = NotesView;
 const jsx_runtime_1 = require("react/jsx-runtime");
@@ -21224,6 +21439,10 @@ function notesQuery(f) {
     }
     return `/api/notes?${p.join("&")}`;
 }
+/** Number of active note filters (shown on the folded «Filters» header, 0.6). The text search is always visible. */
+function activeNoteFilters(f) {
+    return [f.project, f.client, f.kind, f.tag].filter(Boolean).length + (f.field && f.field !== "todo" ? 1 : 0);
+}
 /** Reorder: move `id` to the position of `target` (drag and drop). */
 function reorderTabs(open, id, target) {
     if (id === target || !open.includes(id) || !open.includes(target))
@@ -21250,6 +21469,12 @@ function NotesView({ routeId }) {
     const [tabsError, setTabsError] = (0, react_1.useState)("");
     const [dragTab, setDragTab] = (0, react_1.useState)(null);
     const filtered = !!(kind || tag || project || client || q.trim());
+    // Side panel (0.6): hide it completely (Alt+B) or fold only the filters. Kept for the browser session;
+    // on narrow screens the panel starts hidden.
+    const narrow = typeof window !== "undefined" && window.innerWidth < 900;
+    const [sideHidden, setSideHidden] = (0, viewstate_1.useViewState)("notes.sideHidden", narrow);
+    const [filtersOpen, setFiltersOpen] = (0, viewstate_1.useViewState)("notes.filtersOpen", true);
+    const activeFilters = activeNoteFilters({ project, client, kind, tag, field });
     (0, react_1.useEffect)(() => { api_1.api.get("/api/session/note-tabs").then(setTabs, (e) => setTabsError(e.message)); }, []);
     (0, react_1.useEffect)(() => {
         if (!tabs || !routeId)
@@ -21298,15 +21523,22 @@ function NotesView({ routeId }) {
         persist({ ...tabs, active, split: id }); };
     const splitCandidates = (tabs?.open || []).filter((x) => x !== active);
     (0, react_1.useEffect)(() => {
-        const onKey = (e) => { if (e.altKey && !e.ctrlKey && (e.key === "w" || e.key === "W") && active) {
-            e.preventDefault();
-            removeTab(active);
-        } };
+        const onKey = (e) => {
+            if (e.altKey && !e.ctrlKey && (e.key === "w" || e.key === "W") && active) {
+                e.preventDefault();
+                removeTab(active);
+            }
+            if (e.altKey && !e.ctrlKey && !e.shiftKey && (e.key === "b" || e.key === "B")) {
+                e.preventDefault();
+                setSideHidden(!sideHidden);
+            } // 0.6
+        };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
     });
     const editor = (id, pane) => (0, jsx_runtime_1.jsx)(NoteEditor, { id: id, pane: pane, onTitle: (title) => setTitles((m) => ({ ...m, [id]: title })), onListChange: reload, onGone: () => { removeTab(id); reload(); } }, pane + id);
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "view notes-view", children: [(0, jsx_runtime_1.jsxs)("aside", { className: "notes-side", "aria-label": (0, i18n_1.t)("Lista de notas"), children: [(0, jsx_runtime_1.jsx)("button", { className: "primary block", onClick: () => app.newNote(), children: (0, i18n_1.t)("Nueva nota (Alt+N)") }), (0, jsx_runtime_1.jsx)("div", { className: "scope-tabs", role: "tablist", "aria-label": (0, i18n_1.t)("Bandejas"), children: SCOPES.map(([k, label]) => (0, jsx_runtime_1.jsx)("button", { role: "tab", "aria-selected": scope === k, className: scope === k ? "active" : "", onClick: () => setScope(k), children: label() }, k)) }), (0, jsx_runtime_1.jsxs)("div", { className: "note-filters", role: "group", "aria-label": (0, i18n_1.t)("Filtros de notas"), children: [(0, jsx_runtime_1.jsx)("input", { type: "search", "aria-label": (0, i18n_1.t)("Buscar en las notas"), placeholder: (0, i18n_1.t)("Buscar texto…"), value: q, onChange: (e) => setQ(e.target.value) }), (0, jsx_runtime_1.jsxs)("select", { "aria-label": (0, i18n_1.t)("Buscar en"), value: field, onChange: (e) => setField(e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "todo", children: (0, i18n_1.t)("Título y contenido") }), (0, jsx_runtime_1.jsx)("option", { value: "titulo", children: (0, i18n_1.t)("Solo título") }), (0, jsx_runtime_1.jsx)("option", { value: "contenido", children: (0, i18n_1.t)("Solo contenido") })] }), (0, jsx_runtime_1.jsx)(ui_1.MultiSelect, { label: (0, i18n_1.t)("Proyecto"), value: project, onChange: setProject, options: [{ value: "none", label: (0, i18n_1.t)("Sin proyecto") }, ...app.boot.projects.map((p) => ({ value: String(p.id), label: p.name + (p.status !== "activo" ? ` (${labels_1.PROJECT_STATUS[p.status] || p.status})` : "") }))] }), (0, jsx_runtime_1.jsx)(ui_1.MultiSelect, { label: (0, i18n_1.t)("Cliente"), value: client, onChange: setClient, options: [{ value: "none", label: (0, i18n_1.t)("Sin cliente") }, ...app.boot.clients.map((c) => ({ value: String(c.id), label: c.name }))] }), (0, jsx_runtime_1.jsx)(ui_1.MultiSelect, { label: (0, i18n_1.t)("Tipo de nota"), value: kind, onChange: setKind, options: [{ value: "none", label: (0, i18n_1.t)("Nota") }, ...Object.entries(labels_1.NOTE_KIND).map(([k, v]) => ({ value: k, label: v }))] }), (0, jsx_runtime_1.jsx)(ui_1.MultiSelect, { label: (0, i18n_1.t)("Etiqueta"), value: tag, onChange: setTag, allLabel: (0, i18n_1.t)("Todas"), options: app.boot.tags.map((x) => ({ value: x, label: "#" + x })) }), filtered && (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => { setKind(""); setTag(""); setProject(""); setClient(""); setQ(""); setField("todo"); }, children: (0, i18n_1.t)("Restablecer filtros") })] }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error, onRetry: reload }), list && !list.length && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: filtered ? (0, i18n_1.t)("Ninguna nota coincide con los filtros.") : scope === "papelera" ? (0, i18n_1.t)("La papelera está vacía.") : scope === "sin_clasificar" ? (0, i18n_1.t)("No hay notas sin clasificar.") : (0, i18n_1.t)("Sin notas aquí. Crea una con Alt+N: no necesita título ni proyecto.") }), list && list.length > 0 && filtered && (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("{n} nota(s)", { n: list.length }) }), (0, jsx_runtime_1.jsx)("ul", { className: "plain note-items", children: list?.map((n) => ((0, jsx_runtime_1.jsx)("li", { children: (0, jsx_runtime_1.jsxs)("button", { className: "note-item" + (n.id === active ? " active" : "") + (n.id === split ? " split" : ""), onClick: () => openNote(n.id), children: [(0, jsx_runtime_1.jsxs)("span", { className: "note-item-title", children: [n.pinned ? "📌 " : "", n.display_title] }), (0, jsx_runtime_1.jsxs)("span", { className: "note-item-meta", children: [(0, dates_1.fmtDate)(n.updated_at.slice(0, 10)), n.kind ? ` · ${labels_1.NOTE_KIND[n.kind]}` : "", n.project_id ? ` · ${app.project(n.project_id)?.name ?? ""}` : "", n.linked_tasks ? " · " + (0, i18n_1.t)("{n} tarea(s)", { n: n.linked_tasks }) : ""] }), (0, jsx_runtime_1.jsx)("span", { className: "note-item-excerpt", children: n.excerpt })] }) }, n.id))) })] }), (0, jsx_runtime_1.jsxs)("section", { className: "notes-main", children: [(0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: tabsError }), (0, jsx_runtime_1.jsxs)("div", { className: "note-tabs-bar", children: [(0, jsx_runtime_1.jsx)("div", { className: "note-tabs", role: "tablist", "aria-label": (0, i18n_1.t)("Notas abiertas (arrastra para reordenar)"), children: tabs?.open.map((id) => ((0, jsx_runtime_1.jsxs)("div", { role: "presentation", draggable: true, className: "note-tab" + (id === active ? " active" : "") + (id === split ? " split" : "") + (dragTab === id ? " dragging" : ""), onDragStart: (e) => { setDragTab(id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(id)); }, onDragOver: (e) => { if (dragTab !== null)
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "view notes-view" + (sideHidden ? " side-hidden" : ""), children: [sideHidden ? (0, jsx_runtime_1.jsx)("aside", { className: "notes-side-strip", "aria-label": (0, i18n_1.t)("Lista de notas (oculta)"), children: (0, jsx_runtime_1.jsx)("button", { className: "ghost", onClick: () => setSideHidden(false), title: (0, i18n_1.t)("Mostrar el panel de notas (Alt+B)"), "aria-label": (0, i18n_1.t)("Mostrar el panel de notas (Alt+B)"), "aria-expanded": false, children: "\u27E9" }) }) :
+                (0, jsx_runtime_1.jsxs)("aside", { className: "notes-side", "aria-label": (0, i18n_1.t)("Lista de notas"), children: [(0, jsx_runtime_1.jsxs)("div", { className: "row tight side-head", children: [(0, jsx_runtime_1.jsx)("button", { className: "primary grow", onClick: () => app.newNote(), children: (0, i18n_1.t)("Nueva nota (Alt+N)") }), (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => setSideHidden(true), title: (0, i18n_1.t)("Ocultar el panel de notas (Alt+B)"), "aria-label": (0, i18n_1.t)("Ocultar el panel de notas (Alt+B)"), "aria-expanded": true, children: "\u27E8" })] }), (0, jsx_runtime_1.jsx)("div", { className: "scope-tabs", role: "tablist", "aria-label": (0, i18n_1.t)("Bandejas"), children: SCOPES.map(([k, label]) => (0, jsx_runtime_1.jsx)("button", { role: "tab", "aria-selected": scope === k, className: scope === k ? "active" : "", onClick: () => setScope(k), children: label() }, k)) }), (0, jsx_runtime_1.jsx)("input", { type: "search", className: "note-search", "aria-label": (0, i18n_1.t)("Buscar en las notas"), placeholder: (0, i18n_1.t)("Buscar texto…"), value: q, onChange: (e) => setQ(e.target.value) }), (0, jsx_runtime_1.jsxs)("button", { type: "button", className: "ghost small filters-toggle", "aria-expanded": filtersOpen, "aria-controls": "note-filters", onClick: () => setFiltersOpen(!filtersOpen), children: [filtersOpen ? "▾" : "▸", " ", activeFilters ? (0, i18n_1.t)("Filtros ({n})", { n: activeFilters }) : (0, i18n_1.t)("Filtros")] }), filtersOpen && (0, jsx_runtime_1.jsxs)("div", { className: "note-filters", id: "note-filters", role: "group", "aria-label": (0, i18n_1.t)("Filtros de notas"), children: [(0, jsx_runtime_1.jsxs)("select", { "aria-label": (0, i18n_1.t)("Buscar en"), value: field, onChange: (e) => setField(e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "todo", children: (0, i18n_1.t)("Título y contenido") }), (0, jsx_runtime_1.jsx)("option", { value: "titulo", children: (0, i18n_1.t)("Solo título") }), (0, jsx_runtime_1.jsx)("option", { value: "contenido", children: (0, i18n_1.t)("Solo contenido") })] }), (0, jsx_runtime_1.jsx)(ui_1.MultiSelect, { label: (0, i18n_1.t)("Proyecto"), value: project, onChange: setProject, options: [{ value: "none", label: (0, i18n_1.t)("Sin proyecto") }, ...app.boot.projects.map((p) => ({ value: String(p.id), label: p.name + (p.status !== "activo" ? ` (${labels_1.PROJECT_STATUS[p.status] || p.status})` : "") }))] }), (0, jsx_runtime_1.jsx)(ui_1.MultiSelect, { label: (0, i18n_1.t)("Cliente"), value: client, onChange: setClient, options: [{ value: "none", label: (0, i18n_1.t)("Sin cliente") }, ...app.boot.clients.map((c) => ({ value: String(c.id), label: c.name }))] }), (0, jsx_runtime_1.jsx)(ui_1.MultiSelect, { label: (0, i18n_1.t)("Tipo de nota"), value: kind, onChange: setKind, options: [{ value: "none", label: (0, i18n_1.t)("Nota") }, ...Object.entries(labels_1.NOTE_KIND).map(([k, v]) => ({ value: k, label: v }))] }), (0, jsx_runtime_1.jsx)(ui_1.MultiSelect, { label: (0, i18n_1.t)("Etiqueta"), value: tag, onChange: setTag, allLabel: (0, i18n_1.t)("Todas"), options: app.boot.tags.map((x) => ({ value: x, label: "#" + x })) })] }), filtered && (0, jsx_runtime_1.jsx)("button", { className: "ghost small", onClick: () => { setKind(""); setTag(""); setProject(""); setClient(""); setQ(""); setField("todo"); }, children: (0, i18n_1.t)("Restablecer filtros") }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error, onRetry: reload }), list && !list.length && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: filtered ? (0, i18n_1.t)("Ninguna nota coincide con los filtros.") : scope === "papelera" ? (0, i18n_1.t)("La papelera está vacía.") : scope === "sin_clasificar" ? (0, i18n_1.t)("No hay notas sin clasificar.") : (0, i18n_1.t)("Sin notas aquí. Crea una con Alt+N: no necesita título ni proyecto.") }), list && list.length > 0 && filtered && (0, jsx_runtime_1.jsx)("p", { className: "hint", children: (0, i18n_1.t)("{n} nota(s)", { n: list.length }) }), (0, jsx_runtime_1.jsx)("ul", { className: "plain note-items", children: list?.map((n) => ((0, jsx_runtime_1.jsx)("li", { children: (0, jsx_runtime_1.jsxs)("button", { className: "note-item" + (n.id === active ? " active" : "") + (n.id === split ? " split" : ""), onClick: () => openNote(n.id), children: [(0, jsx_runtime_1.jsxs)("span", { className: "note-item-title", children: [n.pinned ? "📌 " : "", n.display_title] }), (0, jsx_runtime_1.jsxs)("span", { className: "note-item-meta", children: [(0, dates_1.fmtDate)(n.updated_at.slice(0, 10)), n.kind ? ` · ${labels_1.NOTE_KIND[n.kind]}` : "", n.project_id ? ` · ${app.project(n.project_id)?.name ?? ""}` : "", n.linked_tasks ? " · " + (0, i18n_1.t)("{n} tarea(s)", { n: n.linked_tasks }) : ""] }), (0, jsx_runtime_1.jsx)("span", { className: "note-item-excerpt", children: n.excerpt })] }) }, n.id))) })] }), (0, jsx_runtime_1.jsxs)("section", { className: "notes-main", children: [(0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: tabsError }), (0, jsx_runtime_1.jsxs)("div", { className: "note-tabs-bar", children: [(0, jsx_runtime_1.jsx)("div", { className: "note-tabs", role: "tablist", "aria-label": (0, i18n_1.t)("Notas abiertas (arrastra para reordenar)"), children: tabs?.open.map((id) => ((0, jsx_runtime_1.jsxs)("div", { role: "presentation", draggable: true, className: "note-tab" + (id === active ? " active" : "") + (id === split ? " split" : "") + (dragTab === id ? " dragging" : ""), onDragStart: (e) => { setDragTab(id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(id)); }, onDragOver: (e) => { if (dragTab !== null)
                                         e.preventDefault(); }, onDrop: (e) => { e.preventDefault(); if (dragTab !== null && tabs)
                                         persist({ ...tabs, open: reorderTabs(tabs.open, dragTab, id) }); setDragTab(null); }, onDragEnd: () => setDragTab(null), children: [(0, jsx_runtime_1.jsxs)("button", { role: "tab", "aria-selected": id === active, onClick: () => openNote(id), title: (0, i18n_1.t)("{titulo} — arrastra o usa Alt+←/→ para reordenar", { titulo: titles[id] || "" }), onKeyDown: (e) => { if (e.altKey && e.key === "ArrowLeft")
                                                 moveTab(id, -1); if (e.altKey && e.key === "ArrowRight")
@@ -21320,7 +21552,7 @@ function NoteEditor({ id, pane, onTitle, onListChange, onGone }) {
     const [state, setState] = (0, react_1.useState)("saved");
     const [saveErr, setSaveErr] = (0, react_1.useState)("");
     const [loadErr, setLoadErr] = (0, react_1.useState)("");
-    const [mode, setModeState] = (0, react_1.useState)(app.boot.settings.note_editor_mode === "vista_previa" ? "vista_previa" : "editar");
+    const [mode, setModeState] = (0, react_1.useState)((0, MarkdownEditor_1.asEditorMode)(app.boot.settings.note_editor_mode));
     const setMode = (m) => {
         setModeState(m);
         if (m !== app.boot.settings.note_editor_mode)
@@ -21341,9 +21573,9 @@ function NoteEditor({ id, pane, onTitle, onListChange, onGone }) {
             setLoadErr("");
             // Opened from the search (Ctrl+K): edit mode and caret at the end, ready to type (not for notes in the trash)
             if (pane === "left" && (0, focus_1.consumeNoteFocus)(id) && n.state !== "papelera") {
-                setModeState("editar");
+                setModeState((m) => (m === "vista_previa" ? "editar" : m));
                 setFocusReq(true);
-            }
+            } // Live keeps Live
             saver.current?.dispose();
             if (saver.current)
                 exports.activeSavers.delete(saver.current);
@@ -21615,8 +21847,10 @@ function ProjectsView() {
     const [creating, setCreating] = (0, react_1.useState)(false);
     const q = [showAll ? "include_archived=true" : "", clientFilter ? `client_id=${encodeURIComponent(clientFilter)}` : ""].filter(Boolean).join("&");
     const { data, error, reload } = (0, store_1.useApi)(`/api/projects${q ? "?" + q : ""}`);
+    const [chipsOpen, setChipsOpen] = (0, viewstate_1.useViewState)("projects.chipsOpen", false);
     const clientOptions = [{ value: "none", label: (0, i18n_1.t)("Sin cliente") }, ...app.boot.clients.map((c) => ({ value: String(c.id), label: c.name }))];
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "view", children: [(0, jsx_runtime_1.jsxs)("header", { className: "view-head row", children: [(0, jsx_runtime_1.jsx)("h1", { children: (0, i18n_1.t)("Proyectos") }), (0, jsx_runtime_1.jsxs)("div", { role: "tablist", className: "tabs-inline", "aria-label": (0, i18n_1.t)("Proyectos o clientes"), children: [(0, jsx_runtime_1.jsx)("button", { role: "tab", "aria-selected": tab === "projects", className: tab === "projects" ? "active" : "", onClick: () => setTab("projects"), children: (0, i18n_1.t)("Proyectos") }), (0, jsx_runtime_1.jsx)("button", { role: "tab", "aria-selected": tab === "clients", className: tab === "clients" ? "active" : "", onClick: () => setTab("clients"), children: (0, i18n_1.t)("Clientes") })] }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), tab === "projects" && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)(ui_1.MultiSelect, { label: (0, i18n_1.t)("Cliente"), options: clientOptions, value: clientFilter, onChange: setClientFilter }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: showAll, onChange: (e) => setShowAll(e.target.checked) }), " ", (0, i18n_1.t)("Incluir archivados")] }), (0, jsx_runtime_1.jsx)("button", { className: "primary", onClick: () => setCreating(true), children: (0, i18n_1.t)("Nuevo proyecto") })] })] }), tab === "clients" ? (0, jsx_runtime_1.jsx)(ClientsPanel, {}) : (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error, onRetry: reload }), data && !data.length && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: (0, i18n_1.t)("Aún no hay proyectos. No son obligatorios: puedes capturar tareas y notas sin proyecto y vincularlas después.") }), (0, jsx_runtime_1.jsx)("div", { className: "project-grid", children: data?.map((p) => ((0, jsx_runtime_1.jsxs)("article", { className: `project-card status-${p.status}`, children: [(0, jsx_runtime_1.jsx)("button", { className: "linklike project-name", onClick: () => app.navigate(`#/proyectos/${p.id}`), children: p.name }), (0, jsx_runtime_1.jsxs)("div", { className: "card-meta", children: [(0, jsx_runtime_1.jsx)(ui_1.Chip, { children: (0, labels_1.projectTypeLabel)(p.type) }), p.status !== "activo" && (0, jsx_runtime_1.jsx)(ui_1.Chip, { children: labels_1.PROJECT_STATUS[p.status] }), p.health && (0, jsx_runtime_1.jsx)(ui_1.Chip, { tone: p.health === "bloqueado" ? "danger" : p.health === "atencion" ? "warn" : "neutral", children: labels_1.HEALTH[p.health] }), p.client_name && (0, jsx_runtime_1.jsx)("span", { className: "muted", children: p.client_name })] }), p.health_note && (0, jsx_runtime_1.jsx)("p", { className: "health-note", children: p.health_note }), (0, jsx_runtime_1.jsx)("p", { className: "clamp", children: p.summary || (0, jsx_runtime_1.jsx)("span", { className: "muted", children: (0, i18n_1.t)("Sin resumen «Dónde lo dejamos»") }) }), p.next_action && (0, jsx_runtime_1.jsxs)("p", { className: "clamp", children: [(0, jsx_runtime_1.jsxs)("strong", { children: [(0, i18n_1.t)("Siguiente"), ":"] }), " ", p.next_action] }), (0, jsx_runtime_1.jsx)("p", { className: "muted small", children: (0, i18n_1.t)("{n} tareas operativas · {c} con espera/bloqueo · resumen {cuando}", { n: p.open_tasks ?? 0, c: p.conditioned_tasks ?? 0, cuando: p.summary_updated_at ? (0, dates_1.sinceLabel)(p.summary_updated_at) : (0, i18n_1.t)("no informado") }) })] }, p.id))) })] }), creating && (0, jsx_runtime_1.jsx)(ProjectForm, { onClose: () => setCreating(false), onSaved: (id) => { setCreating(false); app.navigate(`#/proyectos/${id}`); } })] }));
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "view", children: [(0, jsx_runtime_1.jsxs)("header", { className: "view-head row", children: [(0, jsx_runtime_1.jsx)("h1", { children: (0, i18n_1.t)("Proyectos") }), (0, jsx_runtime_1.jsxs)("div", { role: "tablist", className: "tabs-inline", "aria-label": (0, i18n_1.t)("Proyectos o clientes"), children: [(0, jsx_runtime_1.jsx)("button", { role: "tab", "aria-selected": tab === "projects", className: tab === "projects" ? "active" : "", onClick: () => setTab("projects"), children: (0, i18n_1.t)("Proyectos") }), (0, jsx_runtime_1.jsx)("button", { role: "tab", "aria-selected": tab === "clients", className: tab === "clients" ? "active" : "", onClick: () => setTab("clients"), children: (0, i18n_1.t)("Clientes") })] }), (0, jsx_runtime_1.jsx)("span", { className: "spacer" }), tab === "projects" && (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)(ui_1.MultiSelect, { label: (0, i18n_1.t)("Cliente"), options: clientOptions, value: clientFilter, onChange: setClientFilter }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: showAll, onChange: (e) => setShowAll(e.target.checked) }), " ", (0, i18n_1.t)("Incluir archivados")] }), (0, jsx_runtime_1.jsx)("button", { className: "primary", onClick: () => setCreating(true), children: (0, i18n_1.t)("Nuevo proyecto") })] })] }), tab === "clients" ? (0, jsx_runtime_1.jsx)(ClientsPanel, {}) : (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)(ui_1.ActiveFilters, { expanded: chipsOpen, setExpanded: setChipsOpen, onReset: () => setClientFilter(""), chips: (0, ui_1.splitMulti)(clientFilter).map((v) => ({ key: v, filter: (0, i18n_1.t)("Cliente"), value: clientOptions.find((o) => o.value === v)?.label || v,
+                            remove: () => setClientFilter((0, ui_1.joinMulti)((0, ui_1.splitMulti)(clientFilter).filter((x) => x !== v))) })) }), (0, jsx_runtime_1.jsx)(ui_1.ErrorBox, { error: error, onRetry: reload }), data && !data.length && (0, jsx_runtime_1.jsx)(ui_1.Empty, { children: (0, i18n_1.t)("Aún no hay proyectos. No son obligatorios: puedes capturar tareas y notas sin proyecto y vincularlas después.") }), (0, jsx_runtime_1.jsx)("div", { className: "project-grid", children: data?.map((p) => ((0, jsx_runtime_1.jsxs)("article", { className: `project-card status-${p.status}`, children: [(0, jsx_runtime_1.jsx)("button", { className: "linklike project-name", onClick: () => app.navigate(`#/proyectos/${p.id}`), children: p.name }), (0, jsx_runtime_1.jsxs)("div", { className: "card-meta", children: [(0, jsx_runtime_1.jsx)(ui_1.Chip, { children: (0, labels_1.projectTypeLabel)(p.type) }), p.status !== "activo" && (0, jsx_runtime_1.jsx)(ui_1.Chip, { children: labels_1.PROJECT_STATUS[p.status] }), p.health && (0, jsx_runtime_1.jsx)(ui_1.Chip, { tone: p.health === "bloqueado" ? "danger" : p.health === "atencion" ? "warn" : "neutral", children: labels_1.HEALTH[p.health] }), p.client_name && (0, jsx_runtime_1.jsx)("span", { className: "muted", children: p.client_name })] }), p.health_note && (0, jsx_runtime_1.jsx)("p", { className: "health-note", children: p.health_note }), (0, jsx_runtime_1.jsx)("p", { className: "clamp", children: p.summary || (0, jsx_runtime_1.jsx)("span", { className: "muted", children: (0, i18n_1.t)("Sin resumen «Dónde lo dejamos»") }) }), p.next_action && (0, jsx_runtime_1.jsxs)("p", { className: "clamp", children: [(0, jsx_runtime_1.jsxs)("strong", { children: [(0, i18n_1.t)("Siguiente"), ":"] }), " ", p.next_action] }), (0, jsx_runtime_1.jsx)("p", { className: "muted small", children: (0, i18n_1.t)("{n} tareas operativas · {c} con espera/bloqueo · resumen {cuando}", { n: p.open_tasks ?? 0, c: p.conditioned_tasks ?? 0, cuando: p.summary_updated_at ? (0, dates_1.sinceLabel)(p.summary_updated_at) : (0, i18n_1.t)("no informado") }) })] }, p.id))) })] }), creating && (0, jsx_runtime_1.jsx)(ProjectForm, { onClose: () => setCreating(false), onSaved: (id) => { setCreating(false); app.navigate(`#/proyectos/${id}`); } })] }));
 }
 /** Client management: create, rename and delete (projects are kept without a client). */
 function ClientsPanel() {
@@ -21787,6 +22021,7 @@ exports.TaskTable = TaskTable;
 exports.dayContextText = dayContextText;
 exports.Calendar = Calendar;
 exports.WeekAvailabilityStrip = WeekAvailabilityStrip;
+exports.filterChips = filterChips;
 exports.FilterBar = FilterBar;
 exports.filtersToQuery = filtersToQuery;
 const jsx_runtime_1 = require("react/jsx-runtime");
@@ -22038,19 +22273,47 @@ function WeekAvailabilityStrip() {
         return null;
     return (0, jsx_runtime_1.jsxs)("p", { className: "availability-strip", "aria-label": (0, i18n_1.t)("Festivos y ausencias registrados esta semana"), children: [(0, jsx_runtime_1.jsx)("span", { className: "muted", children: (0, i18n_1.t)("No disponibles esta semana (festivos/ausencias registrados):") }), " ", parts.map((p, i) => (0, jsx_runtime_1.jsx)("span", { className: "avail-item", title: p.title, children: p.text }, i))] });
 }
-/** Work filters (0.5: multiple choice in each filter; values combine with OR inside a filter and AND between filters). */
-function FilterBar({ filters, setFilters, hideProject, onReset }) {
+/** Options of each Work filter (shared by the filter bar and the active-filter chips). */
+function filterDefs(app, filters) {
+    return [
+        { key: "project_id", label: (0, i18n_1.t)("Proyecto"), options: [{ value: "none", label: (0, i18n_1.t)("Sin proyecto") }, ...app.boot.projects.map((p) => ({ value: String(p.id), label: p.name }))] },
+        { key: "client_id", label: (0, i18n_1.t)("Cliente"), options: [{ value: "none", label: (0, i18n_1.t)("Sin cliente") }, ...app.boot.clients.map((c) => ({ value: String(c.id), label: c.name }))] },
+        { key: "person_id", label: (0, i18n_1.t)("Persona"), allLabel: (0, i18n_1.t)("Todas"), options: [{ value: "none", label: (0, i18n_1.t)("Sin asignar") },
+                ...app.boot.people.filter((p) => p.active || (0, ui_1.splitMulti)(filters.person_id).includes(String(p.id))).map((p) => ({ value: String(p.id), label: p.name }))] },
+        { key: "status", label: (0, i18n_1.t)("Estado"), allLabel: (0, i18n_1.t)("Operativas"), options: Object.keys(labels_1.STATUS).map((x) => ({ value: x, label: labels_1.STATUS[x] })) },
+        { key: "condition", label: (0, i18n_1.t)("Condición"), allLabel: (0, i18n_1.t)("Cualquiera"), options: [{ value: "cualquiera", label: (0, i18n_1.t)("En espera o bloqueadas") }, { value: "espera", label: (0, i18n_1.t)("En espera") }, { value: "bloqueada", label: (0, i18n_1.t)("Bloqueadas") }, { value: "none", label: (0, i18n_1.t)("Sin condición") }] },
+        { key: "priority", label: (0, i18n_1.t)("Prioridad"), allLabel: (0, i18n_1.t)("Todas"), options: Object.entries(labels_1.PRIORITY).map(([k, v]) => ({ value: k, label: v })) },
+        { key: "tag", label: (0, i18n_1.t)("Etiqueta"), allLabel: (0, i18n_1.t)("Todas"), options: app.boot.tags.map((x) => ({ value: x, label: "#" + x })) },
+    ];
+}
+/** Active filters as removable chips («Persona: Ana ×»), 0.6. Removing a chip removes only that value. */
+function filterChips(app, filters, setFilters, hideProject) {
+    const chips = [];
+    for (const d of filterDefs(app, filters)) {
+        if (hideProject && (d.key === "project_id" || d.key === "client_id"))
+            continue;
+        const vals = (0, ui_1.splitMulti)(filters[d.key]);
+        for (const v of vals)
+            chips.push({
+                key: `${d.key}:${v}`, filter: d.label, value: d.options.find((o) => o.value === v)?.label || v,
+                remove: () => setFilters({ ...filters, [d.key]: (0, ui_1.joinMulti)(vals.filter((x) => x !== v)) }),
+            });
+    }
+    if (filters.include_backlog)
+        chips.push({ key: "backlog", filter: (0, i18n_1.t)("Incluir"), value: (0, i18n_1.t)("Backlog"), remove: () => setFilters({ ...filters, include_backlog: false }) });
+    if (filters.include_closed)
+        chips.push({ key: "closed", filter: (0, i18n_1.t)("Incluir"), value: (0, i18n_1.t)("Terminadas"), remove: () => setFilters({ ...filters, include_closed: false }) });
+    return chips;
+}
+/** Work filters (0.5: multiple choice; values combine with OR inside a filter and AND between filters).
+ * 0.6: compact bar — every control keeps the same height and the chosen values are shown below in a single
+ * expandable row of removable chips. */
+function FilterBar({ filters, setFilters, hideProject, onReset, stateKey = "work" }) {
     const app = (0, store_1.useApp)();
     const set = (k, v) => setFilters({ ...filters, [k]: v });
-    const projects = [{ value: "none", label: (0, i18n_1.t)("Sin proyecto") }, ...app.boot.projects.map((p) => ({ value: String(p.id), label: p.name }))];
-    const people = [{ value: "none", label: (0, i18n_1.t)("Sin asignar") }, ...app.boot.people.filter((p) => p.active || (0, ui_1.splitMulti)(filters.person_id).includes(String(p.id))).map((p) => ({ value: String(p.id), label: p.name }))];
-    const clients = [{ value: "none", label: (0, i18n_1.t)("Sin cliente") }, ...app.boot.clients.map((c) => ({ value: String(c.id), label: c.name }))];
-    const statuses = Object.keys(labels_1.STATUS).map((x) => ({ value: x, label: labels_1.STATUS[x] }));
-    const conditions = [{ value: "cualquiera", label: (0, i18n_1.t)("En espera o bloqueadas") }, { value: "espera", label: (0, i18n_1.t)("En espera") }, { value: "bloqueada", label: (0, i18n_1.t)("Bloqueadas") }, { value: "none", label: (0, i18n_1.t)("Sin condición") }];
-    const prios = Object.entries(labels_1.PRIORITY).map(([k, v]) => ({ value: k, label: v }));
-    const tags = app.boot.tags.map((x) => ({ value: x, label: "#" + x }));
-    const active = Object.entries(filters).some(([k, v]) => v && k !== "sort");
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "filters", role: "group", "aria-label": (0, i18n_1.t)("Filtros"), children: [!hideProject && (0, jsx_runtime_1.jsx)(ui_1.MultiSelect, { label: (0, i18n_1.t)("Proyecto"), options: projects, value: filters.project_id, onChange: (v) => set("project_id", v) }), !hideProject && (0, jsx_runtime_1.jsx)(ui_1.MultiSelect, { label: (0, i18n_1.t)("Cliente"), options: clients, value: filters.client_id, onChange: (v) => set("client_id", v) }), (0, jsx_runtime_1.jsx)(ui_1.MultiSelect, { label: (0, i18n_1.t)("Persona"), options: people, value: filters.person_id, onChange: (v) => set("person_id", v), allLabel: (0, i18n_1.t)("Todas") }), (0, jsx_runtime_1.jsx)(ui_1.MultiSelect, { label: (0, i18n_1.t)("Estado"), options: statuses, value: filters.status, onChange: (v) => set("status", v), allLabel: (0, i18n_1.t)("Operativas") }), (0, jsx_runtime_1.jsx)(ui_1.MultiSelect, { label: (0, i18n_1.t)("Condición"), options: conditions, value: filters.condition, onChange: (v) => set("condition", v), allLabel: (0, i18n_1.t)("Cualquiera") }), (0, jsx_runtime_1.jsx)(ui_1.MultiSelect, { label: (0, i18n_1.t)("Prioridad"), options: prios, value: filters.priority, onChange: (v) => set("priority", v), allLabel: (0, i18n_1.t)("Todas") }), (0, jsx_runtime_1.jsx)(ui_1.MultiSelect, { label: (0, i18n_1.t)("Etiqueta"), options: tags, value: filters.tag, onChange: (v) => set("tag", v), allLabel: (0, i18n_1.t)("Todas") }), (0, jsx_runtime_1.jsxs)("label", { children: [(0, i18n_1.t)("Orden"), " ", (0, jsx_runtime_1.jsxs)("select", { value: filters.sort || "", onChange: (e) => set("sort", e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: (0, i18n_1.t)("Manual") }), (0, jsx_runtime_1.jsx)("option", { value: "fecha", children: (0, i18n_1.t)("Fecha límite") }), (0, jsx_runtime_1.jsx)("option", { value: "prioridad", children: (0, i18n_1.t)("Prioridad") })] })] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: !!filters.include_backlog, onChange: (e) => set("include_backlog", e.target.checked) }), " ", (0, i18n_1.t)("Backlog")] }), (0, jsx_runtime_1.jsxs)("label", { className: "check", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: !!filters.include_closed, onChange: (e) => set("include_closed", e.target.checked) }), " ", (0, i18n_1.t)("Terminadas")] }), onReset && (0, jsx_runtime_1.jsx)("button", { type: "button", className: "ghost small", disabled: !active, onClick: onReset, children: (0, i18n_1.t)("Restablecer filtros") })] }));
+    const [chipsOpen, setChipsOpen] = (0, viewstate_1.useViewState)(stateKey + ".chipsOpen", false);
+    const defs = filterDefs(app, filters).filter((d) => !hideProject || (d.key !== "project_id" && d.key !== "client_id"));
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "filter-area", children: [(0, jsx_runtime_1.jsxs)("div", { className: "filters", role: "group", "aria-label": (0, i18n_1.t)("Filtros"), children: [defs.map((d) => (0, jsx_runtime_1.jsx)(ui_1.MultiSelect, { label: d.label, options: d.options, value: filters[d.key], onChange: (v) => set(d.key, v), allLabel: d.allLabel }, d.key)), (0, jsx_runtime_1.jsxs)("label", { className: "filter-inline", children: [(0, i18n_1.t)("Orden"), " ", (0, jsx_runtime_1.jsxs)("select", { value: filters.sort || "", onChange: (e) => set("sort", e.target.value), children: [(0, jsx_runtime_1.jsx)("option", { value: "", children: (0, i18n_1.t)("Manual") }), (0, jsx_runtime_1.jsx)("option", { value: "fecha", children: (0, i18n_1.t)("Fecha límite") }), (0, jsx_runtime_1.jsx)("option", { value: "prioridad", children: (0, i18n_1.t)("Prioridad") })] })] }), (0, jsx_runtime_1.jsxs)("label", { className: "check filter-inline", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: !!filters.include_backlog, onChange: (e) => set("include_backlog", e.target.checked) }), " ", (0, i18n_1.t)("Backlog")] }), (0, jsx_runtime_1.jsxs)("label", { className: "check filter-inline", children: [(0, jsx_runtime_1.jsx)("input", { type: "checkbox", checked: !!filters.include_closed, onChange: (e) => set("include_closed", e.target.checked) }), " ", (0, i18n_1.t)("Terminadas")] })] }), (0, jsx_runtime_1.jsx)(ui_1.ActiveFilters, { chips: filterChips(app, filters, setFilters, hideProject), onReset: onReset, expanded: chipsOpen, setExpanded: setChipsOpen })] }));
 }
 function filtersToQuery(f) {
     const p = [];

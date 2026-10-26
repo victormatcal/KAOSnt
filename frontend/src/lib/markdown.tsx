@@ -45,6 +45,8 @@ export function tableAlign(sep: string): ("left" | "center" | "right" | undefine
 export interface MarkdownOptions {
   /** Called with the 0-based source line of a checkbox the user clicked (only when given: editable notes). */
   onToggleTask?: (line: number) => void;
+  /** 0.6: every block carries its 0-based source line in `data-line` (live mode: scroll sync and click to jump). */
+  lineBase?: number;
 }
 
 interface ListLine { indent: number; ordered: boolean; text: string; line: number }
@@ -67,43 +69,46 @@ function renderList(items: ListLine[], opts: MarkdownOptions): ReactNode {
             onChange={() => opts.onToggleTask!(it.line)} />
         : <span aria-label={done ? t("completado") : t("pendiente")}>{done ? "☑" : "☐"}</span>} {inline(task[2])}</>
       : inline(it.text);
-    out.push(<li key={k()} className={task ? "md-task" + (done ? " done" : "") : undefined}>{content}{children.length ? renderList(children, opts) : null}</li>);
+    out.push(<li key={k()} data-line={it.line} className={task ? "md-task" + (done ? " done" : "") : undefined}>{content}{children.length ? renderList(children, opts) : null}</li>);
     i = j;
   }
-  return items[0].ordered ? <ol key={k()}>{out}</ol> : <ul key={k()}>{out}</ul>;
+  return items[0].ordered ? <ol key={k()} data-line={items[0].line}>{out}</ol> : <ul key={k()} data-line={items[0].line}>{out}</ul>;
 }
 
 export function renderMarkdown(src: string, opts: MarkdownOptions = {}): ReactNode[] {
   const lines = (src || "").replace(/\r\n?/g, "\n").split("\n");
   const out: ReactNode[] = [];
+  const base = opts.lineBase || 0;
   let i = 0;
   while (i < lines.length) {
     const line = lines[i];
     if (/^\s*```/.test(line)) {
       const buf: string[] = [];
+      const start = i;
       i++;
       while (i < lines.length && !/^\s*```/.test(lines[i])) buf.push(lines[i++]);
       i++;
-      out.push(<pre key={k()}><code>{buf.join("\n")}</code></pre>);
+      out.push(<pre key={k()} data-line={base + start}><code>{buf.join("\n")}</code></pre>);
       continue;
     }
     if (!line.trim()) { i++; continue; }
     const h = /^(#{1,6})\s+(.*)$/.exec(line);
     if (h) {
       const Tag = ("h" + Math.min(h[1].length + 1, 6)) as any;
-      out.push(<Tag key={k()}>{inline(h[2])}</Tag>);
+      out.push(<Tag key={k()} data-line={base + i}>{inline(h[2])}</Tag>);
       i++;
       continue;
     }
-    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { out.push(<hr key={k()} />); i++; continue; }
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { out.push(<hr key={k()} data-line={base + i} />); i++; continue; }
     if (startsTable(lines, i)) {
+      const start = i;
       const head = cells(line);
       const align = tableAlign(lines[i + 1]);
       i += 2;
       const body: string[][] = [];
       while (i < lines.length && lines[i].includes("|") && lines[i].trim()) body.push(cells(lines[i++]));
       const cls = (c: number) => (align[c] ? `al-${align[c]}` : undefined);
-      out.push(<div className="md-table" key={k()}><table>
+      out.push(<div className="md-table" key={k()} data-line={base + start}><table>
         <thead><tr>{head.map((c, ci) => <th key={k()} className={cls(ci)}>{inline(c)}</th>)}</tr></thead>
         <tbody>{body.map((r) => <tr key={k()}>{r.map((c, ci) => <td key={k()} className={cls(ci)}>{inline(c)}</td>)}</tr>)}</tbody>
       </table></div>);
@@ -111,8 +116,9 @@ export function renderMarkdown(src: string, opts: MarkdownOptions = {}): ReactNo
     }
     if (/^\s*>/.test(line)) {
       const buf: string[] = [];
+      const start = i;
       while (i < lines.length && /^\s*>/.test(lines[i])) buf.push(lines[i++].replace(/^\s*>\s?/, ""));
-      out.push(<blockquote key={k()}>{renderMarkdown(buf.join("\n"))}</blockquote>);
+      out.push(<blockquote key={k()} data-line={base + start}>{renderMarkdown(buf.join("\n"), { lineBase: base + start })}</blockquote>);
       continue;
     }
     if (LIST_RE.test(line)) {
@@ -120,20 +126,70 @@ export function renderMarkdown(src: string, opts: MarkdownOptions = {}): ReactNo
       const first = width(LIST_RE.exec(line)![1]);
       while (i < lines.length && LIST_RE.test(lines[i])) {
         const m = LIST_RE.exec(lines[i])!;
-        items.push({ indent: Math.max(width(m[1]), first), ordered: /^\d/.test(m[2]), text: m[3], line: i });
+        items.push({ indent: Math.max(width(m[1]), first), ordered: /^\d/.test(m[2]), text: m[3], line: base + i });
         i++;
       }
       out.push(renderList(items, opts));
       continue;
     }
     const buf: string[] = [];
+    const start = i;
     while (i < lines.length && lines[i].trim() && !/^(#{1,6}\s|\s*```|\s*>)/.test(lines[i]) && !LIST_RE.test(lines[i]) && !startsTable(lines, i)) buf.push(lines[i++]);
     if (!buf.length) buf.push(lines[i++]);
-    out.push(<p key={k()}>{buf.flatMap((b, j) => (j ? [<br key={k()} />, ...inline(b)] : inline(b)))}</p>);
+    out.push(<p key={k()} data-line={base + start}>{buf.flatMap((b, j) => (j ? [<br key={k()} />, ...inline(b)] : inline(b)))}</p>);
   }
   return out;
 }
 
 export function Markdown({ text, onToggleTask }: { text: string; onToggleTask?: (line: number) => void }) {
   return <div className="markdown">{renderMarkdown(text, { onToggleTask })}</div>;
+}
+
+// ---------- Live mode helpers (0.6) ----------
+/** Anchor of a rendered block: its source line and its vertical position (px) inside the preview. */
+export interface Anchor { line: number; top: number }
+
+/** Preview position for a source line (fractional lines allowed), interpolating between the surrounding anchors. */
+export function lineToOffset(anchors: Anchor[], line: number, previewHeight: number, totalLines: number): number {
+  if (!anchors.length) return 0;
+  const a = [...anchors].sort((x, y) => x.line - y.line);
+  if (line <= a[0].line) return a[0].line ? a[0].top * (line / a[0].line) : a[0].top;
+  for (let i = 0; i < a.length; i++) {
+    const cur = a[i], next = a[i + 1] || { line: Math.max(totalLines, cur.line + 1), top: previewHeight };
+    if (line < next.line) return cur.top + (next.top - cur.top) * ((line - cur.line) / Math.max(1, next.line - cur.line));
+  }
+  return previewHeight;
+}
+
+/** Source line (fractional) shown at a preview position: the inverse of lineToOffset. */
+export function offsetToLine(anchors: Anchor[], y: number, previewHeight: number, totalLines: number): number {
+  if (!anchors.length) return 0;
+  const a = [...anchors].sort((x, z) => x.top - z.top || x.line - z.line);
+  if (y <= a[0].top) return a[0].top > 0 ? a[0].line * (y / a[0].top) : a[0].line;
+  for (let i = 0; i < a.length; i++) {
+    const cur = a[i], next = a[i + 1] || { line: Math.max(totalLines, cur.line + 1), top: previewHeight };
+    if (y < next.top) return cur.line + (next.line - cur.line) * ((y - cur.top) / Math.max(1, next.top - cur.top));
+  }
+  return totalLines;
+}
+
+/** Block that contains a source line: the last block start ≤ line. */
+export function blockForLine(starts: number[], line: number): number | null {
+  let best: number | null = null;
+  for (const s of starts) if (s <= line && (best === null || s > best)) best = s;
+  return best;
+}
+
+/** 0-based line of a character offset in a text. */
+export function lineOfOffset(text: string, offset: number): number {
+  let n = 0;
+  for (let i = 0; i < offset && i < text.length; i++) if (text.charCodeAt(i) === 10) n++;
+  return n;
+}
+
+/** Character offset where a 0-based line starts. */
+export function offsetOfLine(text: string, line: number): number {
+  let pos = 0;
+  for (let n = 0; n < line; n++) { const nl = text.indexOf("\n", pos); if (nl === -1) return text.length; pos = nl + 1; }
+  return pos;
 }

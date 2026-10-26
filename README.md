@@ -1,4 +1,4 @@
-# KAOSnt · v0.5.0
+# KAOSnt · v0.6.0
 
 A **local** web application to organise your own work and a small team's: quick capture of tasks and notes, a «Today»
 summary, projects with «Where we left off», Kanban/list/calendar, team with holidays per office and weekly planning.
@@ -35,7 +35,7 @@ kaosnt/
 │  │                views.py (Today, project, person, planning) · agenda.py (offices, holidays, calendar) · themes.py · undo.py
 │  │                search.py · backup.py · demo.py · config.py · db.py · settings.py · timeutil.py · schemas.py · errors.py
 │  │   └─ migrations/  001_initial.sql · 002_v02.sql · 003_v03.sql · 004_v04.sql
-│  ├─ tests/        pytest (acceptance criteria, security, 0.2, 0.3, 0.4 and 0.5 features)
+│  ├─ tests/        pytest (acceptance criteria, security and the features of each version, 0.2 to 0.6)
 │  └─ tools/gen_frontend_fixture.py
 ├─ frontend/  src/ (App.tsx, views/, components/, lib/, i18n/) · dist/ (compiled) · tests/ · tools/
 └─ docs/      USER_GUIDE.md · DATA_MODEL.md · TESTING.md · SECURITY.md · THEMES.md · CHANGES.md
@@ -55,7 +55,16 @@ Requirement: **Python 3.10 or later** (`py -3 --version`). Node is not needed to
 - **Close** (controlled): *Settings → Close application*, `stop.bat` (demo: `stop.bat 8766`) or `Ctrl+C` in the console.
 - Options: `--port N`, `--data-dir PATH`, `--no-browser`; environment variables `KAOSNT_DATA_DIR`, `KAOSNT_PORT`.
 
-## 5. Upgrading from 0.4 to 0.5
+## 5. Upgrading from 0.5 to 0.6
+
+1. In 0.5: **Settings → Export → Full export** (for safety) and close the application (`stop.bat` or «Close application»).
+2. Replace the program folder with the 0.6 one (do not touch `%LOCALAPPDATA%\KAOSnt`) and run `start.bat`.
+   No new dependencies and **no database migration** (schema 4 is kept). The `note_editor_mode` setting accepts the new value `live`.
+3. What changes for you: the Markdown editor has a **Live** mode (editor and result side by side); the Work filter bar keeps
+   a fixed height and shows the active filters as one line of removable chips; in Notes the filter pop-ups are fixed, the
+   filters can be folded and the whole side panel can be hidden (`Alt+B`).
+
+## 5 bis. Upgrading from 0.4 to 0.5
 
 1. In 0.4: **Settings → Export → Full export** (for safety) and close the application (`stop.bat` or «Close application»).
 2. Replace the program folder with the 0.5 one (do not touch `%LOCALAPPDATA%\KAOSnt`) and run `start.bat`.
@@ -66,7 +75,7 @@ Requirement: **Python 3.10 or later** (`py -3 --version`). Node is not needed to
    folded under their parent, a more complete Markdown editor and Settings organised by sections.
    «Apply this data to the series» is gone: the scope question replaces it.
 
-## 5 bis. Upgrading from 0.3 to 0.4
+## 5 ter. Upgrading from 0.3 to 0.4
 
 1. In 0.3: **Settings → Export → Full export** (for safety) and close the application (`detener.bat` or «Close application»).
 2. Replace the program folder with the 0.4 one (do not touch `%LOCALAPPDATA%\KAOSnt`). The `.bat` files are now in English:
@@ -77,9 +86,9 @@ Requirement: **Python 3.10 or later** (`py -3 --version`). Node is not needed to
 4. A JSON export from 0.3 (or 0.2) **can** be restored in 0.4.
 5. New: the task panel width can be changed by dragging its left edge (it is remembered), and in *Team → Edit person* you can delete people.
 
-Upgrading from 0.2: same steps (migrations 003 and 004 are applied in a row). From 0.1 («Centro de trabajo»): see section 5 ter.
+Upgrading from 0.2: same steps (migrations 003 and 004 are applied in a row). From 0.1 («Centro de trabajo»): see section 5 quater.
 
-## 5 ter. Upgrading from 0.1 («Centro de trabajo»)
+## 5 quater. Upgrading from 0.1 («Centro de trabajo»)
 
 1. Make a **full export** (Settings → Export) and close the previous application.
 2. Replace the program folder with the new one (do not touch `%LOCALAPPDATA%`). Run `install.bat` and `start.bat`.
