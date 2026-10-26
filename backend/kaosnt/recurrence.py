@@ -258,6 +258,85 @@ def apply_task_to_series(conn, task_id: int, settings: dict[str, Any], today: da
     return n
 
 
+# ---------- Scope of changes on a series (0.5) ----------
+SCOPES = ("this", "following", "all")
+# Fields of a task that are propagated to other occurrences (status, history and due date never are)
+SCOPED_FIELDS = ("title", "tags", "planned_date", "next_review_at") + TEMPLATE_FIELDS
+SERIES_COLUMNS = ("title", "description", "project_id", "assignee_id", "priority", "estimate_hours")
+
+
+def scope_targets(conn, task_id: int, scope: str) -> list[int]:
+    """Other occurrences affected by a change with that scope (without the task itself)."""
+    if scope not in SCOPES:
+        raise invalid("Alcance no válido")
+    t = get_task_row(conn, task_id)
+    if scope == "this" or not t["recurrence_id"]:
+        return []
+    if scope == "all":  # all of them, including finished, cancelled and archived ones
+        q, p = "SELECT id FROM tasks WHERE recurrence_id = ? AND id <> ?", [t["recurrence_id"], task_id]
+    else:
+        q = """SELECT id FROM tasks WHERE recurrence_id = ? AND id <> ?
+               AND (occurrence_date > ? OR (occurrence_date = ? AND id > ?))"""
+        od = t["occurrence_date"] or t["due_date"] or ""
+        p = [t["recurrence_id"], task_id, od, od, task_id]
+    return [r[0] for r in conn.execute(q + " ORDER BY occurrence_date, id", p)]
+
+
+def apply_scoped(conn, task_id: int, patch: dict[str, Any], scope: str, settings: dict[str, Any]) -> int:
+    """Apply a task patch with a scope. «this»: only this task. «following»/«all»: the inheritable fields
+    that change are also applied to the other occurrences (this and later ones, or every one) and to the
+    series template. Status, history and due dates of other occurrences are never changed.
+    Planned date, review and reminders keep their relation to each occurrence's due date. Returns how many
+    other occurrences were updated."""
+    targets = scope_targets(conn, task_id, scope)
+    update_task(conn, task_id, dict(patch))
+    t = get_task_row(conn, task_id)
+    if scope == "this" or not t["recurrence_id"]:
+        return 0
+    changed = [k for k in patch if k in SCOPED_FIELDS]
+    if not changed:
+        return 0
+    anchor = date.fromisoformat(t["due_date"] or t["occurrence_date"] or today_local(settings).isoformat())
+    rec = row(conn.execute("SELECT * FROM recurrences WHERE id = ?", (t["recurrence_id"],)).fetchone())
+    tpl = jload(rec.get("template"), None)
+    fresh = build_template(conn, t, anchor, settings)
+    if not isinstance(tpl, dict):
+        tpl = fresh  # 0.2 series: the template is created from this occurrence
+    else:
+        for k in changed:
+            if k in TEMPLATE_FIELDS or k == "tags":
+                tpl[k] = fresh[k]
+        if "planned_date" in changed:
+            tpl["planned_offset"] = fresh["planned_offset"]
+        if "next_review_at" in changed:
+            tpl["review_offset"] = fresh["review_offset"]
+    cols = {k: t[k] for k in SERIES_COLUMNS if k in changed}
+    conn.execute(f"UPDATE recurrences SET {''.join(f'{k} = ?, ' for k in cols)}template = ?, updated_at = ? WHERE id = ?",
+                 [*cols.values(), jdump(tpl), now_utc(), t["recurrence_id"]])
+    plain = {k: (fresh[k] if k in fresh else t[k]) for k in changed if k not in ("planned_date", "next_review_at")}
+    if "links" in plain:
+        plain["links"] = fresh["links"]
+    for oid in targets:
+        o = get_task_row(conn, oid)
+        fields = dict(plain)
+        if o["due_date"] and ("planned_date" in changed or "next_review_at" in changed):
+            df = _date_fields(tpl, date.fromisoformat(o["due_date"]), settings)
+            if "planned_date" in changed:
+                fields["planned_date"] = df["planned_date"] if t["planned_date"] else None
+            if "next_review_at" in changed:
+                fields["next_review_at"] = df["next_review_at"]
+        if "project_id" in fields:  # groupings of the old project do not apply; keep the ones that do
+            for g in GROUPING_KIND:
+                if g in fields:
+                    gid = fields[g]
+                    ok = gid is None or conn.execute("SELECT 1 FROM groupings WHERE id = ? AND project_id = ?", (gid, fields["project_id"])).fetchone()
+                    if not ok:
+                        fields[g] = None
+        update_task(conn, oid, fields)
+    add_history(conn, task_id, "cambio", f"Cambio aplicado también a {len(targets)} ocurrencia(s) de la serie")
+    return len(targets)
+
+
 def delete_series(conn, rec_id: int, mode: str) -> dict[str, int]:
     """Delete a series. mode='conservar': the occurrences become normal tasks.
     mode='eliminar_pendientes': not started (backlog, pendiente) and skipped (cancelada) ones are deleted;
@@ -279,6 +358,9 @@ def update(conn, rec_id: int, patch: dict[str, Any], today: date) -> dict[str, A
     if not conn.execute("SELECT 1 FROM recurrences WHERE id = ?", (rec_id,)).fetchone():
         raise not_found("Recurrencia")
     apply_future = patch.pop("apply_to_future", False)
+    scope = patch.pop("scope", None) or ("from_today" if apply_future else "new")
+    if scope not in ("new", "from_today", "all"):
+        raise invalid("Alcance no válido")
     if "active" in patch:
         patch["active"] = 1 if patch["active"] else 0
     if patch:
@@ -291,12 +373,16 @@ def update(conn, rec_id: int, patch: dict[str, Any], today: date) -> dict[str, A
     if tpl and fields:
         tpl.update({k: v for k, v in fields.items() if k in TEMPLATE_FIELDS})
         conn.execute("UPDATE recurrences SET template = ? WHERE id = ?", (jdump(tpl), rec_id))
-    if apply_future:
-        if fields:
-            for t in rows(conn.execute(
-                    """SELECT id FROM tasks WHERE recurrence_id = ? AND occurrence_date >= ?
-                       AND status IN ('backlog','pendiente') AND archived = 0""", (rec_id, today.isoformat()))):
-                update_task(conn, t["id"], dict(fields))
+    # Scope (0.5): «new» = only occurrences generated from now on (template); «from_today» = also the open
+    # occurrences dated today or later; «all» = every occurrence, including past, finished and cancelled ones
+    if fields and scope != "new":
+        q = "SELECT id FROM tasks WHERE recurrence_id = ?"
+        p: list[Any] = [rec_id]
+        if scope == "from_today":
+            q += " AND occurrence_date >= ? AND status NOT IN ('hecha','cancelada') AND archived = 0"
+            p.append(today.isoformat())
+        for t in rows(conn.execute(q, p)):
+            update_task(conn, t["id"], dict(fields))
     return row(conn.execute("SELECT * FROM recurrences WHERE id = ?", (rec_id,)).fetchone())
 
 

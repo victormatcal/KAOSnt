@@ -6,7 +6,7 @@ import sqlite3
 from datetime import date
 from typing import Any
 
-from .db import jdump, jload, now_utc, row, rows
+from .db import jdump, jload, multi_clause, now_utc, row, rows, split_values
 from .errors import AppError, invalid, missing_ref, not_found
 
 STATUS_LABEL = {
@@ -409,30 +409,55 @@ def list_tasks(conn, f: dict[str, Any]) -> list[dict[str, Any]]:
             where.append("t.status <> 'backlog'")
         if not f.get("include_closed"):
             where.append("t.status NOT IN ('hecha','cancelada')")
+    # Multi-value filters (0.5): comma-separated ids, «none» = without value. Single values keep working.
     for key in ("project_id", "assignee_id", "parent_id", "recurrence_id"):
         if f.get(key) not in (None, ""):
-            if f[key] == "none":
-                where.append(f"t.{key} IS NULL")
-            else:
-                where.append(f"t.{key} = ?")
-                params.append(int(f[key]))
+            c = multi_clause(f"t.{key}", f[key], params)
+            if c:
+                where.append(c)
     if f.get("person_id"):
-        where.append("(t.assignee_id = ? OR t.reviewer_id = ?)")
-        params += [int(f["person_id"])] * 2
+        ids, with_none = split_values(f["person_id"])
+        parts = []
+        if ids:
+            marks = ",".join("?" for _ in ids)
+            parts.append(f"t.assignee_id IN ({marks}) OR t.reviewer_id IN ({marks})")
+            params += ids * 2
+        if with_none:
+            parts.append("t.assignee_id IS NULL")
+        if parts:
+            where.append("(" + " OR ".join(parts) + ")")
+    if f.get("client_id"):
+        ids, with_none = split_values(f["client_id"])
+        parts = []
+        if ids:
+            parts.append(f"t.project_id IN (SELECT id FROM projects WHERE client_id IN ({','.join('?' for _ in ids)}))")
+            params += ids
+        if with_none:  # tasks without a project or whose project has no client
+            parts.append("t.project_id IS NULL OR t.project_id IN (SELECT id FROM projects WHERE client_id IS NULL)")
+        if parts:
+            where.append("(" + " OR ".join(parts) + ")")
     prios = [p for p in (f.get("priority") or "").split(",") if p]
     if prios:
         where.append(f"t.priority IN ({','.join('?' for _ in prios)})")
         params += prios
-    if f.get("condition"):
-        if f["condition"] == "cualquiera":
-            where.append("t.condition IS NOT NULL")
-        else:
-            where.append("t.condition = ?")
-            params.append(f["condition"])
-    if f.get("tag"):
+    conds = [c for c in (f.get("condition") or "").split(",") if c]
+    if conds:
+        parts = []
+        if "cualquiera" in conds:
+            parts.append("t.condition IS NOT NULL")
+        named = [c for c in conds if c in ("espera", "bloqueada")]
+        if named:
+            parts.append(f"t.condition IN ({','.join('?' for _ in named)})")
+            params += named
+        if "none" in conds:
+            parts.append("t.condition IS NULL")
+        if parts:
+            where.append("(" + " OR ".join(parts) + ")")
+    tags = [x for x in (f.get("tag") or "").split(",") if x]
+    if tags:
         where.append("EXISTS (SELECT 1 FROM task_tags tt JOIN tags g ON g.id = tt.tag_id "
-                     "WHERE tt.task_id = t.id AND g.name = ? COLLATE NOCASE)")
-        params.append(f["tag"])
+                     f"WHERE tt.task_id = t.id AND g.name COLLATE NOCASE IN ({','.join('?' for _ in tags)}))")
+        params += tags
     if f.get("date_from"):
         where.append("(t.due_date >= ? OR t.planned_date >= ? OR substr(t.next_review_at,1,10) >= ?)")
         params += [f["date_from"]] * 3

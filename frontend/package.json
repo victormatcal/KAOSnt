@@ -1,6 +1,6 @@
 {
   "name": "kaosnt-frontend",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "KAOSnt frontend (React + TypeScript). Compiled to frontend/dist and served by the backend.",
   "scripts": {

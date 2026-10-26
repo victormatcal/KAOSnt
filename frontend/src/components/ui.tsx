@@ -241,3 +241,52 @@ export function Section({ title, count, children, actions, id }: { title: string
     </section>
   );
 }
+
+/** Comma-separated multi-value string ↔ array («3,7,none»). */
+export const splitMulti = (v: string | undefined | null): string[] => (v ? String(v).split(",").filter(Boolean) : []);
+export const joinMulti = (a: string[]): string => a.join(",");
+
+/** Multiple-choice filter (0.5): check boxes with a search box, chips of the chosen values and «Clear all».
+ * The value is a comma-separated list, so a filter with a single value from 0.4 still works. */
+export function MultiSelect({ label, options, value, onChange, allLabel }: {
+  label: string; options: { value: string; label: string }[]; value: string | undefined; onChange: (v: string) => void; allLabel?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const box = useRef<HTMLDivElement>(null);
+  const chosen = splitMulti(value);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+  const toggle = (v: string) => onChange(joinMulti(chosen.includes(v) ? chosen.filter((x) => x !== v) : [...chosen, v]));
+  const labelOf = (v: string) => options.find((o) => o.value === v)?.label || v;
+  const nq = q.trim().toLowerCase();
+  const shown = options.filter((o) => !nq || o.label.toLowerCase().includes(nq));
+  const summary = !chosen.length ? (allLabel ?? t("Todos")) : chosen.length === 1 ? labelOf(chosen[0]) : t("{n} seleccionados", { n: chosen.length });
+  return (
+    <div className="multiselect" ref={box} onKeyDown={(e: any) => { if (e.key === "Escape" && open) { e.stopPropagation(); setOpen(false); } }}>
+      <span className="ms-label">{label}</span>
+      <button type="button" className={"ms-button" + (chosen.length ? " has-value" : "")} aria-haspopup="listbox" aria-expanded={open}
+        aria-label={t("{filtro}: {valor}", { filtro: label, valor: summary })} title={chosen.map(labelOf).join(", ")} onClick={() => setOpen(!open)}>
+        <span className="ms-summary">{summary}</span> <span aria-hidden="true">▾</span>
+      </button>
+      {open && <div className="ms-popup" role="listbox" aria-multiselectable="true" aria-label={label}>
+        {options.length > 6 && <input type="search" className="ms-search" aria-label={t("Buscar en {filtro}", { filtro: label })} placeholder={t("Buscar…")}
+          value={q} onChange={(e: any) => setQ(e.target.value)} autoFocus />}
+        <ul className="plain ms-options">
+          {shown.map((o) => <li key={o.value}><label className="check"><input type="checkbox" checked={chosen.includes(o.value)} onChange={() => toggle(o.value)} /> {o.label}</label></li>)}
+          {!shown.length && <li className="muted small">{t("Sin coincidencias")}</li>}
+        </ul>
+        <div className="ms-foot">
+          <button type="button" className="ghost small" disabled={!chosen.length} onClick={() => onChange("")}>{t("Quitar todos")}</button>
+          <button type="button" className="small" onClick={() => setOpen(false)}>{t("Cerrar")}</button>
+        </div>
+      </div>}
+      {chosen.length > 1 && <span className="ms-chips">{chosen.map((v) => <span key={v} className="tagchip">{labelOf(v)}
+        <button type="button" className="ghost small" aria-label={t("Quitar {valor}", { valor: labelOf(v) })} onClick={() => toggle(v)}>×</button></span>)}</span>}
+    </div>
+  );
+}

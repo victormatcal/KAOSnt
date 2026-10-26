@@ -7,8 +7,10 @@ import { Markdown } from "../lib/markdown";
 import { useApp } from "../lib/store";
 import type { HistoryEntry, Task, TaskDetail } from "../lib/types";
 import { DateInput, DateTimeInput } from "./DateInput";
+import { EditorMode, MarkdownEditor } from "./MarkdownEditor";
 import { DeleteSeriesDialog, emptyRule, RuleEditor, ruleIsValid, RuleValue } from "./Recurrences";
 import { TaskReminders } from "./ReminderCenter";
+import { askScope, needsScope, OccurrenceScope } from "./ScopeDialog";
 import { ReminderForm } from "./ReminderForm";
 import { AccItem, AutoText, Chip, ErrorBox, Field, LinksEditor, PersonSelect, ProjectSelect, TagPicker, TaskPicker } from "./ui";
 
@@ -21,9 +23,11 @@ const EDITABLE: (keyof TaskDetail)[] = [
 const KEEP_EMPTY_STRING = new Set(["title", "description", "wait_reason", "wait_on", "wait_next_action"]);
 
 /** Task PATCH; if the commercial approval is pending, asks for explicit confirmation.
- * With undo=true the server stores a snapshot and returns undo_id for «Undo». */
-export async function patchTask(id: number, body: Record<string, unknown>, undo = false): Promise<TaskDetail | null> {
-  const url = `/api/tasks/${id}${undo ? "?undo=1" : ""}`;
+ * With undo=true the server stores a snapshot and returns undo_id for «Undo».
+ * scope (0.5, recurring tasks): this | following | all — see ScopeDialog. */
+export async function patchTask(id: number, body: Record<string, unknown>, undo = false, scope: OccurrenceScope = "this"): Promise<(TaskDetail & { updated_occurrences?: number }) | null> {
+  const q = [undo ? "undo=1" : "", scope !== "this" ? `scope=${scope}` : ""].filter(Boolean).join("&");
+  const url = `/api/tasks/${id}${q ? "?" + q : ""}`;
   try {
     return await api.patch<TaskDetail>(url, body);
   } catch (e) {
@@ -96,18 +100,37 @@ export function TaskPanel({ id, onClose }: { id: number; onClose: () => void }) 
     const body: Record<string, any> = {};
     for (const k of dirtyKeys) body[k as string] = draft[k as string] === "" && !KEEP_EMPTY_STRING.has(k as string) ? null : draft[k as string];
     if (typeof body.title === "string" && !body.title.trim()) { setError(t("El título es obligatorio")); return false; }
+    let scope: OccurrenceScope = "this";
+    if (needsScope(task, Object.keys(body))) {  // recurring occurrence: ask which occurrences the change applies to
+      const s = await askScope("occurrence");
+      if (!s) return false;
+      scope = s;
+    }
     setSaving(true);
     setError("");
     let ok = false;
-    try { const x = await patchTask(task.id, body); if (x) { setTask(x); setDraft(pick(x)); app.changed(); app.toast(t("Tarea guardada"), "ok"); ok = true; } }
+    try {
+      const x = await patchTask(task.id, body, false, scope);
+      if (x) {
+        setTask(x); setDraft(pick(x)); app.changed(); ok = true;
+        const msg = x.updated_occurrences ? t("Tarea guardada y aplicada a {n} ocurrencia(s) más", { n: x.updated_occurrences }) : t("Tarea guardada");
+        if ((x as any).undo_id) app.undoable(msg, (x as any).undo_id); else app.toast(msg, "ok");
+      }
+    }
     catch (e: any) { setError(e.message); }
     setSaving(false);
     return ok;
   }
   /** Direct action with «Undo». */
   const quick = (body: Record<string, unknown>, msg: string) => run(() => patchTask(task.id, body, true), msg);
+  /** Immediate change of an inheritable field (tags, priority): asks the scope first on recurring tasks. */
+  const scoped = async (body: Record<string, unknown>, msg?: string) => {
+    let scope: OccurrenceScope = "this";
+    if (needsScope(task, Object.keys(body))) { const s = await askScope("occurrence"); if (!s) return false; scope = s; }
+    return run(() => patchTask(task.id, body, false, scope), msg);
+  };
   const setTags = async (tags: string[]) => {
-    if (await run(() => api.patch<TaskDetail>(`/api/tasks/${task.id}`, { tags }))) await app.reloadBoot();
+    if (await scoped({ tags })) await app.reloadBoot();
   };
 
   const groupings = app.boot.groupings.filter((g) => g.project_id === draft.project_id);
@@ -127,7 +150,7 @@ export function TaskPanel({ id, onClose }: { id: number; onClose: () => void }) 
       <div className="panel-bar">
         <label className="inline">{t("Estado")} <select value={task.status} onChange={(e: any) => quick({ status: e.target.value }, t("Estado: {estado}", { estado: STATUS[e.target.value as keyof typeof STATUS] }))}>
           {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS[s]}</option>)}</select></label>
-        <label className="inline">{t("Prioridad")} <select value={task.priority} onChange={(e: any) => run(() => patchTask(task.id, { priority: e.target.value }), t("Prioridad actualizada"))}>
+        <label className="inline">{t("Prioridad")} <select value={task.priority} onChange={(e: any) => scoped({ priority: e.target.value }, t("Prioridad actualizada"))}>
           {Object.entries(PRIORITY).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
         {task.status === "backlog" && <button onClick={() => quick({ status: "pendiente" }, t("Promovida a Pendiente"))}>{t("Promover a Pendiente")}</button>}
         {task.condition && <Chip tone={task.condition === "bloqueada" ? "danger" : "warn"}>{CONDITION[task.condition]}</Chip>}
@@ -268,12 +291,12 @@ function TaskRefLabel({ task }: { task: { id: number; title: string; status: str
 }
 
 function DescriptionField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [preview, setPreview] = useState(false);
+  const [mode, setMode] = useState<EditorMode>("editar");
   return (
     <div className="field">
-      <div className="row tight"><span className="field-label">{t("Descripción")}</span><span className="spacer" />
-        <button className="ghost small" onClick={() => setPreview(!preview)} aria-pressed={preview}>{preview ? t("Editar") : t("Vista previa")}</button></div>
-      {preview ? <Markdown text={value} /> : <AutoText value={value} minRows={3} maxRows={14} onChange={onChange} aria-label={t("Descripción")} placeholder={t("Texto libre (admite Markdown)")} />}
+      <span className="field-label">{t("Descripción")}</span>
+      <MarkdownEditor compact value={value} onChange={onChange} mode={mode} onModeChange={setMode} label={t("Descripción")}
+        placeholder={t("Texto libre (admite Markdown)")} />
     </div>
   );
 }
@@ -346,15 +369,9 @@ function Repetition({ task, run, saveFirst, dirty, onDeleted }: { task: TaskDeta
     const r = task.recurrence;
     return <div>
       <p><strong>{describeRule(r)}</strong> · {t("desde {fecha}", { fecha: fmtDate(r.start_date) })}{r.end_date ? " " + t("hasta {fecha}", { fecha: fmtDate(r.end_date) }) : ""} · {r.active ? t("activa") : t("pausada")}</p>
-      <p className="hint">{t("Esta tarea es una ocurrencia de la serie (fecha {fecha}). Lo que cambies aquí solo afecta a esta ocurrencia, salvo que pulses «Aplicar estos datos a la serie».", { fecha: fmtDate(task.occurrence_date) })}</p>
+      <p className="hint">{t("Esta tarea es una ocurrencia de la serie (fecha {fecha}). Al guardar cambios se te preguntará si afectan solo a esta ocurrencia, a esta y las posteriores o a todas.", { fecha: fmtDate(task.occurrence_date) })}</p>
       <div className="row">
         <button onClick={async () => { await api.patch(`/api/recurrences/${r.id}`, { active: !r.active }); await run(() => api.get<TaskDetail>(`/api/tasks/${task.id}`), r.active ? t("Serie pausada: no se generarán más ocurrencias") : t("Serie reactivada")); }}>{r.active ? t("Pausar la serie") : t("Reactivar la serie")}</button>
-        <button onClick={async () => {
-          if (!window.confirm(t("¿Aplicar los datos de esta tarea (título, proyecto, responsable, revisor, tipo, prioridad, estimación, descripción, agrupaciones, aprobación, revisiones, enlaces, etiquetas, pasos y recordatorios) a la serie y a sus ocurrencias futuras pendientes?"))) return;
-          if (dirty && !(await saveFirst())) return;
-          try { const res = await api.post<TaskDetail & { updated_occurrences: number }>(`/api/tasks/${task.id}/apply-to-series`); await run(async () => res, t("Aplicado a la serie y a {n} ocurrencia(s) futura(s)", { n: res.updated_occurrences })); }
-          catch (e: any) { app.toast(e.message, "error"); }
-        }}>{t("Aplicar estos datos a la serie")}</button>
         <button className="danger" onClick={() => setDeleting(true)}>{t("Eliminar serie")}</button>
       </div>
       {deleting && <DeleteSeriesDialog rec={{ id: r.id, title: task.title }} onClose={() => setDeleting(false)} onDone={() => { setDeleting(false); onDeleted(); }} />}

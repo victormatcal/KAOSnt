@@ -126,5 +126,29 @@ def jload(s: str | None, default: Any) -> Any:
         return default
 
 
+def split_values(raw: Any) -> tuple[list[int], bool]:
+    """Multi-value id filter (0.5): "3,7,none" → ([3, 7], True). `none` stands for NULL. Invalid items are ignored."""
+    ids, with_none = [], False
+    for v in str(raw or "").split(","):
+        v = v.strip()
+        if v == "none":
+            with_none = True
+        elif v.isdigit():
+            ids.append(int(v))
+    return ids, with_none
+
+
+def multi_clause(col: str, raw: Any, params: list[Any]) -> str | None:
+    """SQL condition «col IN (…) OR col IS NULL» for a multi-value filter, or None if the filter is empty."""
+    ids, with_none = split_values(raw)
+    parts = []
+    if ids:
+        parts.append(f"{col} IN ({','.join('?' for _ in ids)})")
+        params.extend(ids)
+    if with_none:
+        parts.append(f"{col} IS NULL")
+    return "(" + " OR ".join(parts) + ")" if parts else None
+
+
 def jdump(v: Any) -> str:
     return json.dumps(v, ensure_ascii=False)

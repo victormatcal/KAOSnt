@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from .db import now_utc, row, rows
+from .db import now_utc, row, rows, split_values
 from .errors import AppError, invalid, missing_ref, not_found
 from .settings import get, get_all
 from .tasks import create_task, set_tags
@@ -151,17 +151,43 @@ def list_notes(conn, f: dict[str, Any]) -> list[dict[str, Any]]:
             where.append("project_id IS NULL")
         elif scope == "fijadas":
             where.append("pinned = 1")
-    if f.get("project_id") == "none":
-        where.append("project_id IS NULL")
-    elif f.get("project_id"):
-        where.append("(project_id = ? OR id IN (SELECT l.note_id FROM note_task_links l JOIN tasks t ON t.id = l.task_id WHERE t.project_id = ?))")
-        params += [int(f["project_id"])] * 2
-    if f.get("kind"):
-        where.append("kind = ?")
-        params.append(f["kind"])
-    if f.get("tag"):
-        where.append("EXISTS (SELECT 1 FROM note_tags nt JOIN tags g ON g.id = nt.tag_id WHERE nt.note_id = notes.id AND g.name = ? COLLATE NOCASE)")
-        params.append(f["tag"])
+    # Multi-value filters (0.5): comma-separated, «none» = without value
+    if f.get("project_id"):
+        ids, with_none = split_values(f["project_id"])
+        parts = []
+        if ids:
+            m = ",".join("?" for _ in ids)
+            parts.append(f"project_id IN ({m}) OR id IN (SELECT l.note_id FROM note_task_links l JOIN tasks t ON t.id = l.task_id WHERE t.project_id IN ({m}))")
+            params += ids * 2
+        if with_none:
+            parts.append("project_id IS NULL")
+        if parts:
+            where.append("(" + " OR ".join(parts) + ")")
+    if f.get("client_id"):
+        ids, with_none = split_values(f["client_id"])
+        parts = []
+        if ids:
+            parts.append(f"project_id IN (SELECT id FROM projects WHERE client_id IN ({','.join('?' for _ in ids)}))")
+            params += ids
+        if with_none:
+            parts.append("project_id IS NULL OR project_id IN (SELECT id FROM projects WHERE client_id IS NULL)")
+        if parts:
+            where.append("(" + " OR ".join(parts) + ")")
+    kinds = [k for k in (f.get("kind") or "").split(",") if k]
+    if kinds:
+        parts = []
+        named = [k for k in kinds if k != "none"]
+        if named:
+            parts.append(f"kind IN ({','.join('?' for _ in named)})")
+            params += named
+        if "none" in kinds:
+            parts.append("kind IS NULL")
+        where.append("(" + " OR ".join(parts) + ")")
+    tags = [x for x in (f.get("tag") or "").split(",") if x]
+    if tags:
+        where.append("EXISTS (SELECT 1 FROM note_tags nt JOIN tags g ON g.id = nt.tag_id WHERE nt.note_id = notes.id "
+                     f"AND g.name COLLATE NOCASE IN ({','.join('?' for _ in tags)}))")
+        params += tags
     if f.get("linked") == "1":
         where.append("EXISTS (SELECT 1 FROM note_task_links l WHERE l.note_id = notes.id)")
     q = f"SELECT * FROM notes WHERE {' AND '.join(where)} ORDER BY pinned DESC, updated_at DESC LIMIT 1000"

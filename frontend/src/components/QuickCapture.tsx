@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { todayIn } from "../lib/dates";
+import { requestNoteFocus } from "../lib/focus";
 import { t } from "../lib/i18n";
 import { NOTE_KIND, PROJECT_STATUS, STATUS, projectTypeLabel } from "../lib/labels";
 import { useApp } from "../lib/store";
@@ -101,6 +102,7 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
   }, [q, archived, trash]);
   const open = (r: Result) => {
     onClose();
+    if (r.type === "nota") requestNoteFocus(r.id);  // the note opens ready to type at its last line
     if (r.type === "tarea") app.openTask(r.id); else app.navigate(r.type === "nota" ? `#/notas/${r.id}` : `#/proyectos/${r.id}`);
   };
   return (
